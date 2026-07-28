@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+/* ============================================================
+   Sistema de diseño RuteoTiendas
+   Identidad existente: ámbar #F2A33C + navy #16263E.
+   Neutros con sesgo azul (no gris genérico) y color semántico
+   separado del acento.
+   ============================================================ */
+@theme {
+  --color-amber: #f2a33c;
+  --color-amber-600: #de8a1c;
+  --color-amber-050: #fef4e4;
+
+  --color-navy-900: #0f1d30;
+  --color-navy-800: #16263e;
+  --color-navy-700: #1e3352;
+  --color-navy-600: #2a4568;
+
+  --color-canvas: #f4f6f9;
+  --color-surface: #ffffff;
+  --color-surface-2: #fafbfd;
+  --color-line: #e2e7ef;
+  --color-line-strong: #cbd3e0;
+
+  --color-ink: #101b2b;
+  --color-ink-2: #4a566b;
+  --color-ink-3: #7c8798;
+
+  /* semánticos: independientes del acento */
+  --color-ok: #0e9f6e;
+  --color-ok-bg: #e4f6ef;
+  --color-warn: #c2760b;
+  --color-warn-bg: #fcf2df;
+  --color-bad: #d64545;
+  --color-bad-bg: #fcebeb;
+  --color-live: #2e7dd1;
+  --color-live-bg: #e7f0fb;
+
+  /* colores de ruta */
+  --color-r1: #e8833a;
+  --color-r2: #2e7dd1;
+  --color-r3: #0e8f9e;
+  --color-r4: #7a5af8;
+  --color-r5: #c2439b;
+  --color-r6: #7c9a1f;
+
+  --radius-md: 10px;
+  --radius-lg: 14px;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Todo dato numérico se alinea en columna */
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-amber);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
