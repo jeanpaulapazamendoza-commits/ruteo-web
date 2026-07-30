@@ -28,11 +28,14 @@ export default async function DetalleCarga({
   const supabase = await crearClienteServidor();
 
   const esTodas = id === "todas";
+  const esSinArchivo = id === "sin-archivo";
 
-  let titulo = "Todas las tiendas activas";
-  let subtitulo = "Maestro completo";
+  let titulo = esSinArchivo ? "Tiendas sin archivo asociado" : "Todas las tiendas activas";
+  let subtitulo = esSinArchivo
+    ? "Cargadas antes de que se registraran los archivos"
+    : "Acumulado de todas las cargas";
 
-  if (!esTodas) {
+  if (!esTodas && !esSinArchivo) {
     const { data: imp } = await supabase
       .from("importaciones")
       .select("nombre_archivo, filas, creado_en, perfiles:creado_por(nombre)")
@@ -56,7 +59,9 @@ export default async function DetalleCarga({
 
   const { data, count } = esTodas
     ? await consulta.eq("activo", true)
-    : await consulta.eq("importacion_id", id);
+    : esSinArchivo
+      ? await consulta.is("importacion_id", null).eq("activo", true)
+      : await consulta.eq("importacion_id", id);
 
   const tiendas = (data ?? []) as Tienda[];
   const bultos = tiendas.reduce((a, t) => a + t.bultos_default, 0);

@@ -29,13 +29,38 @@ const color = (i: number) => COLORES[i % COLORES.length];
 
 type Modo = "capacidad" | "clasico" | "manual";
 
+export type Carga = {
+  id: string;
+  nombre: string;
+  filas: number;
+  creado_en: string;
+  autor: string | null;
+  ruteada: boolean;
+};
+
+function etiquetaCarga(c: Carga) {
+  const d = new Date(c.creado_en);
+  const fecha = d.toLocaleDateString("es-PE", { day: "2-digit", month: "short" });
+  const hora = d.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" });
+  return (
+    `${c.ruteada ? "✓ " : ""}${c.nombre} — ${c.filas} tiendas · ${fecha} ${hora}` +
+    (c.autor ? ` · ${c.autor}` : "")
+  );
+}
+
 export default function Planificador({
   tiendas,
+  cargas = [],
+  haySinArchivo = false,
+  seleccion = null,
   despachos = [],
   idDespacho = null,
   gruposIniciales = null,
 }: {
   tiendas: TiendaMapa[];
+  cargas?: Carga[];
+  haySinArchivo?: boolean;
+  seleccion?: string | null;
   despachos?: { id: string; nombre: string | null; fecha: string }[];
   idDespacho?: string | null;
   gruposIniciales?: string[][] | null;
@@ -88,6 +113,10 @@ export default function Planificador({
   const [verNumeros, setVerNumeros] = useState(true);
 
   const porId = useMemo(() => new Map(tiendas.map((t) => [t.id, t])), [tiendas]);
+  const cargaSeleccionada = useMemo(
+    () => cargas.find((c) => c.id === seleccion) ?? null,
+    [cargas, seleccion],
+  );
 
   /** En modo manual los grupos se calculan al vuelo: contador en tiempo real. */
   const gruposManualCalculados: Grupo[] = useMemo(() => {
@@ -179,11 +208,14 @@ export default function Planificador({
     setError(null);
     try {
       const res = await guardarDespacho({
-        nombre: `Despacho ${new Date().toLocaleDateString("es-PE")}`,
+        nombre: cargaSeleccionada
+          ? `Despacho de ${cargaSeleccionada.nombre}`
+          : `Despacho ${new Date().toLocaleDateString("es-PE")}`,
         rutas,
         cfg: cfgR,
         // Guardar la configuración permite reabrir el despacho tal cual se hizo
         parametros: { modo, ...cfgA, ...cfgR },
+        importacionId: cargaSeleccionada?.id ?? null,
       });
       setGuardado(res);
     } catch (e) {
@@ -319,24 +351,59 @@ export default function Planificador({
       {/* ---------------- Configuración ---------------- */}
       <aside className="min-w-0 overflow-y-auto border-r border-line bg-surface p-4">
         <Seccion titulo="Origen de los puntos">
-          <Campo etiqueta="Trabajar sobre">
+          <Campo etiqueta="¿Qué vas a rutear?">
             <select
-              value={idDespacho ?? ""}
-              onChange={(e) =>
+              value={idDespacho ? `d:${idDespacho}` : `c:${seleccion ?? "todas"}`}
+              onChange={(e) => {
+                const [tipo, valor] = e.target.value.split(":");
                 router.push(
-                  e.target.value ? `/planificador?despacho=${e.target.value}` : "/planificador",
-                )
-              }
+                  tipo === "d"
+                    ? `/planificador?despacho=${valor}`
+                    : `/planificador?carga=${valor}`,
+                );
+              }}
               className="w-full rounded-[9px] border border-line-strong bg-surface px-2 py-1.5 text-[13px]"
             >
-              <option value="">Tiendas activas ({tiendas.length})</option>
-              {despachos.map((d) => (
-                <option key={d.id} value={d.id}>
-                  Despacho {d.fecha} — {d.nombre ?? "sin nombre"}
-                </option>
-              ))}
+              {cargas.length > 0 && (
+                <optgroup label="Archivos cargados (lo habitual)">
+                  {cargas.map((c) => (
+                    <option key={c.id} value={`c:${c.id}`}>
+                      {etiquetaCarga(c)}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {despachos.length > 0 && (
+                <optgroup label="Continuar un despacho (añadir puntos)">
+                  {despachos.map((d) => (
+                    <option key={d.id} value={`d:${d.id}`}>
+                      {d.nombre ?? "Despacho"} — {d.fecha}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              <optgroup label="Otros">
+                {haySinArchivo && (
+                  <option value="c:sin-archivo">Tiendas sin archivo asociado</option>
+                )}
+                <option value="c:todas">Todas las tiendas activas</option>
+              </optgroup>
             </select>
           </Campo>
+
+          {!idDespacho && seleccion === "todas" && (
+            <p className="mb-2.5 rounded-[10px] border border-warn/30 bg-warn-bg px-2.5 py-2 text-[12px] text-warn">
+              Estás viendo <b>todas</b> las tiendas acumuladas, incluidas las que
+              ya despachaste. Para el día a día elige el archivo que subiste.
+            </p>
+          )}
+
+          {!idDespacho && cargaSeleccionada?.ruteada && (
+            <p className="mb-2.5 rounded-[10px] border border-ok/30 bg-ok-bg px-2.5 py-2 text-[12px] text-ok">
+              ✓ Esta carga <b>ya fue ruteada</b>. Si la vuelves a despachar,
+              se creará un despacho nuevo.
+            </p>
+          )}
 
           {idDespacho && (
             <div className="rounded-[10px] border border-line bg-canvas p-2.5 text-[12px] text-ink-2">

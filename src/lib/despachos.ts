@@ -57,11 +57,14 @@ export async function guardarDespacho({
   rutas,
   cfg,
   parametros,
+  importacionId,
 }: {
   nombre: string;
   rutas: Ruta[];
   cfg: ConfigRutear;
   parametros: Record<string, unknown>;
+  /** Carga de tiendas de la que salió este despacho, si aplica. */
+  importacionId?: string | null;
 }): Promise<ResumenGuardado> {
   const supabase = crearClienteNavegador();
 
@@ -114,6 +117,7 @@ export async function guardarDespacho({
       estado: "planificado",
       cd_lat: cfg.cd_lat,
       cd_lon: cfg.cd_lon,
+      importacion_id: importacionId ?? null,
       parametros,
       kpis,
       rutas: rutasPayload,
