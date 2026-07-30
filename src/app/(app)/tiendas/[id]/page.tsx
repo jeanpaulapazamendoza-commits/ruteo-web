@@ -1,23 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { crearClienteServidor } from "@/lib/supabase/server";
-import { BarraSuperior, Tarjeta, Pastilla, EstadoVacio } from "@/components/ui";
-
-type Tienda = {
-  id: string;
-  codigo: string;
-  nombre: string;
-  distrito: string | null;
-  lat: number;
-  lon: number;
-  bultos_default: number;
-  prioridad: number;
-  ventana_ini: string | null;
-  ventana_fin: string | null;
-  activo: boolean;
-};
-
-const hhmm = (h: string | null) => (h ? h.slice(0, 5) : null);
+import { BarraSuperior, Tarjeta, EstadoVacio } from "@/components/ui";
+import TablaTiendas, { type TiendaFila } from "@/components/TablaTiendas";
 
 export default async function DetalleCarga({
   params,
@@ -63,7 +48,7 @@ export default async function DetalleCarga({
       ? await consulta.is("importacion_id", null).eq("activo", true)
       : await consulta.eq("importacion_id", id);
 
-  const tiendas = (data ?? []) as Tienda[];
+  const tiendas = (data ?? []) as TiendaFila[];
   const bultos = tiendas.reduce((a, t) => a + t.bultos_default, 0);
   const conVentana = tiendas.filter((t) => t.ventana_ini && t.ventana_fin).length;
   const prioritarias = tiendas.filter((t) => t.prioridad > 0).length;
@@ -94,58 +79,25 @@ export default async function DetalleCarga({
       />
 
       <div className="p-4">
-        <Tarjeta className="overflow-hidden">
-          {tiendas.length === 0 ? (
+        {tiendas.length === 0 ? (
+          <Tarjeta>
             <EstadoVacio
               icono="🏪"
-              titulo="Esta carga no tiene tiendas visibles"
-              descripcion="Puede que las tiendas de este archivo se hayan vuelto a cargar con otro archivo posterior, que es el que ahora las reclama."
+              titulo="Esta carga no tiene tiendas"
+              descripcion="Puede que ya las hayas eliminado, o que un archivo posterior volviera a cargarlas y ahora pertenezcan a esa carga."
             />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] border-collapse text-[12.5px]">
-                <thead>
-                  <tr>
-                    {["Código", "Tienda", "Distrito", "Bultos", "Ventana", "Coordenadas", "Estado"].map((h) => (
-                      <th
-                        key={h}
-                        className="whitespace-nowrap border-b border-line bg-surface-2 px-3 py-2.5 text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-3"
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {tiendas.map((t) => (
-                    <tr key={t.id} className="hover:bg-surface-2">
-                      <td className="num border-b border-line px-3 py-2.5 font-semibold">{t.codigo}</td>
-                      <td className="border-b border-line px-3 py-2.5 font-semibold text-ink">
-                        {t.nombre}
-                        {t.prioridad > 0 && <span className="ml-2 text-amber-600">⭐ P{t.prioridad}</span>}
-                      </td>
-                      <td className="border-b border-line px-3 py-2.5 text-ink-2">{t.distrito ?? "—"}</td>
-                      <td className="num border-b border-line px-3 py-2.5 text-ink-2">{t.bultos_default}</td>
-                      <td className="num border-b border-line px-3 py-2.5 text-ink-2">
-                        {hhmm(t.ventana_ini) && hhmm(t.ventana_fin)
-                          ? `${hhmm(t.ventana_ini)}–${hhmm(t.ventana_fin)}`
-                          : "—"}
-                      </td>
-                      <td className="num border-b border-line px-3 py-2.5 text-ink-3">
-                        {t.lat.toFixed(5)}, {t.lon.toFixed(5)}
-                      </td>
-                      <td className="border-b border-line px-3 py-2.5">
-                        <Pastilla tono={t.activo ? "ok" : "plan"}>
-                          {t.activo ? "Activa" : "Inactiva"}
-                        </Pastilla>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Tarjeta>
+          </Tarjeta>
+        ) : (
+          <Tarjeta className="p-3.5">
+            <TablaTiendas
+              tiendas={tiendas}
+              total={count ?? tiendas.length}
+              cargaId={esTodas || esSinArchivo ? null : id}
+              esSinArchivo={esSinArchivo}
+              nombreCarga={titulo}
+            />
+          </Tarjeta>
+        )}
         {(count ?? 0) > 1000 && (
           <p className="mt-2 text-[12px] text-ink-3">
             Mostrando las primeras 1000 de {count?.toLocaleString("es-PE")}.
