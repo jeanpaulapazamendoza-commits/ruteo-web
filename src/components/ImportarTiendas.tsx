@@ -122,6 +122,14 @@ export default function ImportarTiendas({ orgId }: { orgId: string | null }) {
         guardadas += lote.length;
       }
 
+      // Deja constancia del archivo y asocia las tiendas que trajo.
+      const { error: errImp } = await supabase.rpc("registrar_importacion", {
+        p_nombre: nombreArchivo || "archivo.csv",
+        p_filas: guardadas,
+        p_codigos: lectura.filas.map((f) => f.codigo),
+      });
+      if (errImp) throw errImp;
+
       setExito(`${guardadas.toLocaleString("es-PE")} tiendas guardadas.`);
       setLectura(null);
       setNombreArchivo("");

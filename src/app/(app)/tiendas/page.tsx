@@ -1,23 +1,16 @@
+import Link from "next/link";
 import { crearClienteServidor } from "@/lib/supabase/server";
-import { BarraSuperior, Tarjeta, EstadoVacio, Pastilla } from "@/components/ui";
+import { BarraSuperior, Tarjeta, EstadoVacio } from "@/components/ui";
 import ImportarTiendas from "@/components/ImportarTiendas";
 
-type Tienda = {
-  id: string;
-  codigo: string;
-  nombre: string;
-  distrito: string | null;
-  lat: number;
-  lon: number;
-  bultos_default: number;
-  prioridad: number;
-  ventana_ini: string | null;
-  ventana_fin: string | null;
-  activo: boolean;
-};
-
-function horaCorta(h: string | null) {
-  return h ? h.slice(0, 5) : null;
+function fechaHora(iso: string) {
+  const d = new Date(iso);
+  return {
+    fecha: d.toLocaleDateString("es-PE", {
+      weekday: "short", day: "2-digit", month: "short", year: "numeric",
+    }),
+    hora: d.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }),
+  };
 }
 
 export default async function PaginaTiendas() {
@@ -27,107 +20,110 @@ export default async function PaginaTiendas() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data, error, count }, { data: perfil }] = await Promise.all([
-    supabase.from("tiendas").select("*", { count: "exact" }).order("codigo").limit(200),
-    supabase.from("perfiles").select("org_id").eq("id", user?.id ?? "").maybeSingle(),
-  ]);
+  const [{ data: importaciones }, { count: totalTiendas }, { data: perfil }, { count: sueltas }] =
+    await Promise.all([
+      supabase
+        .from("importaciones")
+        .select("id, nombre_archivo, filas, creado_en, perfiles:creado_por(nombre)")
+        .order("creado_en", { ascending: false })
+        .limit(60),
+      supabase.from("tiendas").select("id", { count: "exact", head: true }).eq("activo", true),
+      supabase.from("perfiles").select("org_id").eq("id", user?.id ?? "").maybeSingle(),
+      supabase
+        .from("tiendas")
+        .select("id", { count: "exact", head: true })
+        .is("importacion_id", null),
+    ]);
 
-  const tiendas = (data ?? []) as Tienda[];
+  const archivos = importaciones ?? [];
 
   return (
     <>
-      <BarraSuperior migaja="Datos" titulo="Maestro de tiendas" />
+      <BarraSuperior migaja="Datos" titulo="Cargas de tiendas" />
 
       <div className="p-4">
         <div className="mb-4 flex flex-col items-start">
           <ImportarTiendas orgId={perfil?.org_id ?? null} />
         </div>
-        {error && (
-          <div className="mb-4 rounded-[10px] border border-bad/30 bg-bad-bg px-4 py-3 text-[13.5px] text-bad">
-            No se pudieron leer las tiendas: {error.message}
+
+        {/* Acceso al maestro completo */}
+        <Link
+          href="/tiendas/todas"
+          className="mb-3 flex items-center gap-3 rounded-[14px] border border-line bg-surface p-3.5 transition hover:border-line-strong hover:shadow-[0_2px_10px_rgba(16,27,43,0.07)]"
+        >
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] bg-amber-050 text-lg">
+            🏪
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[14px] font-bold">Todas las tiendas activas</span>
+            <span className="block text-[12px] text-ink-2">
+              El maestro completo que usa el planificador
+            </span>
+          </span>
+          <span className="num ml-auto text-[20px] font-bold">
+            {(totalTiendas ?? 0).toLocaleString("es-PE")}
+          </span>
+        </Link>
+
+        <h2 className="mb-2 mt-5 text-[10.5px] font-bold uppercase tracking-[0.11em] text-ink-3">
+          Archivos cargados
+        </h2>
+
+        {archivos.length === 0 ? (
+          <Tarjeta>
+            <EstadoVacio
+              icono="⇪"
+              titulo="Todavía no has cargado ningún archivo"
+              descripcion="Sube tu Excel o CSV con el botón de arriba. Cada carga queda registrada aquí con su fecha y hora, y puedes abrirla para ver qué tiendas trajo."
+            />
+          </Tarjeta>
+        ) : (
+          <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+            {archivos.map((a) => {
+              const { fecha, hora } = fechaHora(a.creado_en);
+              const autor = (a.perfiles as { nombre?: string } | null)?.nombre;
+              return (
+                <Link
+                  key={a.id}
+                  href={`/tiendas/${a.id}`}
+                  className="rounded-[14px] border border-line bg-surface p-3.5 transition hover:border-line-strong hover:shadow-[0_2px_10px_rgba(16,27,43,0.07)]"
+                >
+                  <div className="flex items-start gap-2.5">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[9px] bg-canvas text-base">
+                      {/\.xlsx?$/i.test(a.nombre_archivo) ? "📊" : "📄"}
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="truncate text-[14px] font-bold tracking-tight">
+                        {a.nombre_archivo}
+                      </h3>
+                      <p className="num mt-0.5 text-[11.5px] text-ink-3">
+                        {fecha} · {hora}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-2.5 flex items-center gap-2 border-t border-line pt-2.5">
+                    <span className="num text-[18px] font-bold">
+                      {(a.filas ?? 0).toLocaleString("es-PE")}
+                    </span>
+                    <span className="text-[11px] font-bold uppercase tracking-wide text-ink-3">
+                      tiendas
+                    </span>
+                    {autor && (
+                      <span className="ml-auto truncate text-[11.5px] text-ink-3">{autor}</span>
+                    )}
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
 
-        <Tarjeta className="overflow-hidden">
-          <div className="flex items-center gap-3 border-b border-line px-4 py-3">
-            <h2 className="text-[13.5px] font-bold">Tiendas registradas</h2>
-            <span className="rounded-full bg-amber-050 px-2.5 py-0.5 text-[11px] font-bold text-amber-600">
-              {count ?? 0}
-            </span>
-            <p className="ml-auto text-[12px] text-ink-3">
-              Se cargan una vez; dejas de re-subir el archivo en cada sesión.
-            </p>
-          </div>
-
-          {tiendas.length === 0 ? (
-            <EstadoVacio
-              icono="🏪"
-              titulo="Tu maestro está vacío"
-              descripcion="Aquí vivirán tus puntos de entrega con sus coordenadas, ventana horaria y bultos habituales. Al importarlos quedan guardados para siempre."
-            />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] border-collapse text-[12.5px]">
-                <thead>
-                  <tr>
-                    {[
-                      "Código",
-                      "Tienda",
-                      "Distrito",
-                      "Bultos",
-                      "Ventana",
-                      "Coordenadas",
-                      "Estado",
-                    ].map((h) => (
-                      <th
-                        key={h}
-                        className="whitespace-nowrap border-b border-line bg-surface-2 px-3 py-2.5 text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-3"
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {tiendas.map((t) => (
-                    <tr key={t.id} className="hover:bg-surface-2">
-                      <td className="num border-b border-line px-3 py-2.5 font-semibold">
-                        {t.codigo}
-                      </td>
-                      <td className="border-b border-line px-3 py-2.5 font-semibold text-ink">
-                        {t.nombre}
-                        {t.prioridad > 0 && (
-                          <span className="ml-2 text-amber-600">
-                            ⭐ P{t.prioridad}
-                          </span>
-                        )}
-                      </td>
-                      <td className="border-b border-line px-3 py-2.5 text-ink-2">
-                        {t.distrito ?? "—"}
-                      </td>
-                      <td className="num border-b border-line px-3 py-2.5 text-ink-2">
-                        {t.bultos_default}
-                      </td>
-                      <td className="num border-b border-line px-3 py-2.5 text-ink-2">
-                        {horaCorta(t.ventana_ini) && horaCorta(t.ventana_fin)
-                          ? `${horaCorta(t.ventana_ini)}–${horaCorta(t.ventana_fin)}`
-                          : "—"}
-                      </td>
-                      <td className="num border-b border-line px-3 py-2.5 text-ink-3">
-                        {t.lat.toFixed(5)}, {t.lon.toFixed(5)}
-                      </td>
-                      <td className="border-b border-line px-3 py-2.5">
-                        <Pastilla tono={t.activo ? "ok" : "plan"}>
-                          {t.activo ? "Activa" : "Inactiva"}
-                        </Pastilla>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Tarjeta>
+        {(sueltas ?? 0) > 0 && (
+          <p className="mt-3 text-[12px] text-ink-3">
+            Hay <b className="num">{sueltas}</b> tiendas cargadas antes de que se
+            registraran los archivos. Las ves en «Todas las tiendas activas».
+          </p>
+        )}
       </div>
     </>
   );

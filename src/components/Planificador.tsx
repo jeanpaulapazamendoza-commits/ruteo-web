@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import {
   agrupar, rutear, tiendasEnSector,
   type ConfigAgrupar, type ConfigRutear,
@@ -28,8 +29,20 @@ const color = (i: number) => COLORES[i % COLORES.length];
 
 type Modo = "capacidad" | "clasico" | "manual";
 
-export default function Planificador({ tiendas }: { tiendas: TiendaMapa[] }) {
-  const [modo, setModo] = useState<Modo>("capacidad");
+export default function Planificador({
+  tiendas,
+  despachos = [],
+  idDespacho = null,
+  gruposIniciales = null,
+}: {
+  tiendas: TiendaMapa[];
+  despachos?: { id: string; nombre: string | null; fecha: string }[];
+  idDespacho?: string | null;
+  gruposIniciales?: string[][] | null;
+}) {
+  const router = useRouter();
+  // Si venimos de un despacho guardado, arrancamos en manual con sus grupos.
+  const [modo, setModo] = useState<Modo>(gruposIniciales ? "manual" : "capacidad");
 
   const [cfgA, setCfgA] = useState<Omit<ConfigAgrupar, "modo">>({
     criterio: "tiendas",
@@ -55,7 +68,9 @@ export default function Planificador({ tiendas }: { tiendas: TiendaMapa[] }) {
   const [sinAsignarAuto, setSinAsignarAuto] = useState<string[]>([]);
 
   // Selección manual
-  const [gruposManual, setGruposManual] = useState<string[][]>([[]]);
+  const [gruposManual, setGruposManual] = useState<string[][]>(
+    gruposIniciales?.length ? gruposIniciales : [[]],
+  );
   const [grupoActivo, setGrupoActivo] = useState(0);
   const [dibujando, setDibujando] = useState(false);
   const [puntosDibujo, setPuntosDibujo] = useState<[number, number][]>([]);
@@ -240,6 +255,41 @@ export default function Planificador({ tiendas }: { tiendas: TiendaMapa[] }) {
     setTotales(null);
   }
 
+  /**
+   * Reparte los puntos libres entre los grupos que ya existen, cada uno al
+   * más cercano por distancia al centro del grupo. Es lo que hace falta al
+   * añadir tiendas nuevas sobre un despacho ya ruteado: no queremos grupos
+   * nuevos, queremos encajarlas en las rutas que ya salen.
+   */
+  function asignarAGruposCercanos() {
+    const libres = sinAsignar;
+    if (!libres.length || !grupos.length) return;
+
+    const centros = grupos.map((g) => g.centro);
+    setGruposManual((prev) => {
+      const copia = prev.map((g) => [...g]);
+      // `grupos` está compactado (sin vacíos); mapeamos su índice al real.
+      const realDe: number[] = [];
+      prev.forEach((g, i) => { if (g.length) realDe.push(i); });
+
+      libres.forEach((id) => {
+        const t = porId.get(id);
+        if (!t) return;
+        let mejor = 0;
+        let mejorD = Infinity;
+        centros.forEach((c, i) => {
+          const d = (c.lat - t.lat) ** 2 + (c.lon - t.lon) ** 2;
+          if (d < mejorD) { mejorD = d; mejor = i; }
+        });
+        const destino = realDe[mejor] ?? 0;
+        copia[destino].push(id);
+      });
+      return copia;
+    });
+    setRutas([]);
+    setTotales(null);
+  }
+
   /** Clic en una tienda: la mete o la saca del grupo activo. */
   const alClicTienda = useCallback(
     (id: string) => {
@@ -268,6 +318,42 @@ export default function Planificador({ tiendas }: { tiendas: TiendaMapa[] }) {
     <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[320px_1fr_340px]">
       {/* ---------------- Configuración ---------------- */}
       <aside className="min-w-0 overflow-y-auto border-r border-line bg-surface p-4">
+        <Seccion titulo="Origen de los puntos">
+          <Campo etiqueta="Trabajar sobre">
+            <select
+              value={idDespacho ?? ""}
+              onChange={(e) =>
+                router.push(
+                  e.target.value ? `/planificador?despacho=${e.target.value}` : "/planificador",
+                )
+              }
+              className="w-full rounded-[9px] border border-line-strong bg-surface px-2 py-1.5 text-[13px]"
+            >
+              <option value="">Tiendas activas ({tiendas.length})</option>
+              {despachos.map((d) => (
+                <option key={d.id} value={d.id}>
+                  Despacho {d.fecha} — {d.nombre ?? "sin nombre"}
+                </option>
+              ))}
+            </select>
+          </Campo>
+
+          {idDespacho && (
+            <div className="rounded-[10px] border border-line bg-canvas p-2.5 text-[12px] text-ink-2">
+              Cargué las rutas de ese despacho como grupos. Las tiendas que{" "}
+              <b>no estaban en él aparecen grises</b> en el mapa: son tus puntos
+              nuevos. Añádelos a un grupo con el sector, con un clic o con
+              «🤖 Auto-asignar», y vuelve a calcular las rutas.
+              {sinAsignar.length > 0 && (
+                <div className="mt-1.5">
+                  <b className="num text-[15px] text-ink">{sinAsignar.length}</b> puntos
+                  nuevos por asignar
+                </div>
+              )}
+            </div>
+          )}
+        </Seccion>
+
         <Seccion titulo="Agrupamiento">
           <Campo etiqueta="Modo">
             <Selector
@@ -404,6 +490,15 @@ export default function Planificador({ tiendas }: { tiendas: TiendaMapa[] }) {
                 </BotonChico>
                 <BotonChico onClick={limpiarTodo}>♻️ Limpiar todo</BotonChico>
               </div>
+
+              {sinAsignar.length > 0 && grupos.length > 0 && (
+                <button
+                  onClick={asignarAGruposCercanos}
+                  className="mb-2 w-full rounded-[9px] border border-line-strong bg-surface px-3 py-2 text-[12.5px] font-semibold text-ink-2 transition hover:bg-canvas"
+                >
+                  🤖 Auto-asignar {sinAsignar.length} libres al grupo más cercano
+                </button>
+              )}
 
               <p className="mb-2 text-[11.5px] text-ink-3">
                 También puedes hacer clic en una tienda del mapa para meterla o

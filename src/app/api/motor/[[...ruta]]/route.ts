@@ -20,10 +20,12 @@ const RUTAS_PERMITIDAS = new Set(["agrupar", "rutear", "tiendas-en-sector", "sal
 
 export async function POST(
   peticion: Request,
-  { params }: { params: Promise<{ ruta: string[] }> },
+  // Catch-all OPCIONAL ([[...ruta]]): así /api/motor también existe y el
+  // chequeo de salud no devuelve 404. `ruta` puede venir vacío.
+  { params }: { params: Promise<{ ruta?: string[] }> },
 ) {
   const { ruta } = await params;
-  const destino = ruta.join("/");
+  const destino = (ruta ?? []).join("/");
 
   if (!RUTAS_PERMITIDAS.has(destino)) {
     return Response.json({ detail: `Ruta no permitida: ${destino}` }, { status: 404 });

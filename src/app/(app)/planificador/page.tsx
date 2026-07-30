@@ -4,17 +4,29 @@ import { BarraSuperior, Tarjeta, EstadoVacio } from "@/components/ui";
 import Planificador from "@/components/Planificador";
 import type { TiendaMapa } from "@/lib/motor";
 
-export default async function PaginaPlanificador() {
+export default async function PaginaPlanificador({
+  searchParams,
+}: {
+  searchParams: Promise<{ despacho?: string }>;
+}) {
+  const { despacho: idDespacho } = await searchParams;
   const supabase = await crearClienteServidor();
 
-  const { data } = await supabase
-    .from("tiendas")
-    .select("id, codigo, nombre, distrito, lat, lon, bultos_default, prioridad, ventana_ini, ventana_fin")
-    .eq("activo", true)
-    .order("codigo")
-    .limit(5000);
+  const [{ data: filas }, { data: despachos }] = await Promise.all([
+    supabase
+      .from("tiendas")
+      .select("id, codigo, nombre, distrito, lat, lon, bultos_default, prioridad, ventana_ini, ventana_fin")
+      .eq("activo", true)
+      .order("codigo")
+      .limit(5000),
+    supabase
+      .from("despachos")
+      .select("id, nombre, fecha")
+      .order("creado_en", { ascending: false })
+      .limit(30),
+  ]);
 
-  const tiendas: TiendaMapa[] = (data ?? []).map((t) => ({
+  const tiendas: TiendaMapa[] = (filas ?? []).map((t) => ({
     id: t.id,
     codigo: t.codigo,
     nombre: t.nombre,
@@ -27,6 +39,28 @@ export default async function PaginaPlanificador() {
     ventana_fin: t.ventana_fin ? String(t.ventana_fin).slice(0, 5) : null,
   }));
 
+  // Si se pide continuar sobre un despacho ya ruteado, se cargan sus grupos.
+  let gruposIniciales: string[][] | null = null;
+  let nombreDespacho: string | null = null;
+
+  if (idDespacho) {
+    const [{ data: cab }, { data: rutas }] = await Promise.all([
+      supabase.from("despachos").select("nombre, fecha").eq("id", idDespacho).maybeSingle(),
+      supabase
+        .from("rutas")
+        .select("indice, paradas(tienda_id)")
+        .eq("despacho_id", idDespacho)
+        .order("indice"),
+    ]);
+    if (cab) nombreDespacho = cab.nombre ?? cab.fecha;
+    const validos = new Set(tiendas.map((t) => t.id));
+    gruposIniciales = (rutas ?? []).map((r) =>
+      (r.paradas ?? [])
+        .map((p: { tienda_id: string | null }) => p.tienda_id)
+        .filter((x): x is string => !!x && validos.has(x)),
+    );
+  }
+
   const bultos = tiendas.reduce((a, t) => a + t.bultos, 0);
   const conVentana = tiendas.filter((t) => t.ventana_ini && t.ventana_fin).length;
   const prioritarias = tiendas.filter((t) => t.prioridad > 0).length;
@@ -34,14 +68,16 @@ export default async function PaginaPlanificador() {
   return (
     <>
       <BarraSuperior
-        migaja="Despachos / Hoy"
+        migaja={nombreDespacho ? `Continuando · ${nombreDespacho}` : "Despachos / Hoy"}
         titulo="Planificación del día"
         acciones={
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-ink-2">
             <span><b className="num text-ink">{tiendas.length.toLocaleString("es-PE")}</b> tiendas</span>
             <span><b className="num text-ink">{bultos.toLocaleString("es-PE")}</b> bultos</span>
             {conVentana > 0 && <span><b className="num text-ink">{conVentana}</b> con ventana</span>}
-            {prioritarias > 0 && <span className="text-amber-600">⭐ <b className="num">{prioritarias}</b> prioritarias</span>}
+            {prioritarias > 0 && (
+              <span className="text-amber-600">⭐ <b className="num">{prioritarias}</b> prioritarias</span>
+            )}
           </div>
         }
       />
@@ -65,7 +101,12 @@ export default async function PaginaPlanificador() {
           </Tarjeta>
         </div>
       ) : (
-        <Planificador tiendas={tiendas} />
+        <Planificador
+          tiendas={tiendas}
+          despachos={despachos ?? []}
+          idDespacho={idDespacho ?? null}
+          gruposIniciales={gruposIniciales}
+        />
       )}
     </>
   );
