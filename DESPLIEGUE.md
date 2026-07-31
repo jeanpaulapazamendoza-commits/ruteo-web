@@ -74,6 +74,13 @@ git push -u origin main
    | `NEXT_PUBLIC_SUPABASE_URL` | `https://vfrebzeszunlublugosk.supabase.co` |
    | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `sb_publishable_…` (el de tu `.env.local`) |
    | `MOTOR_API_URL` | la URL de Render del paso 2 |
+   | `SUPABASE_SERVICE_ROLE_KEY` | *Settings → API → service_role* en Supabase ¹ |
+
+   ¹ **Solo** para que un admin pueda crear usuarios de su equipo desde la app.
+   Es una clave **secreta**: va únicamente aquí (variable de servidor en Vercel)
+   y en tu `.env.local`, **nunca** con prefijo `NEXT_PUBLIC_` ni en el navegador.
+   Sin ella, el resto de la app funciona; solo el botón «Crear usuario» avisará
+   que falta configurarla.
 
 3. **Deploy**. En un par de minutos tendrás tu dirección
    `https://ruteo-web-xxxx.vercel.app`.

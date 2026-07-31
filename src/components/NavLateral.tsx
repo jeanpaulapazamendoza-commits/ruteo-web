@@ -22,15 +22,24 @@ const SECCIONES = [
   },
 ];
 
+// Sección visible solo para administradores de la empresa.
+const SECCION_ADMIN = {
+  titulo: "Administración",
+  enlaces: [{ href: "/equipo", icono: "◐", texto: "Equipo" }],
+};
+
 export default function NavLateral({
   nombre,
   empresa,
+  rol,
 }: {
   nombre: string;
   empresa: string;
+  rol: string;
 }) {
   const ruta = usePathname();
   const router = useRouter();
+  const secciones = rol === "admin" ? [...SECCIONES, SECCION_ADMIN] : SECCIONES;
 
   async function salir() {
     const supabase = crearClienteNavegador();
@@ -62,7 +71,7 @@ export default function NavLateral({
         </div>
       </div>
 
-      {SECCIONES.map((seccion) => (
+      {secciones.map((seccion) => (
         <div key={seccion.titulo} className="flex flex-col gap-0.5">
           <div className="px-2 pb-1.5 text-[10px] font-bold uppercase tracking-[0.13em] text-[#5c6e88]">
             {seccion.titulo}
