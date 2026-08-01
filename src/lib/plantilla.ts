@@ -6,6 +6,11 @@
  * variantes comunes, sin distinguir mayúsculas ni tildes.
  */
 
+import type { TiendaMapa } from "@/lib/motor";
+
+/** Un punto tal como lo maneja el planificador (venga de archivo o de la base). */
+export type PuntoPlan = TiendaMapa;
+
 export type FilaTienda = {
   codigo: string;
   nombre: string;
@@ -226,6 +231,90 @@ export function interpretarFilas(matriz: unknown[][]): ResultadoLectura {
     columnasDetectadas: detectadas,
     totalLeidas: cuerpo.length,
   };
+}
+
+/** Separa una línea de CSV respetando comillas. */
+function partirLinea(linea: string, sep: string) {
+  const celdas: string[] = [];
+  let actual = "";
+  let enComillas = false;
+  for (let i = 0; i < linea.length; i++) {
+    const c = linea[i];
+    if (c === '"') {
+      if (enComillas && linea[i + 1] === '"') {
+        actual += '"';
+        i++;
+      } else enComillas = !enComillas;
+    } else if (c === sep && !enComillas) {
+      celdas.push(actual);
+      actual = "";
+    } else actual += c;
+  }
+  celdas.push(actual);
+  return celdas.map((c) => c.trim());
+}
+
+function leerCSV(texto: string): unknown[][] {
+  const limpio = texto.replace(/^﻿/, ""); // quitar BOM
+  const lineas = limpio.split(/\r\n|\n|\r/).filter((l) => l.trim() !== "");
+  if (!lineas.length) return [];
+  // Autodetecta el separador: tus exportaciones a veces usan ";"
+  const cabecera = lineas[0];
+  const sep = [";", ",", "\t"]
+    .map((s) => ({ s, n: cabecera.split(s).length }))
+    .sort((a, b) => b.n - a.n)[0].s;
+  return lineas.map((l) => partirLinea(l, sep));
+}
+
+/** Lee un Excel o CSV del navegador y lo interpreta. Solo cliente. */
+export async function leerArchivo(archivo: File): Promise<ResultadoLectura> {
+  let matriz: unknown[][];
+  if (/\.xlsx?$/i.test(archivo.name)) {
+    // El paquete no tiene entrada raíz: hay que pedir la variante de navegador.
+    // Ojo: el export por defecto devuelve la LISTA DE HOJAS; `readSheet`
+    // es el que devuelve las filas de la primera hoja.
+    const { readSheet } = await import("read-excel-file/browser");
+    matriz = (await readSheet(archivo)) as unknown[][];
+  } else {
+    matriz = leerCSV(await archivo.text());
+  }
+  return interpretarFilas(matriz);
+}
+
+/**
+ * Convierte las filas leídas en puntos de trabajo del planificador.
+ *
+ * Estos puntos viven **solo en el navegador** hasta que se guarda el despacho:
+ * por eso su `id` es el propio código del archivo y no un identificador de la
+ * base de datos. Al guardar, el despacho se queda con una copia completa de
+ * cada parada, así que no hace falta que existan antes en ninguna tabla.
+ */
+export function aPuntos(filas: FilaTienda[]): PuntoPlan[] {
+  return filas.map((f) => ({
+    id: f.codigo,
+    codigo: f.codigo,
+    nombre: f.nombre,
+    distrito: f.distrito,
+    lat: f.lat,
+    lon: f.lon,
+    bultos: f.bultos_default,
+    prioridad: f.prioridad,
+    ventana_ini: f.ventana_ini,
+    ventana_fin: f.ventana_fin,
+  }));
+}
+
+/** Une dos conjuntos de puntos sin repetir códigos (gana el más reciente). */
+export function fusionarPuntos(base: PuntoPlan[], nuevos: PuntoPlan[]) {
+  const porCodigo = new Map(base.map((p) => [p.codigo, p]));
+  let añadidos = 0;
+  let actualizados = 0;
+  for (const p of nuevos) {
+    if (porCodigo.has(p.codigo)) actualizados++;
+    else añadidos++;
+    porCodigo.set(p.codigo, p);
+  }
+  return { puntos: [...porCodigo.values()], añadidos, actualizados };
 }
 
 /** CSV de ejemplo. Lleva BOM para que Excel muestre bien las tildes. */

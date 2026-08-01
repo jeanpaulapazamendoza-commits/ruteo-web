@@ -1,5 +1,5 @@
 import { crearClienteNavegador } from "@/lib/supabase/client";
-import type { ConfigRutear, Ruta } from "@/lib/motor";
+import type { ConfigRutear, Ruta, TiendaMapa } from "@/lib/motor";
 
 /**
  * Simplifica una polilínea (Ramer–Douglas–Peucker).
@@ -43,6 +43,15 @@ export function simplificar(puntos: number[][], tolerancia = 0.00012): number[][
 const hora = (v: string | null | undefined) =>
   v && v !== "—" ? v : null;
 
+const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Los puntos que vienen de un archivo usan su código como identificador, no un
+ * UUID: esos no apuntan a ninguna fila de `tiendas` y se guardan como parada
+ * suelta (la parada ya lleva copia del código, nombre y coordenadas).
+ */
+const refTienda = (id: string) => (RE_UUID.test(id) ? id : null);
+
 export type ResumenGuardado = {
   id: string;
   rutas: number;
@@ -58,6 +67,8 @@ export async function guardarDespacho({
   cfg,
   parametros,
   importacionId,
+  archivo,
+  puntos = [],
 }: {
   nombre: string;
   rutas: Ruta[];
@@ -65,11 +76,19 @@ export async function guardarDespacho({
   parametros: Record<string, unknown>;
   /** Carga de tiendas de la que salió este despacho, si aplica. */
   importacionId?: string | null;
+  /** Archivo del que salieron los puntos; queda registrado con el despacho. */
+  archivo?: { nombre: string; filas: number } | null;
+  /** Puntos de trabajo: de aquí salen las ventanas horarias de cada parada. */
+  puntos?: TiendaMapa[];
 }): Promise<ResumenGuardado> {
   const supabase = crearClienteNavegador();
 
   const validas = rutas.filter((r) => !r.error && r.paradas.length > 0);
   if (!validas.length) throw new Error("No hay rutas calculadas para guardar.");
+
+  // El motor no devuelve las ventanas; las recuperamos del punto original para
+  // que el despacho guardado conserve el horario comprometido con el cliente.
+  const porId = new Map(puntos.map((p) => [p.id, p]));
 
   let puntosOriginales = 0;
   let puntosGuardados = 0;
@@ -87,18 +106,23 @@ export async function guardarDespacho({
       salida: hora(r.salida),
       fin: hora(r.fin),
       geometria: geo,
-      paradas: r.paradas.map((p) => ({
-        orden: p.orden,
-        tienda_id: p.id,
-        codigo: p.codigo,
-        nombre: p.nombre,
-        distrito: p.distrito,
-        lat: p.lat,
-        lon: p.lon,
-        bultos: p.bultos,
-        prioridad: p.prioridad,
-        eta: hora(p.eta),
-      })),
+      paradas: r.paradas.map((p) => {
+        const origen = porId.get(p.id);
+        return {
+          orden: p.orden,
+          tienda_id: refTienda(p.id),
+          codigo: p.codigo,
+          nombre: p.nombre,
+          distrito: p.distrito,
+          lat: p.lat,
+          lon: p.lon,
+          bultos: p.bultos,
+          prioridad: p.prioridad,
+          eta: hora(p.eta),
+          ventana_ini: hora(origen?.ventana_ini),
+          ventana_fin: hora(origen?.ventana_fin),
+        };
+      }),
     };
   });
 
@@ -118,6 +142,7 @@ export async function guardarDespacho({
       cd_lat: cfg.cd_lat,
       cd_lon: cfg.cd_lon,
       importacion_id: importacionId ?? null,
+      archivo: archivo ?? null,
       parametros,
       kpis,
       rutas: rutasPayload,

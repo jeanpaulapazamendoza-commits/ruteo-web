@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import {
@@ -9,6 +9,8 @@ import {
   type Grupo, type Ruta, type TiendaMapa,
 } from "@/lib/motor";
 import { guardarDespacho, type ResumenGuardado } from "@/lib/despachos";
+import { fusionarPuntos } from "@/lib/plantilla";
+import CargarArchivo from "@/components/CargarArchivo";
 import { Pastilla } from "@/components/ui";
 
 // Leaflet necesita `window`: solo en el navegador.
@@ -48,8 +50,14 @@ function etiquetaCarga(c: Carga) {
   );
 }
 
+/** Dónde viven los puntos mientras no se guarda el despacho. */
+const CLAVE_TRABAJO = "ruteo:trabajo";
+
+type Archivo = { nombre: string; filas: number };
+
 export default function Planificador({
-  tiendas,
+  puntosServidor = [],
+  origenServidor = null,
   cargas = [],
   haySinArchivo = false,
   seleccion = null,
@@ -57,7 +65,9 @@ export default function Planificador({
   idDespacho = null,
   gruposIniciales = null,
 }: {
-  tiendas: TiendaMapa[];
+  /** Puntos que vienen de la base (continuar un despacho o carga antigua). */
+  puntosServidor?: TiendaMapa[];
+  origenServidor?: string | null;
   cargas?: Carga[];
   haySinArchivo?: boolean;
   seleccion?: string | null;
@@ -68,6 +78,48 @@ export default function Planificador({
   const router = useRouter();
   // Si venimos de un despacho guardado, arrancamos en manual con sus grupos.
   const [modo, setModo] = useState<Modo>(gruposIniciales ? "manual" : "capacidad");
+
+  // ¿El origen lo manda el servidor (despacho o carga antigua) o es un archivo
+  // que el usuario acaba de subir aquí?
+  const deServidor = !!idDespacho || !!seleccion;
+
+  const [tiendas, setTiendas] = useState<TiendaMapa[]>(puntosServidor);
+  const [archivo, setArchivo] = useState<Archivo | null>(null);
+  const [subiendo, setSubiendo] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  // El archivo del día vive solo en el navegador: si se recarga la página sin
+  // haber guardado, no queremos que se pierdan 1500 puntos ya cargados.
+  useEffect(() => {
+    if (deServidor) return;
+    try {
+      const crudo = sessionStorage.getItem(CLAVE_TRABAJO);
+      if (!crudo) return;
+      const g = JSON.parse(crudo) as { puntos?: TiendaMapa[]; archivo?: Archivo | null };
+      if (g?.puntos?.length) {
+        // Leerlo en el inicializador de useState no vale: el servidor no tiene
+        // sessionStorage y la hidratación no cuadraría. Va aquí, una sola vez.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setTiendas(g.puntos);
+        setArchivo(g.archivo ?? null);
+      }
+    } catch {
+      /* sesión ilegible: se empieza en limpio */
+    }
+  }, [deServidor]);
+
+  useEffect(() => {
+    if (deServidor) return;
+    try {
+      if (tiendas.length) {
+        sessionStorage.setItem(CLAVE_TRABAJO, JSON.stringify({ puntos: tiendas, archivo }));
+      } else {
+        sessionStorage.removeItem(CLAVE_TRABAJO);
+      }
+    } catch {
+      /* sin espacio: seguimos, solo se pierde la recuperación al recargar */
+    }
+  }, [tiendas, archivo, deServidor]);
 
   const [cfgA, setCfgA] = useState<Omit<ConfigAgrupar, "modo">>({
     criterio: "tiendas",
@@ -183,6 +235,51 @@ export default function Planificador({
     limpiarTodo();
   }
 
+  /** Recibe los puntos leídos del archivo, sin tocar la base de datos. */
+  function recibirArchivo(
+    nuevos: TiendaMapa[],
+    nombreArchivo: string,
+    accion: "reemplazar" | "anadir",
+  ) {
+    if (accion === "reemplazar") {
+      setTiendas(nuevos);
+      setArchivo({ nombre: nombreArchivo, filas: nuevos.length });
+      setAviso(null);
+      limpiarTodo();
+    } else {
+      const { puntos, añadidos, actualizados } = fusionarPuntos(tiendas, nuevos);
+      setTiendas(puntos);
+      // El nombre acumula de dónde salió cada parte: así el despacho guardado
+      // dice «X + Y» y se entiende que llevaba puntos de dos sitios.
+      setArchivo((a) => {
+        const base = a?.nombre ?? origenServidor;
+        return {
+          nombre: base ? `${base} + ${nombreArchivo}` : nombreArchivo,
+          filas: puntos.length,
+        };
+      });
+      // Los grupos ya hechos se conservan: los puntos nuevos entran como libres
+      // y se asignan con el sector, a mano o con «Auto-asignar».
+      setRutas([]);
+      setTotales(null);
+      setAviso(
+        `${añadidos} punto(s) añadidos` +
+          (actualizados ? ` · ${actualizados} ya estaban y se actualizaron` : "") +
+          ". Quedan libres hasta que los asignes a un grupo.",
+      );
+    }
+    setSubiendo(false);
+  }
+
+  /** Vacía la mesa de trabajo: ni puntos, ni grupos, ni rutas. */
+  function vaciarTodo() {
+    setTiendas([]);
+    setArchivo(null);
+    setAviso(null);
+    limpiarTodo();
+    if (deServidor) router.push("/planificador");
+  }
+
   async function hacerAgrupar() {
     setCargando("agrupar");
     setError(null);
@@ -208,16 +305,26 @@ export default function Planificador({
     setError(null);
     try {
       const res = await guardarDespacho({
-        nombre: cargaSeleccionada
-          ? `Despacho de ${cargaSeleccionada.nombre}`
-          : `Despacho ${new Date().toLocaleDateString("es-PE")}`,
+        nombre: archivo
+          ? `Despacho de ${archivo.nombre}`
+          : cargaSeleccionada
+            ? `Despacho de ${cargaSeleccionada.nombre}`
+            : `Despacho ${new Date().toLocaleDateString("es-PE")}`,
         rutas,
         cfg: cfgR,
         // Guardar la configuración permite reabrir el despacho tal cual se hizo
         parametros: { modo, ...cfgA, ...cfgR },
         importacionId: cargaSeleccionada?.id ?? null,
+        archivo,
+        puntos: tiendas,
       });
       setGuardado(res);
+      // Ya está en la base: la mesa de trabajo del navegador puede vaciarse.
+      try {
+        sessionStorage.removeItem(CLAVE_TRABAJO);
+      } catch {
+        /* da igual: el despacho ya quedó guardado */
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -346,55 +453,180 @@ export default function Planificador({
   const avisos = rutas.filter((r) => r.aviso).map((r) => `Ruta ${r.indice + 1}: ${r.aviso}`);
   const hayResultado = grupos.length > 0 || rutas.length > 0;
 
+  const etiquetaOrigen =
+    archivo?.nombre ??
+    (idDespacho && origenServidor ? `Continuando · ${origenServidor}` : origenServidor) ??
+    "Sin puntos cargados";
+
+  // Mesa vacía: lo primero y único que se pide es el archivo del día.
+  if (tiendas.length === 0) {
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <div className="mx-auto max-w-[680px]">
+          <CargarArchivo hayPuntos={false} onListo={recibirArchivo} />
+
+          {(despachos.length > 0 || cargas.length > 0) && (
+            <div className="mt-3 rounded-[14px] border border-line bg-surface p-4">
+              <h3 className="text-[13.5px] font-bold tracking-tight">
+                …o continúa algo que ya guardaste
+              </h3>
+              <p className="mt-1 mb-2.5 text-[12.5px] text-ink-2">
+                Abre un despacho para añadirle puntos nuevos y volver a calcular
+                sus rutas.
+              </p>
+              <select
+                defaultValue=""
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (!v) return;
+                  const [tipo, valor] = v.split(":");
+                  router.push(
+                    tipo === "d"
+                      ? `/planificador?despacho=${valor}`
+                      : `/planificador?carga=${valor}`,
+                  );
+                }}
+                className="w-full rounded-[9px] border border-line-strong bg-surface px-2.5 py-2 text-[13px]"
+              >
+                <option value="">— elegir —</option>
+                {despachos.length > 0 && (
+                  <optgroup label="Despachos guardados">
+                    {despachos.map((d) => (
+                      <option key={d.id} value={`d:${d.id}`}>
+                        {d.nombre ?? "Despacho"} — {d.fecha}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {cargas.length > 0 && (
+                  <optgroup label="Cargas antiguas (histórico)">
+                    {cargas.map((c) => (
+                      <option key={c.id} value={`c:${c.id}`}>
+                        {etiquetaCarga(c)}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {haySinArchivo && (
+                  <optgroup label="Otros">
+                    <option value="c:sin-archivo">Tiendas sin archivo asociado</option>
+                    <option value="c:todas">Todas las tiendas guardadas</option>
+                  </optgroup>
+                )}
+              </select>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[320px_1fr_340px]">
       {/* ---------------- Configuración ---------------- */}
       <aside className="min-w-0 overflow-y-auto border-r border-line bg-surface p-4">
-        <Seccion titulo="Origen de los puntos">
-          <Campo etiqueta="¿Qué vas a rutear?">
-            <select
-              value={idDespacho ? `d:${idDespacho}` : `c:${seleccion ?? "todas"}`}
-              onChange={(e) => {
-                const [tipo, valor] = e.target.value.split(":");
-                router.push(
-                  tipo === "d"
-                    ? `/planificador?despacho=${valor}`
-                    : `/planificador?carga=${valor}`,
-                );
-              }}
-              className="w-full rounded-[9px] border border-line-strong bg-surface px-2 py-1.5 text-[13px]"
-            >
-              {cargas.length > 0 && (
-                <optgroup label="Archivos cargados (lo habitual)">
-                  {cargas.map((c) => (
-                    <option key={c.id} value={`c:${c.id}`}>
-                      {etiquetaCarga(c)}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-              {despachos.length > 0 && (
-                <optgroup label="Continuar un despacho (añadir puntos)">
-                  {despachos.map((d) => (
-                    <option key={d.id} value={`d:${d.id}`}>
-                      {d.nombre ?? "Despacho"} — {d.fecha}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-              <optgroup label="Otros">
-                {haySinArchivo && (
-                  <option value="c:sin-archivo">Tiendas sin archivo asociado</option>
-                )}
-                <option value="c:todas">Todas las tiendas activas</option>
-              </optgroup>
-            </select>
-          </Campo>
+        <Seccion titulo="Puntos a repartir">
+          <div className="mb-2.5 rounded-[10px] border border-line bg-canvas p-2.5">
+            <div className="flex items-start gap-2">
+              <span className="text-[15px] leading-none">
+                {archivo ? "📄" : origenServidor ? "🗂️" : "◌"}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[12.5px] font-bold" title={etiquetaOrigen}>
+                  {etiquetaOrigen}
+                </div>
+                <div className="num mt-0.5 text-[11.5px] text-ink-3">
+                  {tiendas.length.toLocaleString("es-PE")} puntos ·{" "}
+                  {totalBultos.toLocaleString("es-PE")} bultos
+                </div>
+              </div>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <button
+                onClick={() => setSubiendo((v) => !v)}
+                className="rounded-[8px] border border-amber-600 bg-amber px-2.5 py-1 text-[12px] font-semibold text-[#231403] transition hover:bg-amber-600 hover:text-white"
+              >
+                {subiendo ? "Cerrar" : "⇪ Otro archivo"}
+              </button>
+              <button
+                onClick={vaciarTodo}
+                className="rounded-[8px] border border-line-strong bg-surface px-2.5 py-1 text-[12px] font-semibold text-ink-2 transition hover:bg-canvas"
+              >
+                Vaciar
+              </button>
+            </div>
+          </div>
+
+          {subiendo && (
+            <div className="mb-2.5">
+              <CargarArchivo
+                hayPuntos={tiendas.length > 0}
+                onListo={recibirArchivo}
+                onCerrar={() => setSubiendo(false)}
+              />
+            </div>
+          )}
+
+          {aviso && (
+            <p className="mb-2.5 rounded-[10px] border border-ok/30 bg-ok-bg px-2.5 py-2 text-[12px] text-ok">
+              {aviso}
+            </p>
+          )}
+
+          {(despachos.length > 0 || cargas.length > 0) && (
+            <details className="mb-2.5">
+              <summary className="cursor-pointer text-[11.5px] font-semibold text-ink-3">
+                Partir de algo ya guardado
+              </summary>
+              <div className="mt-2">
+                <select
+                  value={idDespacho ? `d:${idDespacho}` : seleccion ? `c:${seleccion}` : ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!v) return;
+                    const [tipo, valor] = v.split(":");
+                    router.push(
+                      tipo === "d"
+                        ? `/planificador?despacho=${valor}`
+                        : `/planificador?carga=${valor}`,
+                    );
+                  }}
+                  className="w-full rounded-[9px] border border-line-strong bg-surface px-2 py-1.5 text-[12.5px]"
+                >
+                  <option value="">— elegir —</option>
+                  {despachos.length > 0 && (
+                    <optgroup label="Continuar un despacho (añadir puntos)">
+                      {despachos.map((d) => (
+                        <option key={d.id} value={`d:${d.id}`}>
+                          {d.nombre ?? "Despacho"} — {d.fecha}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {cargas.length > 0 && (
+                    <optgroup label="Cargas antiguas (histórico)">
+                      {cargas.map((c) => (
+                        <option key={c.id} value={`c:${c.id}`}>
+                          {etiquetaCarga(c)}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  <optgroup label="Otros">
+                    {haySinArchivo && (
+                      <option value="c:sin-archivo">Tiendas sin archivo asociado</option>
+                    )}
+                    <option value="c:todas">Todas las tiendas guardadas</option>
+                  </optgroup>
+                </select>
+              </div>
+            </details>
+          )}
 
           {!idDespacho && seleccion === "todas" && (
             <p className="mb-2.5 rounded-[10px] border border-warn/30 bg-warn-bg px-2.5 py-2 text-[12px] text-warn">
               Estás viendo <b>todas</b> las tiendas acumuladas, incluidas las que
-              ya despachaste. Para el día a día elige el archivo que subiste.
+              ya despachaste. Para el día a día sube el archivo del día.
             </p>
           )}
 

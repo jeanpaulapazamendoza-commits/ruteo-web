@@ -1,7 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraSuperior, Tarjeta, EstadoVacio, Pastilla } from "@/components/ui";
-import ImportarTiendas from "@/components/ImportarTiendas";
 
 function fechaHora(iso: string) {
   const d = new Date(iso);
@@ -20,7 +20,15 @@ export default async function PaginaTiendas() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: importaciones }, { count: totalTiendas }, { data: perfil }, { count: sueltas }] =
+  // Pantalla de mantenimiento, no de operación: solo administradores.
+  const { data: yo } = await supabase
+    .from("perfiles")
+    .select("rol")
+    .eq("id", user?.id ?? "")
+    .maybeSingle();
+  if (yo?.rol !== "admin") redirect("/planificador");
+
+  const [{ data: importaciones }, { count: totalTiendas }, { count: sueltas }] =
     await Promise.all([
       supabase
         .from("importaciones")
@@ -28,7 +36,6 @@ export default async function PaginaTiendas() {
         .order("creado_en", { ascending: false })
         .limit(60),
       supabase.from("tiendas").select("id", { count: "exact", head: true }).eq("activo", true),
-      supabase.from("perfiles").select("org_id").eq("id", user?.id ?? "").maybeSingle(),
       supabase
         .from("tiendas")
         .select("id", { count: "exact", head: true })
@@ -36,31 +43,49 @@ export default async function PaginaTiendas() {
         .eq("activo", true),
     ]);
 
-  const archivos = importaciones ?? [];
+  // Las importaciones nuevas solo registran el nombre del archivo de un
+  // despacho, sin dejar tiendas: aquí solo tienen sentido las del sistema
+  // anterior, que son las que sí dejaron filas que consultar o borrar.
+  const { data: conTiendas } = await supabase
+    .from("tiendas")
+    .select("importacion_id")
+    .not("importacion_id", "is", null)
+    .eq("activo", true)
+    .limit(5000);
+
+  const conPuntos = new Set((conTiendas ?? []).map((t) => t.importacion_id));
+  const archivos = (importaciones ?? []).filter((i) => conPuntos.has(i.id));
 
   return (
     <>
       <BarraSuperior
-        migaja="Datos"
-        titulo="Cargas de tiendas"
+        migaja="Administración"
+        titulo="Tiendas guardadas"
         acciones={
           <span className="text-[12px] text-ink-3">
-            Histórico de archivos · <b className="num text-ink-2">{(totalTiendas ?? 0).toLocaleString("es-PE")}</b> tiendas en total
+            <b className="num text-ink-2">{(totalTiendas ?? 0).toLocaleString("es-PE")}</b> tiendas en total
           </span>
         }
       />
 
       <div className="p-4">
-        <div className="mb-4 flex flex-col items-start">
-          <ImportarTiendas orgId={perfil?.org_id ?? null} />
-        </div>
+        <p className="mb-4 rounded-[12px] border border-line bg-surface-2 px-3.5 py-3 text-[12.5px] text-ink-2">
+          Esta pantalla es de <b>mantenimiento</b>, no del día a día. El archivo
+          del día se sube ahora en el{" "}
+          <Link href="/planificador" className="font-semibold text-amber-600 underline underline-offset-2">
+            planificador
+          </Link>{" "}
+          y solo se guarda al guardar el despacho. Aquí quedan las tiendas
+          cargadas con el sistema anterior, por si necesitas consultarlas,
+          volver a rutearlas o borrarlas.
+        </p>
 
         {archivos.length === 0 && (sueltas ?? 0) === 0 ? (
           <Tarjeta>
             <EstadoVacio
-              icono="⇪"
-              titulo="Todavía no has cargado ningún archivo"
-              descripcion="Sube tu Excel o CSV con el botón de arriba. Cada carga queda registrada con su fecha, hora y autor, y desde aquí la envías a planificar."
+              icono="✓"
+              titulo="No queda nada guardado por aquí"
+              descripcion="Todo tu histórico vive ahora en Despachos, que es donde se guardan los puntos junto con sus rutas."
             />
           </Tarjeta>
         ) : (

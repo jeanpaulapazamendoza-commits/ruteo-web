@@ -15,17 +15,19 @@ const SECCIONES = [
   },
   {
     titulo: "Datos",
-    enlaces: [
-      { href: "/tiendas", icono: "▦", texto: "Tiendas" },
-      { href: "/flota", icono: "▣", texto: "Flota" },
-    ],
+    enlaces: [{ href: "/flota", icono: "▣", texto: "Flota" }],
   },
 ];
 
-// Sección visible solo para administradores de la empresa.
+// Sección visible solo para administradores de la empresa. «Tiendas guardadas»
+// ya no es parte del día a día: el archivo se sube en el planificador y se
+// persiste al guardar el despacho. Queda aquí para consultar y limpiar.
 const SECCION_ADMIN = {
   titulo: "Administración",
-  enlaces: [{ href: "/equipo", icono: "◐", texto: "Equipo" }],
+  enlaces: [
+    { href: "/equipo", icono: "◐", texto: "Equipo" },
+    { href: "/tiendas", icono: "▦", texto: "Tiendas guardadas" },
+  ],
 };
 
 export default function NavLateral({
