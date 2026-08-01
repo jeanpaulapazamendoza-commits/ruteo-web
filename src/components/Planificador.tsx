@@ -40,16 +40,6 @@ export type Carga = {
   ruteada: boolean;
 };
 
-function etiquetaCarga(c: Carga) {
-  const d = new Date(c.creado_en);
-  const fecha = d.toLocaleDateString("es-PE", { day: "2-digit", month: "short" });
-  const hora = d.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" });
-  return (
-    `${c.ruteada ? "✓ " : ""}${c.nombre} — ${c.filas} tiendas · ${fecha} ${hora}` +
-    (c.autor ? ` · ${c.autor}` : "")
-  );
-}
-
 /** Dónde viven los puntos mientras no se guarda el despacho. */
 const CLAVE_TRABAJO = "ruteo:trabajo";
 
@@ -59,7 +49,6 @@ export default function Planificador({
   puntosServidor = [],
   origenServidor = null,
   cargas = [],
-  haySinArchivo = false,
   seleccion = null,
   despachos = [],
   idDespacho = null,
@@ -68,8 +57,8 @@ export default function Planificador({
   /** Puntos que vienen de la base (continuar un despacho o carga antigua). */
   puntosServidor?: TiendaMapa[];
   origenServidor?: string | null;
+  /** Cargas antiguas: solo para el aviso de «esta carga ya se ruteó». */
   cargas?: Carga[];
-  haySinArchivo?: boolean;
   seleccion?: string | null;
   despachos?: { id: string; nombre: string | null; fecha: string }[];
   idDespacho?: string | null;
@@ -465,54 +454,27 @@ export default function Planificador({
         <div className="mx-auto max-w-[680px]">
           <CargarArchivo hayPuntos={false} onListo={recibirArchivo} />
 
-          {(despachos.length > 0 || cargas.length > 0) && (
+          {despachos.length > 0 && (
             <div className="mt-3 rounded-[14px] border border-line bg-surface p-4">
               <h3 className="text-[13.5px] font-bold tracking-tight">
-                …o continúa algo que ya guardaste
+                …o continúa un despacho
               </h3>
               <p className="mt-1 mb-2.5 text-[12.5px] text-ink-2">
-                Abre un despacho para añadirle puntos nuevos y volver a calcular
-                sus rutas.
+                Ábrelo para añadirle puntos nuevos y volver a calcular sus rutas.
               </p>
               <select
                 defaultValue=""
                 onChange={(e) => {
-                  const v = e.target.value;
-                  if (!v) return;
-                  const [tipo, valor] = v.split(":");
-                  router.push(
-                    tipo === "d"
-                      ? `/planificador?despacho=${valor}`
-                      : `/planificador?carga=${valor}`,
-                  );
+                  if (e.target.value) router.push(`/planificador?despacho=${e.target.value}`);
                 }}
                 className="w-full rounded-[9px] border border-line-strong bg-surface px-2.5 py-2 text-[13px]"
               >
                 <option value="">— elegir —</option>
-                {despachos.length > 0 && (
-                  <optgroup label="Despachos guardados">
-                    {despachos.map((d) => (
-                      <option key={d.id} value={`d:${d.id}`}>
-                        {d.nombre ?? "Despacho"} — {d.fecha}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {cargas.length > 0 && (
-                  <optgroup label="Cargas antiguas (histórico)">
-                    {cargas.map((c) => (
-                      <option key={c.id} value={`c:${c.id}`}>
-                        {etiquetaCarga(c)}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {haySinArchivo && (
-                  <optgroup label="Otros">
-                    <option value="c:sin-archivo">Tiendas sin archivo asociado</option>
-                    <option value="c:todas">Todas las tiendas guardadas</option>
-                  </optgroup>
-                )}
+                {despachos.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.nombre ?? "Despacho"} — {d.fecha}
+                  </option>
+                ))}
               </select>
             </div>
           )}
@@ -573,51 +535,25 @@ export default function Planificador({
             </p>
           )}
 
-          {(despachos.length > 0 || cargas.length > 0) && (
+          {despachos.length > 0 && (
             <details className="mb-2.5">
               <summary className="cursor-pointer text-[11.5px] font-semibold text-ink-3">
-                Partir de algo ya guardado
+                Continuar un despacho guardado
               </summary>
               <div className="mt-2">
                 <select
-                  value={idDespacho ? `d:${idDespacho}` : seleccion ? `c:${seleccion}` : ""}
+                  value={idDespacho ?? ""}
                   onChange={(e) => {
-                    const v = e.target.value;
-                    if (!v) return;
-                    const [tipo, valor] = v.split(":");
-                    router.push(
-                      tipo === "d"
-                        ? `/planificador?despacho=${valor}`
-                        : `/planificador?carga=${valor}`,
-                    );
+                    if (e.target.value) router.push(`/planificador?despacho=${e.target.value}`);
                   }}
                   className="w-full rounded-[9px] border border-line-strong bg-surface px-2 py-1.5 text-[12.5px]"
                 >
                   <option value="">— elegir —</option>
-                  {despachos.length > 0 && (
-                    <optgroup label="Continuar un despacho (añadir puntos)">
-                      {despachos.map((d) => (
-                        <option key={d.id} value={`d:${d.id}`}>
-                          {d.nombre ?? "Despacho"} — {d.fecha}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                  {cargas.length > 0 && (
-                    <optgroup label="Cargas antiguas (histórico)">
-                      {cargas.map((c) => (
-                        <option key={c.id} value={`c:${c.id}`}>
-                          {etiquetaCarga(c)}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                  <optgroup label="Otros">
-                    {haySinArchivo && (
-                      <option value="c:sin-archivo">Tiendas sin archivo asociado</option>
-                    )}
-                    <option value="c:todas">Todas las tiendas guardadas</option>
-                  </optgroup>
+                  {despachos.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.nombre ?? "Despacho"} — {d.fecha}
+                    </option>
+                  ))}
                 </select>
               </div>
             </details>

@@ -16,7 +16,7 @@ export default async function PaginaPlanificador({
   // De entrada no se consulta nada: el día empieza subiendo el archivo, que
   // vive en el navegador hasta que se guarda el despacho. Solo se va a la base
   // cuando el usuario pide continuar algo ya guardado.
-  const [{ data: importaciones }, { data: despachos }, { count: sinArchivo }] =
+  const [{ data: importaciones }, { data: despachos }] =
     await Promise.all([
       supabase
         .from("importaciones")
@@ -28,11 +28,6 @@ export default async function PaginaPlanificador({
         .select("id, nombre, fecha")
         .order("creado_en", { ascending: false })
         .limit(30),
-      supabase
-        .from("tiendas")
-        .select("id", { count: "exact", head: true })
-        .is("importacion_id", null)
-        .eq("activo", true),
     ]);
 
   // Solo interesan las cargas que dejaron tiendas guardadas (las del sistema
@@ -172,7 +167,6 @@ export default async function PaginaPlanificador({
         puntosServidor={puntos}
         origenServidor={origenServidor}
         cargas={cargas}
-        haySinArchivo={(sinArchivo ?? 0) > 0}
         seleccion={seleccion}
         despachos={despachos ?? []}
         idDespacho={idDespacho ?? null}
