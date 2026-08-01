@@ -1,8 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { Pastilla, Tarjeta } from "@/components/ui";
+
+// Leaflet necesita `window`: solo en el navegador.
+const MapaSeguimiento = dynamic(() => import("@/components/MapaSeguimiento"), {
+  ssr: false,
+  loading: () => (
+    <div className="grid h-full place-items-center text-[13px] text-ink-3">Cargando mapa…</div>
+  ),
+});
 
 export type ParadaSeguimiento = {
   id: string;
@@ -10,6 +19,8 @@ export type ParadaSeguimiento = {
   codigo: string | null;
   nombre: string | null;
   distrito: string | null;
+  lat: number;
+  lon: number;
   bultos: number;
   prioridad: number;
   eta: string | null;
@@ -20,6 +31,13 @@ export type ParadaSeguimiento = {
   observaciones: string | null;
   recibe: string | null;
   rutas: { indice: number; despacho_id: string } | null;
+};
+
+export type RutaSeguida = {
+  indice: number;
+  geometria: number[][] | null;
+  salida_real: string | null;
+  conductor: string | null;
 };
 
 const ESTADO_TONO = {
@@ -53,16 +71,26 @@ const horaDe = (iso: string | null) =>
 export default function TorreControl({
   despachoId,
   inicial,
+  rutas = [],
+  cd = null,
 }: {
   despachoId: string;
   inicial: ParadaSeguimiento[];
+  rutas?: RutaSeguida[];
+  cd?: { lat: number; lon: number } | null;
 }) {
   const [paradas, setParadas] = useState(inicial);
   const [actualizado, setActualizado] = useState<Date>(new Date());
   const [auto, setAuto] = useState(true);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [abierta, setAbierta] = useState<number | null>(null);
   const montado = useRef(true);
+
+  const infoRuta = useMemo(
+    () => new Map(rutas.map((r) => [r.indice, r])),
+    [rutas],
+  );
 
   useEffect(() => () => { montado.current = false; }, []);
 
@@ -73,7 +101,7 @@ export default function TorreControl({
       const { data, error } = await supabase
         .from("paradas")
         .select(
-          `id, orden, codigo, nombre, distrito, bultos, prioridad, eta,
+          `id, orden, codigo, nombre, distrito, lat, lon, bultos, prioridad, eta,
            estado_entrega, hora_entrega, motivo, foto_url, observaciones, recibe,
            rutas!inner(indice, despacho_id)`,
         )
@@ -212,6 +240,9 @@ export default function TorreControl({
           <div className="flex items-center gap-2 border-b border-line px-4 py-2.5">
             <h3 className="text-[13.5px] font-bold">Rutas</h3>
             <span className="num text-[12px] text-ink-3">{porRuta.length}</span>
+            <span className="ml-auto text-[11.5px] text-ink-3">
+              Toca una ruta para ver su mapa y sus entregas
+            </span>
           </div>
           <div className="divide-y divide-line">
             {porRuta.map(([indice, ps]) => {
@@ -219,33 +250,60 @@ export default function TorreControl({
               const pct = Math.round((cerradas / (ps.length || 1)) * 100);
               const fallidas = ps.filter((p) => p.estado_entrega === "fallido").length;
               const siguiente = ps.find((p) => p.estado_entrega === "pendiente");
+              const info = infoRuta.get(indice);
+              const desplegada = abierta === indice;
               return (
-                <div key={indice} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
-                  <span
-                    className="num rounded px-1.5 py-0.5 text-[10.5px] font-bold text-white"
-                    style={{ background: color(indice) }}
+                <div key={indice}>
+                  <button
+                    onClick={() => setAbierta(desplegada ? null : indice)}
+                    aria-expanded={desplegada}
+                    className="flex w-full flex-wrap items-center gap-3 px-4 py-2.5 text-left transition hover:bg-canvas"
                   >
-                    R-{String(indice + 1).padStart(2, "0")}
-                  </span>
-                  <div className="min-w-[130px] flex-1">
-                    <div className="h-1.5 overflow-hidden rounded-full border border-line bg-canvas">
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${pct}%`,
-                          background: pct === 100 ? "var(--color-ok)" : color(indice),
-                        }}
-                      />
+                    <span className="w-3 shrink-0 text-[10px] text-ink-3">
+                      {desplegada ? "▾" : "▸"}
+                    </span>
+                    <span
+                      className="num rounded px-1.5 py-0.5 text-[10.5px] font-bold text-white"
+                      style={{ background: color(indice) }}
+                    >
+                      R-{String(indice + 1).padStart(2, "0")}
+                    </span>
+                    <div className="min-w-[130px] flex-1">
+                      <div className="h-1.5 overflow-hidden rounded-full border border-line bg-canvas">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${pct}%`,
+                            background: pct === 100 ? "var(--color-ok)" : color(indice),
+                          }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <span className="num text-[12px] font-semibold text-ink-2">
-                    {cerradas}/{ps.length}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-[12px] text-ink-3">
-                    {siguiente ? `Siguiente: ${siguiente.nombre}` : "Ruta completada"}
-                  </span>
-                  {fallidas > 0 && <Pastilla tono="bad">{fallidas} fallidas</Pastilla>}
-                  {pct === 100 && fallidas === 0 && <Pastilla tono="ok">Completada</Pastilla>}
+                    <span className="num text-[12px] font-semibold text-ink-2">
+                      {cerradas}/{ps.length}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-[12px] text-ink-3">
+                      {siguiente ? `Siguiente: ${siguiente.nombre}` : "Ruta completada"}
+                    </span>
+                    {info?.conductor && (
+                      <span className="hidden truncate text-[11.5px] text-ink-3 sm:block">
+                        {info.conductor}
+                      </span>
+                    )}
+                    {fallidas > 0 && <Pastilla tono="bad">{fallidas} fallidas</Pastilla>}
+                    {pct === 100 && fallidas === 0 && <Pastilla tono="ok">Completada</Pastilla>}
+                  </button>
+
+                  {desplegada && (
+                    <DetalleRuta
+                      paradas={ps}
+                      geometria={info?.geometria ?? null}
+                      color={color(indice)}
+                      cd={cd}
+                      conductor={info?.conductor ?? null}
+                      salida={info?.salida_real ?? null}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -346,16 +404,7 @@ export default function TorreControl({
                   {p.estado_entrega === "entregado"
                     ? `${p.bultos} bultos${p.recibe ? ` · recibe ${p.recibe}` : ""}`
                     : (p.motivo ?? p.observaciones ?? p.estado_entrega)}
-                  {p.foto_url && (
-                    <a
-                      href={p.foto_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="ml-1.5 font-semibold text-amber-600 underline underline-offset-2"
-                    >
-                      ver foto
-                    </a>
-                  )}
+                  {p.foto_url && <FotoEntrega ruta={p.foto_url} />}
                 </div>
               </div>
             ))}
@@ -363,6 +412,166 @@ export default function TorreControl({
         )}
       </aside>
     </div>
+  );
+}
+
+/**
+ * Lo que hay detrás de una ruta: su mapa con cada parada pintada según cómo
+ * terminó, y la lista en orden de visita con la hora y el motivo.
+ */
+function DetalleRuta({
+  paradas, geometria, color, cd, conductor, salida,
+}: {
+  paradas: ParadaSeguimiento[];
+  geometria: number[][] | null;
+  color: string;
+  cd: { lat: number; lon: number } | null;
+  conductor: string | null;
+  salida: string | null;
+}) {
+  const ordenadas = useMemo(
+    () => [...paradas].sort((a, b) => a.orden - b.orden),
+    [paradas],
+  );
+
+  return (
+    <div className="border-t border-line bg-surface-2 p-3">
+      <div className="mb-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] text-ink-2">
+        {conductor && (
+          <span>
+            Conductor <b className="text-ink">{conductor}</b>
+          </span>
+        )}
+        <span>
+          Salió del CD:{" "}
+          <b className="num text-ink">{salida ? horaDe(salida) : "aún no"}</b>
+        </span>
+        <span className="ml-auto flex flex-wrap gap-3">
+          <Leyenda color="#2F855A" texto="Entregado" />
+          <Leyenda color="#B7791F" texto="Parcial" />
+          <Leyenda color="#D9534F" texto="No entregado" />
+          <Leyenda color="#9AA5B1" texto="Pendiente" />
+        </span>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-[1fr_1fr]">
+        <div className="h-[300px] overflow-hidden rounded-[10px] border border-line">
+          <MapaSeguimiento
+            paradas={ordenadas.map((p) => ({
+              id: p.id,
+              orden: p.orden,
+              nombre: p.nombre,
+              lat: p.lat,
+              lon: p.lon,
+              bultos: p.bultos,
+              estado_entrega: p.estado_entrega,
+              hora_entrega: p.hora_entrega,
+              motivo: p.motivo,
+            }))}
+            geometria={geometria}
+            colorRuta={color}
+            cd={cd}
+          />
+        </div>
+
+        <div className="max-h-[300px] overflow-y-auto rounded-[10px] border border-line bg-surface">
+          {ordenadas.map((p) => {
+            const tono = ESTADO_TONO[p.estado_entrega];
+            return (
+              <div
+                key={p.id}
+                className="flex gap-2.5 border-b border-line px-3 py-2 last:border-0"
+              >
+                <span
+                  className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-[10.5px] font-bold text-white"
+                  style={{ background: COLOR_PUNTO[p.estado_entrega] ?? COLOR_PUNTO.pendiente }}
+                >
+                  {p.orden}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">
+                      {p.nombre ?? p.codigo}
+                    </span>
+                    <Pastilla tono={tono}>{ESTADO_TEXTO[p.estado_entrega]}</Pastilla>
+                  </div>
+                  <div className="mt-0.5 text-[11.5px] text-ink-3">
+                    <span className="num">{p.bultos}</span> bultos
+                    {p.distrito ? ` · ${p.distrito}` : ""}
+                    {p.hora_entrega ? ` · ${horaDe(p.hora_entrega)}` : ""}
+                  </div>
+                  {(p.motivo || p.recibe || p.observaciones) && (
+                    <div className="mt-0.5 text-[11.5px] text-ink-2">
+                      {p.recibe && <>Recibió <b>{p.recibe}</b>. </>}
+                      {p.motivo}
+                      {p.observaciones && p.observaciones !== p.motivo && (
+                        <> {p.observaciones}</>
+                      )}
+                    </div>
+                  )}
+                  {p.foto_url && (
+                    <FotoEntrega ruta={p.foto_url} />
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Mismos colores que el mapa, para que la lista y los puntos se lean igual. */
+const COLOR_PUNTO: Record<string, string> = {
+  entregado: "#2F855A",
+  parcial: "#B7791F",
+  reprogramado: "#B7791F",
+  fallido: "#D9534F",
+  pendiente: "#9AA5B1",
+};
+
+/**
+ * El bucket de fotos es privado, así que la imagen se pide con un enlace
+ * firmado que caduca; no se puede enlazar la ruta a pelo.
+ */
+function FotoEntrega({ ruta }: { ruta: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [fallo, setFallo] = useState(false);
+
+  async function abrir() {
+    try {
+      const supabase = crearClienteNavegador();
+      const { data, error } = await supabase.storage.from("pod").createSignedUrl(ruta, 300);
+      if (error) throw error;
+      setUrl(data.signedUrl);
+    } catch {
+      setFallo(true);
+    }
+  }
+
+  if (fallo) return <span className="text-[11.5px] text-ink-3">Foto no disponible</span>;
+
+  if (!url) {
+    return (
+      <button
+        onClick={abrir}
+        className="mt-1 text-[11.5px] font-semibold text-amber-600 underline underline-offset-2"
+      >
+        Ver foto de entrega
+      </button>
+    );
+  }
+
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="mt-1 block">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={url}
+        alt="Prueba de entrega"
+        className="max-h-32 rounded-[8px] border border-line"
+      />
+    </a>
   );
 }
 

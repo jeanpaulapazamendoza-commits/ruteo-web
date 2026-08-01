@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraSuperior, Tarjeta, EstadoVacio, Pastilla } from "@/components/ui";
-import TorreControl, { type ParadaSeguimiento } from "@/components/TorreControl";
+import TorreControl, {
+  type ParadaSeguimiento,
+  type RutaSeguida,
+} from "@/components/TorreControl";
 
 /** Una línea por despacho, tal como la devuelve `resumen_despachos()`. */
 type ResumenDespacho = {
@@ -184,15 +187,32 @@ export default async function PaginaTorre({
   }
 
   // ── Detalle: seguimiento en vivo del despacho elegido ────────────────────
-  const { data: paradas } = await supabase
-    .from("paradas")
-    .select(
-      `id, orden, codigo, nombre, distrito, bultos, prioridad, eta,
-       estado_entrega, hora_entrega, motivo, foto_url, observaciones, recibe,
-       rutas!inner(indice, despacho_id)`,
-    )
-    .eq("rutas.despacho_id", activo.id)
-    .order("orden");
+  const [{ data: paradas }, { data: rutasRaw }, { data: cab }] = await Promise.all([
+    supabase
+      .from("paradas")
+      .select(
+        `id, orden, codigo, nombre, distrito, lat, lon, bultos, prioridad, eta,
+         estado_entrega, hora_entrega, motivo, foto_url, observaciones, recibe,
+         rutas!inner(indice, despacho_id)`,
+      )
+      .eq("rutas.despacho_id", activo.id)
+      .order("orden"),
+    // La geometría solo se usa para dibujar el recorrido de fondo; se pide
+    // una vez aquí y no en cada sondeo, que sería mover mucho por nada.
+    supabase
+      .from("rutas")
+      .select("indice, geometria, salida_real, perfiles:conductor_id(nombre)")
+      .eq("despacho_id", activo.id)
+      .order("indice"),
+    supabase.from("despachos").select("cd_lat, cd_lon").eq("id", activo.id).maybeSingle(),
+  ]);
+
+  const rutas: RutaSeguida[] = (rutasRaw ?? []).map((r) => ({
+    indice: r.indice,
+    geometria: (r.geometria as number[][] | null) ?? null,
+    salida_real: r.salida_real,
+    conductor: (r.perfiles as { nombre?: string } | null)?.nombre ?? null,
+  }));
 
   return (
     <>
@@ -223,6 +243,12 @@ export default async function PaginaTorre({
       <TorreControl
         despachoId={activo.id}
         inicial={(paradas ?? []) as unknown as ParadaSeguimiento[]}
+        rutas={rutas}
+        cd={
+          cab?.cd_lat != null && cab?.cd_lon != null
+            ? { lat: cab.cd_lat, lon: cab.cd_lon }
+            : null
+        }
       />
     </>
   );
