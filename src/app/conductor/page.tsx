@@ -31,9 +31,13 @@ export default async function PaginaConductor() {
     .eq("conductor_id", user?.id ?? "")
     .order("indice");
 
-  const rutas = ((data ?? []) as unknown as RutaFila[]).filter(
-    (r) => (r.despachos?.fecha ?? "") >= hoyMenos(2),
-  );
+  // Una ruta pendiente se muestra siempre, tenga la fecha que tenga: un
+  // reparto atrasado sigue siendo trabajo por hacer. Solo las ya terminadas
+  // dejan de estorbar a los dos días.
+  const rutas = ((data ?? []) as unknown as RutaFila[]).filter((r) => {
+    const terminada = r.estado === "completada" || r.estado === "cancelada";
+    return !terminada || (r.despachos?.fecha ?? "") >= hoyMenos(2);
+  });
 
   if (!rutas.length) {
     return (
