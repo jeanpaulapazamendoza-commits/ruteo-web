@@ -15,7 +15,10 @@ const SECCIONES = [
   },
   {
     titulo: "Datos",
-    enlaces: [{ href: "/flota", icono: "▣", texto: "Flota" }],
+    enlaces: [
+      { href: "/zonas", icono: "⬡", texto: "Zonas de reparto" },
+      { href: "/flota", icono: "▣", texto: "Flota" },
+    ],
   },
 ];
 

@@ -14,6 +14,7 @@ import {
   type ResumenGuardado,
 } from "@/lib/despachos";
 import { fusionarPuntos } from "@/lib/plantilla";
+import { repartirPorZonas, type Zona } from "@/lib/zonas";
 import CargarArchivo from "@/components/CargarArchivo";
 import { Pastilla } from "@/components/ui";
 
@@ -55,6 +56,7 @@ export default function Planificador({
   despachos = [],
   idDespacho = null,
   gruposIniciales = null,
+  zonas = [],
 }: {
   /** Puntos que vienen de la base (el despacho en curso o una carga antigua). */
   puntosServidor?: TiendaMapa[];
@@ -66,6 +68,8 @@ export default function Planificador({
   despachos?: { id: string; nombre: string | null; fecha: string }[];
   idDespacho?: string | null;
   gruposIniciales?: string[][] | null;
+  /** Zonas fijas de la empresa, para repartir los puntos de un botón. */
+  zonas?: Zona[];
 }) {
   const router = useRouter();
   // Si venimos de un despacho ya ruteado, arrancamos en manual con sus grupos.
@@ -114,6 +118,11 @@ export default function Planificador({
   const [error, setError] = useState<string | null>(null);
   const [resaltado, setResaltado] = useState<number | null>(null);
   const [guardado, setGuardado] = useState<ResumenGuardado | null>(null);
+
+  const [verZonasFijas, setVerZonasFijas] = useState(true);
+  const [repartoZonas, setRepartoZonas] = useState<
+    { zona: Zona; n: number; bultos: number }[] | null
+  >(null);
 
   const [verZonas, setVerZonas] = useState(true);
   const [verTrazos, setVerTrazos] = useState(true);
@@ -188,6 +197,37 @@ export default function Planificador({
   function cambiarModo(m: Modo) {
     setModo(m);
     limpiarTodo();
+  }
+
+  /**
+   * Reparte los puntos entre las zonas guardadas: un grupo por zona.
+   *
+   * Es el atajo del día a día — las zonas no cambian, solo los clientes que
+   * caen dentro. Lo que queda fuera de toda zona se deja libre a propósito,
+   * para que salte a la vista y se decida a mano.
+   */
+  function asignarPorZonas() {
+    if (!zonas.length) return;
+    const { grupos: porZona, fuera, porZona: resumen } = repartirPorZonas(tiendas, zonas);
+
+    // Las zonas sin ningún punto hoy no deben ocupar una ruta vacía.
+    const conPuntos = porZona.filter((g) => g.length > 0);
+
+    setModo("manual");
+    setGruposAuto([]);
+    setSinAsignarAuto([]);
+    setGruposManual(conPuntos.length ? conPuntos : [[]]);
+    setGrupoActivo(0);
+    setRutas([]);
+    setTotales(null);
+    setResaltado(null);
+    setRepartoZonas(resumen);
+    setAviso(
+      fuera.length
+        ? `${tiendas.length - fuera.length} puntos repartidos en ${conPuntos.length} zonas. ` +
+          `${fuera.length} quedaron fuera de toda zona: asígnalos a mano o amplía la zona.`
+        : `${tiendas.length} puntos repartidos en ${conPuntos.length} zonas.`,
+    );
   }
 
   /**
@@ -597,6 +637,62 @@ export default function Planificador({
           )}
         </Seccion>
 
+        <Seccion titulo="Zonas de reparto">
+          {zonas.length === 0 ? (
+            <p className="rounded-[10px] border border-line bg-canvas p-2.5 text-[12px] text-ink-2">
+              Si siempre repartes por las mismas zonas, dibújalas una vez en{" "}
+              <Link href="/zonas" className="font-semibold text-amber-600 underline underline-offset-2">
+                Zonas de reparto
+              </Link>{" "}
+              y cada día repartirás el archivo entre ellas de un solo botón.
+            </p>
+          ) : (
+            <>
+              <button
+                onClick={asignarPorZonas}
+                className="mb-2 w-full rounded-[9px] border border-navy-800 bg-navy-800 px-3 py-2 text-[13px] font-semibold text-white transition hover:bg-navy-700"
+              >
+                ⬡ Asignar a mis {zonas.length} zonas
+              </button>
+
+              <label className="mb-2 flex items-center gap-2 text-[12px] text-ink-2">
+                <input
+                  type="checkbox"
+                  checked={verZonasFijas}
+                  onChange={(e) => setVerZonasFijas(e.target.checked)}
+                />
+                Ver las zonas en el mapa
+              </label>
+
+              {repartoZonas && (
+                <div className="mb-2 flex flex-col gap-1">
+                  {repartoZonas.map(({ zona, n, bultos }) => (
+                    <div
+                      key={zona.id}
+                      className="flex items-center gap-2 rounded-[8px] border border-line bg-canvas px-2 py-1 text-[12px]"
+                    >
+                      <span
+                        className="h-3 w-3 shrink-0 rounded-[3px]"
+                        style={{ background: zona.color }}
+                      />
+                      <span className="min-w-0 flex-1 truncate">{zona.nombre}</span>
+                      <span className={`num ${n === 0 ? "text-ink-3" : "font-semibold"}`}>
+                        {n}
+                      </span>
+                      {n > 0 && <span className="num text-[11px] text-ink-3">{bultos} blt</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-[11.5px] text-ink-3">
+                ¿Un cliente en la zona equivocada? Elige el grupo destino abajo y
+                haz clic en su punto del mapa.
+              </p>
+            </>
+          )}
+        </Seccion>
+
         <Seccion titulo="Agrupamiento">
           <Campo etiqueta="Modo">
             <Selector
@@ -954,6 +1050,7 @@ export default function Planificador({
           onPuntoDibujo={(p) => setPuntosDibujo((prev) => [...prev, p])}
           onCerrarDibujo={cerrarSector}
           colorDibujo={color(grupoActivo)}
+          zonasFijas={verZonasFijas ? zonas : []}
         />
 
         {dibujando && (

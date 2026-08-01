@@ -8,6 +8,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo, useRef } from "react";
 import type { Grupo, Ruta, TiendaMapa } from "@/lib/motor";
+import type { Zona } from "@/lib/zonas";
 
 export const COLORES_RUTA = [
   "#E8833A", "#2E7DD1", "#0E8F9E", "#7A5AF8", "#C2439B", "#7C9A1F",
@@ -127,6 +128,8 @@ export default function MapaRutas({
   onPuntoDibujo,
   onCerrarDibujo,
   colorDibujo = "#F2A33C",
+  zonasFijas = [],
+  onClicZona,
 }: {
   tiendas: TiendaMapa[];
   grupos: Grupo[];
@@ -143,6 +146,9 @@ export default function MapaRutas({
   onPuntoDibujo?: (p: [number, number]) => void;
   onCerrarDibujo?: () => void;
   colorDibujo?: string;
+  /** Zonas guardadas, dibujadas de fondo. */
+  zonasFijas?: Zona[];
+  onClicZona?: (id: string) => void;
 }) {
   const centro = useMemo<[number, number]>(() => {
     if (!tiendas.length) return [cd.lat, cd.lon];
@@ -183,6 +189,24 @@ export default function MapaRutas({
         onPunto={(p) => onPuntoDibujo?.(p)}
         onCerrar={() => onCerrarDibujo?.()}
       />
+
+      {/* Zonas fijas guardadas: van debajo de todo, como plano de fondo */}
+      {zonasFijas.map((z) => (
+        <Polygon
+          key={`zf${z.id}`}
+          positions={z.poligono}
+          eventHandlers={onClicZona ? { click: () => onClicZona(z.id) } : undefined}
+          pathOptions={{
+            color: z.color,
+            weight: 2,
+            fillColor: z.color,
+            fillOpacity: 0.08,
+            interactive: !!onClicZona,
+          }}
+        >
+          <Tooltip sticky>{z.nombre}</Tooltip>
+        </Polygon>
+      ))}
 
       {/* Zonas de cobertura */}
       {mostrarZonas &&

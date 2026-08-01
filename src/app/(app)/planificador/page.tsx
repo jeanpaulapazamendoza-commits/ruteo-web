@@ -3,6 +3,7 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraSuperior } from "@/components/ui";
 import Planificador, { type Carga } from "@/components/Planificador";
 import type { TiendaMapa } from "@/lib/motor";
+import type { Zona } from "@/lib/zonas";
 
 export const SIN_ARCHIVO = "sin-archivo";
 
@@ -17,7 +18,7 @@ export default async function PaginaPlanificador({
   // De entrada no se consulta nada: el día empieza subiendo el archivo, que
   // vive en el navegador hasta que se guarda el despacho. Solo se va a la base
   // cuando el usuario pide continuar algo ya guardado.
-  const [{ data: importaciones }, { data: despachos }] =
+  const [{ data: importaciones }, { data: despachos }, { data: zonasRaw }] =
     await Promise.all([
       supabase
         .from("importaciones")
@@ -32,7 +33,19 @@ export default async function PaginaPlanificador({
         .eq("estado", "cargado")
         .order("creado_en", { ascending: false })
         .limit(30),
+      supabase
+        .from("zonas")
+        .select("id, nombre, color, poligono")
+        .eq("activo", true)
+        .order("nombre"),
     ]);
+
+  const zonas: Zona[] = (zonasRaw ?? []).map((z) => ({
+    id: z.id,
+    nombre: z.nombre,
+    color: z.color,
+    poligono: z.poligono as Zona["poligono"],
+  }));
 
   // Solo interesan las cargas que dejaron tiendas guardadas (las del sistema
   // anterior). Las de ahora solo registran el nombre del archivo del despacho,
@@ -188,6 +201,7 @@ export default async function PaginaPlanificador({
         despachos={despachos ?? []}
         idDespacho={idDespacho ?? null}
         gruposIniciales={gruposIniciales}
+        zonas={zonas}
       />
     </>
   );
