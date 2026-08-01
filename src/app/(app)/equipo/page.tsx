@@ -15,10 +15,14 @@ export default async function PaginaEquipo() {
   // mostrar la pantalla a quien no debe verla.
   const { data: yo } = await supabase
     .from("perfiles")
-    .select("rol")
+    .select("rol, organizaciones(nombre)")
     .eq("id", user.id)
     .maybeSingle();
   if (yo?.rol !== "admin") redirect("/planificador");
+
+  // Sin el nombre de la empresa delante, en una plataforma con varias
+  // organizaciones no se sabe a qué equipo se le está tocando el rol.
+  const empresa = (yo.organizaciones as { nombre?: string } | null)?.nombre ?? "tu empresa";
 
   const { data: equipo } = await supabase
     .from("perfiles")
@@ -31,7 +35,7 @@ export default async function PaginaEquipo() {
     <>
       <BarraSuperior
         migaja="Administración"
-        titulo="Equipo"
+        titulo={`Equipo de ${empresa}`}
         acciones={
           <span className="text-[12px] text-ink-2">
             <b className="num text-ink">{miembros.filter((m) => m.activo).length}</b> activos

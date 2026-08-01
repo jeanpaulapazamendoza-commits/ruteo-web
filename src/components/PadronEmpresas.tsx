@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { Pastilla, Tarjeta } from "@/components/ui";
@@ -70,8 +71,8 @@ export default function PadronEmpresas({ empresas }: { empresas: ResumenOrg[] })
     <>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <p className="text-[12.5px] text-ink-2">
-          Cada empresa ve solo sus datos. Suspender corta el acceso al instante
-          sin borrar nada.
+          Toca una empresa para ver su ficha. Cada una ve solo sus datos;
+          suspender corta el acceso al instante sin borrar nada.
         </p>
         <button
           onClick={() => { setCreando((v) => !v); setError(null); }}
@@ -112,10 +113,14 @@ export default function PadronEmpresas({ empresas }: { empresas: ResumenOrg[] })
               {empresas.map((o) => (
                 <tr key={o.id} className={o.activa ? "" : "opacity-60"}>
                   <td className="border-b border-line px-3.5 py-2.5">
-                    <div className="font-semibold text-ink">{o.nombre}</div>
-                    <div className="num text-[11.5px] text-ink-3">
-                      Alta {fecha(o.creado_en)}
-                    </div>
+                    <Link href={`/organizaciones/${o.id}`} className="block group">
+                      <div className="font-semibold text-ink group-hover:text-amber-600">
+                        {o.nombre}
+                      </div>
+                      <div className="num text-[11.5px] text-ink-3">
+                        Alta {fecha(o.creado_en)}
+                      </div>
+                    </Link>
                   </td>
                   <td className="border-b border-line px-3.5 py-2.5">
                     <Pastilla tono={o.activa ? "ok" : "bad"}>
@@ -146,6 +151,12 @@ export default function PadronEmpresas({ empresas }: { empresas: ResumenOrg[] })
                     {fecha(o.ultima_actividad)}
                   </td>
                   <td className="border-b border-line px-3.5 py-2.5 text-right">
+                    <Link
+                      href={`/organizaciones/${o.id}`}
+                      className="mr-1.5 rounded-[8px] border border-line-strong bg-surface px-2.5 py-1 text-[12px] font-semibold text-ink-2 transition hover:bg-canvas"
+                    >
+                      Ver ficha
+                    </Link>
                     <button
                       onClick={() => cambiar(o)}
                       disabled={ocupado === o.id}
