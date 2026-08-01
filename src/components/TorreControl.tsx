@@ -13,7 +13,7 @@ export type ParadaSeguimiento = {
   bultos: number;
   prioridad: number;
   eta: string | null;
-  estado_entrega: "pendiente" | "entregado" | "fallido" | "reprogramado";
+  estado_entrega: "pendiente" | "entregado" | "parcial" | "fallido" | "reprogramado";
   hora_entrega: string | null;
   motivo: string | null;
   foto_url: string | null;
@@ -24,10 +24,20 @@ export type ParadaSeguimiento = {
 
 const ESTADO_TONO = {
   entregado: "ok",
+  parcial: "warn",
   fallido: "bad",
   reprogramado: "warn",
   pendiente: "plan",
 } as const;
+
+/** El conductor marca «no entregado»; en la base eso es «fallido». */
+const ESTADO_TEXTO: Record<string, string> = {
+  entregado: "entregado",
+  parcial: "parcial",
+  fallido: "no entregado",
+  reprogramado: "reprogramado",
+  pendiente: "pendiente",
+};
 
 const COLORES = [
   "#E8833A", "#2E7DD1", "#0E8F9E", "#7A5AF8", "#C2439B", "#7C9A1F",
@@ -92,17 +102,18 @@ export default function TorreControl({
     const total = paradas.length || 1;
     const cuenta = (e: string) => paradas.filter((p) => p.estado_entrega === e).length;
     const entregado = cuenta("entregado");
+    const parcial = cuenta("parcial");
     const fallido = cuenta("fallido");
     const reprogramado = cuenta("reprogramado");
-    const pendiente = paradas.length - entregado - fallido - reprogramado;
-    const cerradas = entregado + fallido + reprogramado;
+    const pendiente = paradas.length - entregado - parcial - fallido - reprogramado;
+    const cerradas = entregado + parcial + fallido + reprogramado;
     return {
       total: paradas.length,
-      entregado, fallido, reprogramado, pendiente,
+      entregado, parcial, fallido, reprogramado, pendiente,
       avance: Math.round((cerradas / total) * 100),
       pct: (n: number) => (n / total) * 100,
       bultosEntregados: paradas
-        .filter((p) => p.estado_entrega === "entregado")
+        .filter((p) => p.estado_entrega === "entregado" || p.estado_entrega === "parcial")
         .reduce((a, p) => a + p.bultos, 0),
     };
   }, [paradas]);
@@ -118,7 +129,13 @@ export default function TorreControl({
   }, [paradas]);
 
   const incidencias = useMemo(
-    () => paradas.filter((p) => p.estado_entrega === "fallido" || p.estado_entrega === "reprogramado"),
+    () =>
+      paradas.filter(
+        (p) =>
+          p.estado_entrega === "fallido" ||
+          p.estado_entrega === "parcial" ||
+          p.estado_entrega === "reprogramado",
+      ),
     [paradas],
   );
 
@@ -151,13 +168,14 @@ export default function TorreControl({
               del despacho completado
               <br />
               <span className="num">
-                {resumen.entregado + resumen.fallido + resumen.reprogramado}
+                {resumen.entregado + resumen.parcial + resumen.fallido + resumen.reprogramado}
               </span>{" "}
               de <span className="num">{resumen.total}</span> paradas cerradas
             </div>
             <div className="ml-auto flex flex-wrap gap-3.5 pb-1 text-[11.5px] font-semibold text-ink-2">
               <Leyenda color="var(--color-ok)" texto={`Entregado ${resumen.entregado}`} />
               <Leyenda color="var(--color-live)" texto={`Pendiente ${resumen.pendiente}`} />
+              <Leyenda color="var(--color-warn)" texto={`Parcial ${resumen.parcial}`} />
               <Leyenda color="var(--color-warn)" texto={`Reprogramado ${resumen.reprogramado}`} />
               <Leyenda color="var(--color-bad)" texto={`Fallido ${resumen.fallido}`} />
             </div>
@@ -165,7 +183,7 @@ export default function TorreControl({
 
           <div className="mt-3 flex h-3 overflow-hidden rounded-full border border-line bg-canvas">
             <span style={{ width: `${resumen.pct(resumen.entregado)}%`, background: "var(--color-ok)" }} />
-            <span style={{ width: `${resumen.pct(resumen.reprogramado)}%`, background: "var(--color-warn)" }} />
+            <span style={{ width: `${resumen.pct(resumen.parcial + resumen.reprogramado)}%`, background: "var(--color-warn)" }} />
             <span style={{ width: `${resumen.pct(resumen.fallido)}%`, background: "var(--color-bad)" }} />
             <span style={{ width: `${resumen.pct(resumen.pendiente)}%`, background: "var(--color-live)" }} />
           </div>
@@ -279,7 +297,7 @@ export default function TorreControl({
                       </td>
                       <td className="border-b border-line px-3 py-2">
                         <Pastilla tono={ESTADO_TONO[p.estado_entrega]}>
-                          {p.estado_entrega}
+                          {ESTADO_TEXTO[p.estado_entrega] ?? p.estado_entrega}
                         </Pastilla>
                       </td>
                     </tr>

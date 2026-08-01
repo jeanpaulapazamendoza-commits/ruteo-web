@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import RegistrarSW from "@/components/RegistrarSW";
 
 /* Dos roles tipográficos: interfaz y dato numérico. */
 const inter = Inter({
@@ -18,6 +19,18 @@ const mono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "RuteoTiendas — Planificación last mile",
   description: "Agrupación de tiendas por zonas y ruteo óptimo de despacho.",
+  manifest: "/manifest.json",
+  // Para que en iPhone se abra a pantalla completa al añadirla al inicio.
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Reparto" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#101B2B",
+  // El móvil del conductor se usa con una mano y a veces con guantes: que no
+  // se descoloque la vista al enfocar un campo.
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -31,6 +44,7 @@ export default function RootLayout({
       className={`${inter.variable} ${mono.variable} h-full antialiased`}
     >
       <body className="min-h-full font-[family-name:var(--font-inter)]">
+        <RegistrarSW />
         {children}
       </body>
     </html>

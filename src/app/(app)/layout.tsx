@@ -27,6 +27,9 @@ export default async function LayoutApp({
     return <CuentaBloqueada email={user.email ?? ""} sinPerfil={!perfil} />;
   }
 
+  // El conductor no usa el escritorio: su sitio es la app de reparto.
+  if (perfil.rol === "conductor") redirect("/conductor");
+
   const empresa =
     (perfil.organizaciones as { nombre?: string } | null)?.nombre ??
     "Sin empresa";
