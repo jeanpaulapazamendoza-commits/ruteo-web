@@ -1,14 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   agrupar, rutear, tiendasEnSector,
   type ConfigAgrupar, type ConfigRutear,
   type Grupo, type Ruta, type TiendaMapa,
 } from "@/lib/motor";
-import { guardarDespacho, type ResumenGuardado } from "@/lib/despachos";
+import {
+  crearDespachoCargado, guardarDespacho, estado,
+  type ResumenGuardado,
+} from "@/lib/despachos";
 import { fusionarPuntos } from "@/lib/plantilla";
 import CargarArchivo from "@/components/CargarArchivo";
 import { Pastilla } from "@/components/ui";
@@ -40,23 +44,22 @@ export type Carga = {
   ruteada: boolean;
 };
 
-/** Dónde viven los puntos mientras no se guarda el despacho. */
-const CLAVE_TRABAJO = "ruteo:trabajo";
-
 type Archivo = { nombre: string; filas: number };
 
 export default function Planificador({
   puntosServidor = [],
   origenServidor = null,
+  estadoDespacho = null,
   cargas = [],
   seleccion = null,
   despachos = [],
   idDespacho = null,
   gruposIniciales = null,
 }: {
-  /** Puntos que vienen de la base (continuar un despacho o carga antigua). */
+  /** Puntos que vienen de la base (el despacho en curso o una carga antigua). */
   puntosServidor?: TiendaMapa[];
   origenServidor?: string | null;
+  estadoDespacho?: string | null;
   /** Cargas antiguas: solo para el aviso de «esta carga ya se ruteó». */
   cargas?: Carga[];
   seleccion?: string | null;
@@ -65,50 +68,13 @@ export default function Planificador({
   gruposIniciales?: string[][] | null;
 }) {
   const router = useRouter();
-  // Si venimos de un despacho guardado, arrancamos en manual con sus grupos.
+  // Si venimos de un despacho ya ruteado, arrancamos en manual con sus grupos.
   const [modo, setModo] = useState<Modo>(gruposIniciales ? "manual" : "capacidad");
-
-  // ¿El origen lo manda el servidor (despacho o carga antigua) o es un archivo
-  // que el usuario acaba de subir aquí?
-  const deServidor = !!idDespacho || !!seleccion;
 
   const [tiendas, setTiendas] = useState<TiendaMapa[]>(puntosServidor);
   const [archivo, setArchivo] = useState<Archivo | null>(null);
   const [subiendo, setSubiendo] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
-
-  // El archivo del día vive solo en el navegador: si se recarga la página sin
-  // haber guardado, no queremos que se pierdan 1500 puntos ya cargados.
-  useEffect(() => {
-    if (deServidor) return;
-    try {
-      const crudo = sessionStorage.getItem(CLAVE_TRABAJO);
-      if (!crudo) return;
-      const g = JSON.parse(crudo) as { puntos?: TiendaMapa[]; archivo?: Archivo | null };
-      if (g?.puntos?.length) {
-        // Leerlo en el inicializador de useState no vale: el servidor no tiene
-        // sessionStorage y la hidratación no cuadraría. Va aquí, una sola vez.
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setTiendas(g.puntos);
-        setArchivo(g.archivo ?? null);
-      }
-    } catch {
-      /* sesión ilegible: se empieza en limpio */
-    }
-  }, [deServidor]);
-
-  useEffect(() => {
-    if (deServidor) return;
-    try {
-      if (tiendas.length) {
-        sessionStorage.setItem(CLAVE_TRABAJO, JSON.stringify({ puntos: tiendas, archivo }));
-      } else {
-        sessionStorage.removeItem(CLAVE_TRABAJO);
-      }
-    } catch {
-      /* sin espacio: seguimos, solo se pierde la recuperación al recargar */
-    }
-  }, [tiendas, archivo, deServidor]);
 
   const [cfgA, setCfgA] = useState<Omit<ConfigAgrupar, "modo">>({
     criterio: "tiendas",
@@ -224,12 +190,31 @@ export default function Planificador({
     limpiarTodo();
   }
 
-  /** Recibe los puntos leídos del archivo, sin tocar la base de datos. */
-  function recibirArchivo(
+  /**
+   * Recibe los puntos leídos del archivo.
+   *
+   * Si todavía no hay despacho abierto, el archivo se registra como uno nuevo
+   * en estado «cargado» y se sigue trabajando sobre él: así el proceso siempre
+   * tiene un documento detrás, aunque el usuario no llegue a rutear hoy.
+   */
+  async function recibirArchivo(
     nuevos: TiendaMapa[],
     nombreArchivo: string,
     accion: "reemplazar" | "anadir",
   ) {
+    if (!idDespacho && accion === "reemplazar") {
+      setCargando("guardar");
+      setError(null);
+      try {
+        const id = await crearDespachoCargado({ archivo: nombreArchivo, puntos: nuevos });
+        router.push(`/planificador?despacho=${id}`);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        setCargando(null);
+      }
+      return;
+    }
+
     if (accion === "reemplazar") {
       setTiendas(nuevos);
       setArchivo({ nombre: nombreArchivo, filas: nuevos.length });
@@ -241,7 +226,9 @@ export default function Planificador({
       // El nombre acumula de dónde salió cada parte: así el despacho guardado
       // dice «X + Y» y se entiende que llevaba puntos de dos sitios.
       setArchivo((a) => {
-        const base = a?.nombre ?? origenServidor;
+        // El nombre del despacho ya viene con su prefijo; aquí solo queremos
+        // la parte de los archivos, o saldría «Despacho de Despacho de …».
+        const base = a?.nombre ?? origenServidor?.replace(/^Despacho de /, "") ?? null;
         return {
           nombre: base ? `${base} + ${nombreArchivo}` : nombreArchivo,
           filas: puntos.length,
@@ -260,13 +247,13 @@ export default function Planificador({
     setSubiendo(false);
   }
 
-  /** Vacía la mesa de trabajo: ni puntos, ni grupos, ni rutas. */
+  /** Deja el planificador en blanco (el despacho sigue guardado). */
   function vaciarTodo() {
     setTiendas([]);
     setArchivo(null);
     setAviso(null);
     limpiarTodo();
-    if (deServidor) router.push("/planificador");
+    router.push("/planificador");
   }
 
   async function hacerAgrupar() {
@@ -293,27 +280,26 @@ export default function Planificador({
     setCargando("guardar");
     setError(null);
     try {
+      // Rutear una carga antigua no nace de un despacho: se crea al vuelo para
+      // que el resultado también sea un documento con su ciclo de vida.
+      const destino =
+        idDespacho ??
+        (await crearDespachoCargado({
+          archivo: cargaSeleccionada?.nombre ?? "tiendas guardadas",
+          puntos: tiendas,
+        }));
+
       const res = await guardarDespacho({
-        nombre: archivo
-          ? `Despacho de ${archivo.nombre}`
-          : cargaSeleccionada
-            ? `Despacho de ${cargaSeleccionada.nombre}`
-            : `Despacho ${new Date().toLocaleDateString("es-PE")}`,
+        despachoId: destino,
+        nombre: archivo ? `Despacho de ${archivo.nombre}` : null,
         rutas,
         cfg: cfgR,
         // Guardar la configuración permite reabrir el despacho tal cual se hizo
         parametros: { modo, ...cfgA, ...cfgR },
-        importacionId: cargaSeleccionada?.id ?? null,
-        archivo,
         puntos: tiendas,
       });
       setGuardado(res);
-      // Ya está en la base: la mesa de trabajo del navegador puede vaciarse.
-      try {
-        sessionStorage.removeItem(CLAVE_TRABAJO);
-      } catch {
-        /* da igual: el despacho ya quedó guardado */
-      }
+      router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -442,25 +428,35 @@ export default function Planificador({
   const avisos = rutas.filter((r) => r.aviso).map((r) => `Ruta ${r.indice + 1}: ${r.aviso}`);
   const hayResultado = grupos.length > 0 || rutas.length > 0;
 
-  const etiquetaOrigen =
-    archivo?.nombre ??
-    (idDespacho && origenServidor ? `Continuando · ${origenServidor}` : origenServidor) ??
-    "Sin puntos cargados";
+  const etiquetaOrigen = archivo?.nombre ?? origenServidor ?? "Sin puntos cargados";
+  const info = estadoDespacho ? estado(estadoDespacho) : null;
 
   // Mesa vacía: lo primero y único que se pide es el archivo del día.
   if (tiendas.length === 0) {
     return (
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         <div className="mx-auto max-w-[680px]">
+          {error && (
+            <p className="mb-3 rounded-[10px] border border-bad/30 bg-bad-bg px-3 py-2.5 text-[13px] text-bad">
+              {error}
+            </p>
+          )}
+          {cargando === "guardar" && (
+            <p className="mb-3 rounded-[10px] border border-line bg-surface-2 px-3 py-2.5 text-[13px] text-ink-2">
+              Registrando el archivo…
+            </p>
+          )}
+
           <CargarArchivo hayPuntos={false} onListo={recibirArchivo} />
 
           {despachos.length > 0 && (
             <div className="mt-3 rounded-[14px] border border-line bg-surface p-4">
               <h3 className="text-[13.5px] font-bold tracking-tight">
-                …o continúa un despacho
+                …o retoma un archivo pendiente
               </h3>
               <p className="mt-1 mb-2.5 text-[12.5px] text-ink-2">
-                Ábrelo para añadirle puntos nuevos y volver a calcular sus rutas.
+                Archivos ya cargados a los que todavía no les has calculado las
+                rutas.
               </p>
               <select
                 defaultValue=""
@@ -501,6 +497,11 @@ export default function Planificador({
                   {tiendas.length.toLocaleString("es-PE")} puntos ·{" "}
                   {totalBultos.toLocaleString("es-PE")} bultos
                 </div>
+                {info && (
+                  <div className="mt-1.5">
+                    <Pastilla tono={info.tono}>{info.texto}</Pastilla>
+                  </div>
+                )}
               </div>
             </div>
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -538,7 +539,7 @@ export default function Planificador({
           {despachos.length > 0 && (
             <details className="mb-2.5">
               <summary className="cursor-pointer text-[11.5px] font-semibold text-ink-3">
-                Continuar un despacho guardado
+                Retomar otro archivo pendiente
               </summary>
               <div className="mt-2">
                 <select
@@ -573,7 +574,14 @@ export default function Planificador({
             </p>
           )}
 
-          {idDespacho && (
+          {estadoDespacho === "cargado" && (
+            <div className="rounded-[10px] border border-line bg-canvas p-2.5 text-[12px] text-ink-2">
+              Archivo cargado y guardado. Configura el agrupamiento, calcula las
+              rutas y al guardarlas este despacho pasará a <b>Planificado</b>.
+            </div>
+          )}
+
+          {idDespacho && estadoDespacho !== "cargado" && (
             <div className="rounded-[10px] border border-line bg-canvas p-2.5 text-[12px] text-ink-2">
               Cargué las rutas de ese despacho como grupos. Las tiendas que{" "}
               <b>no estaban en él aparecen grises</b> en el mapa: son tus puntos
@@ -997,13 +1005,19 @@ export default function Planificador({
 
             {guardado ? (
               <div className="mb-3 rounded-[10px] border border-ok/30 bg-ok-bg px-3 py-2.5 text-[12.5px] text-ok">
-                <b>✓ Despacho guardado.</b>
+                <b>✓ Despacho planificado.</b>
                 <div className="mt-1 text-ink-2">
-                  {guardado.rutas} rutas y {guardado.paradas} paradas quedaron en tu
-                  histórico. Trazado comprimido de{" "}
+                  {guardado.rutas} rutas y {guardado.paradas} paradas. Trazado
+                  comprimido de{" "}
                   <span className="num">{guardado.puntosOriginales.toLocaleString("es-PE")}</span> a{" "}
                   <span className="num">{guardado.puntosGuardados.toLocaleString("es-PE")}</span> puntos.
                 </div>
+                <Link
+                  href={`/despachos/${guardado.id}`}
+                  className="mt-2 inline-block rounded-[8px] border border-ok/40 bg-surface px-2.5 py-1 text-[12px] font-semibold text-ink transition hover:bg-canvas"
+                >
+                  Asignar conductores →
+                </Link>
               </div>
             ) : (
               <button

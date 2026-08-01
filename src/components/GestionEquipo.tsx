@@ -14,12 +14,6 @@ export type MiembroEquipo = {
   creado_en: string;
 };
 
-const ROL_TEXTO: Record<string, string> = {
-  admin: "Administrador",
-  planificador: "Planificador",
-  conductor: "Conductor",
-};
-
 function claveTemporal() {
   // Contraseña temporal legible para dictar; el usuario la cambia luego.
   const s = "abcdefghijkmnpqrstuvwxyz23456789";

@@ -39,7 +39,8 @@ export default async function PaginaTorre({
   const supabase = await crearClienteServidor();
 
   const { data } = await supabase.rpc("resumen_despachos");
-  const lista = (data ?? []) as ResumenDespacho[];
+  // Lo que está solo cargado todavía no tiene rutas que seguir.
+  const lista = ((data ?? []) as ResumenDespacho[]).filter((d) => d.estado !== "cargado");
 
   if (!lista.length) {
     return (

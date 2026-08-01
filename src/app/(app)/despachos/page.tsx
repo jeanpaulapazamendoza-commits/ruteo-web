@@ -1,68 +1,63 @@
 import Link from "next/link";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraSuperior, Tarjeta, EstadoVacio, Pastilla } from "@/components/ui";
+import { estado as infoEstado, ESTADOS } from "@/lib/despachos";
 
-type Kpis = {
-  rutas?: number;
-  paradas?: number;
-  bultos?: number;
-  km?: number;
-  duracion_min?: number;
-  costo?: number;
+type Fila = {
+  id: string;
+  nombre: string | null;
+  fecha: string;
+  estado: string;
+  creado_en: string;
+  autor: string | null;
+  archivo: string | null;
+  rutas: number;
+  paradas: number;
+  entregadas: number;
+  fallidas: number;
+  reprogramadas: number;
+  bultos: number;
+  km: number;
+  costo: number;
+  sin_conductor: number;
 };
 
-const TONO: Record<string, "ok" | "live" | "warn" | "plan" | "bad"> = {
-  borrador: "plan",
-  planificado: "live",
-  en_curso: "warn",
-  cerrado: "ok",
-  anulado: "bad",
-};
-
-function fechaLarga(f: string) {
+function fechaCorta(f: string) {
   const [a, m, d] = f.split("-").map(Number);
   return new Date(a, m - 1, d).toLocaleDateString("es-PE", {
-    weekday: "short",
     day: "2-digit",
     month: "short",
-    year: "numeric",
   });
 }
 
-export default async function PaginaDespachos() {
+export default async function PaginaDespachos({
+  searchParams,
+}: {
+  searchParams: Promise<{ estado?: string }>;
+}) {
+  const { estado: filtro } = await searchParams;
   const supabase = await crearClienteServidor();
 
-  const { data, error } = await supabase
-    .from("despachos")
-    .select("id, fecha, nombre, estado, kpis, creado_en, perfiles:creado_por(nombre)")
-    .order("creado_en", { ascending: false })
-    .limit(100);
+  const { data, error } = await supabase.rpc("resumen_despachos");
+  const todos = (data ?? []) as Fila[];
+  const despachos = filtro ? todos.filter((d) => d.estado === filtro) : todos;
 
-  const despachos = data ?? [];
-
-  const acumulado = despachos.reduce(
-    (a, d) => {
-      const k = (d.kpis ?? {}) as Kpis;
-      return {
-        km: a.km + (k.km ?? 0),
-        paradas: a.paradas + (k.paradas ?? 0),
-        costo: a.costo + (k.costo ?? 0),
-      };
-    },
-    { km: 0, paradas: 0, costo: 0 },
-  );
+  const cuenta = (e: string) => todos.filter((d) => d.estado === e).length;
+  const conteos = (Object.keys(ESTADOS) as (keyof typeof ESTADOS)[])
+    .map((e) => ({ clave: e, ...ESTADOS[e], n: cuenta(e) }))
+    .filter((e) => e.n > 0);
 
   return (
     <>
       <BarraSuperior
         migaja="Operación"
-        titulo="Despachos guardados"
+        titulo="Despachos"
         acciones={
           <Link
             href="/planificador"
             className="rounded-[9px] border border-amber-600 bg-amber px-3.5 py-2 text-[13px] font-semibold text-[#231403] transition hover:bg-amber-600 hover:text-white"
           >
-            ◈ Planificar uno nuevo
+            ⇪ Subir archivo del día
           </Link>
         }
       />
@@ -74,12 +69,12 @@ export default async function PaginaDespachos() {
           </div>
         )}
 
-        {despachos.length === 0 ? (
+        {todos.length === 0 ? (
           <Tarjeta>
             <EstadoVacio
               icono="📅"
-              titulo="Todavía no has guardado ningún despacho"
-              descripcion="Cuando optimices las rutas del día y pulses «Guardar despacho», quedará aquí con su mapa, sus paradas y la configuración con la que se calculó."
+              titulo="Todavía no hay despachos"
+              descripcion="Sube el archivo del día en el planificador. Quedará aquí como «Cargado sin ruteo» y lo irás llevando por sus estados hasta el reparto."
               accion={
                 <Link
                   href="/planificador"
@@ -92,58 +87,97 @@ export default async function PaginaDespachos() {
           </Tarjeta>
         ) : (
           <>
-            <p className="mb-3 text-[12.5px] text-ink-2">
-              <b className="num">{despachos.length}</b> despachos ·{" "}
-              <b className="num">{acumulado.paradas.toLocaleString("es-PE")}</b> paradas ·{" "}
-              <b className="num">{acumulado.km.toFixed(0)}</b> km acumulados
-              {acumulado.costo > 0 && (
-                <>
-                  {" "}
-                  · <b className="num">S/ {acumulado.costo.toFixed(2)}</b>
-                </>
-              )}
-            </p>
+            {/* Filtro por estado: el ciclo de vida a la vista */}
+            <div className="mb-3 flex flex-wrap items-center gap-1.5">
+              <Filtro href="/despachos" activo={!filtro} texto="Todos" n={todos.length} />
+              {conteos.map((e) => (
+                <Filtro
+                  key={e.clave}
+                  href={`/despachos?estado=${e.clave}`}
+                  activo={filtro === e.clave}
+                  texto={e.texto}
+                  n={e.n}
+                />
+              ))}
+            </div>
 
-            <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
-              {despachos.map((d) => {
-                const k = (d.kpis ?? {}) as Kpis;
-                const autor = (d.perfiles as { nombre?: string } | null)?.nombre;
+            <Tarjeta className="overflow-hidden">
+              {despachos.map((d, i) => {
+                const info = infoEstado(d.estado);
+                const cerradas = d.entregadas + d.fallidas + d.reprogramadas;
+                const pct = d.paradas ? Math.round((cerradas / d.paradas) * 100) : 0;
                 return (
                   <Link
                     key={d.id}
                     href={`/despachos/${d.id}`}
-                    className="rounded-[14px] border border-line bg-surface p-3.5 transition hover:border-line-strong hover:shadow-[0_2px_10px_rgba(16,27,43,0.07)]"
+                    className={`flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2.5 transition hover:bg-canvas ${
+                      i > 0 ? "border-t border-line" : ""
+                    }`}
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="num text-[12px] font-bold text-ink-2">
-                        {fechaLarga(d.fecha)}
-                      </span>
-                      <span className="ml-auto">
-                        <Pastilla tono={TONO[d.estado] ?? "plan"}>{d.estado}</Pastilla>
-                      </span>
-                    </div>
+                    <span className="num w-[52px] shrink-0 text-[12px] font-semibold text-ink-3">
+                      {fechaCorta(d.fecha)}
+                    </span>
 
-                    <h3 className="mt-1.5 text-[14.5px] font-bold tracking-tight">
-                      {d.nombre ?? "Despacho sin nombre"}
-                    </h3>
+                    <span className="min-w-[200px] flex-1 truncate text-[13.5px] font-semibold">
+                      {d.nombre ?? "Despacho"}
+                      {d.archivo && (
+                        <span className="num ml-2 text-[11.5px] font-normal text-ink-3">
+                          📄 {d.archivo}
+                        </span>
+                      )}
+                    </span>
 
-                    <div className="mt-2.5 grid grid-cols-3 gap-2 border-t border-line pt-2.5">
-                      <Mini etiqueta="Rutas" valor={k.rutas ?? 0} />
-                      <Mini etiqueta="Paradas" valor={k.paradas ?? 0} />
-                      <Mini etiqueta="Km" valor={Number((k.km ?? 0).toFixed(1))} />
-                    </div>
+                    <span className="w-[132px] shrink-0">
+                      <Pastilla tono={info.tono}>{info.texto}</Pastilla>
+                    </span>
 
-                    <div className="mt-2 flex items-center gap-2 text-[11.5px] text-ink-3">
-                      {k.bultos ? <span className="num">{k.bultos} bultos</span> : null}
-                      {k.costo ? (
-                        <span className="num">· S/ {k.costo.toFixed(2)}</span>
-                      ) : null}
-                      {autor && <span className="ml-auto truncate">{autor}</span>}
-                    </div>
+                    {/* Un despacho sin rutear guarda sus puntos en una ruta
+                        contenedora que no cuenta como ruta de reparto. */}
+                    <span className="num w-[56px] shrink-0 text-right text-[12.5px]">
+                      {d.estado === "cargado" ? (
+                        <span className="text-ink-3">—</span>
+                      ) : (
+                        <>
+                          {d.rutas}
+                          <span className="ml-1 text-[10.5px] text-ink-3">rut</span>
+                        </>
+                      )}
+                    </span>
+                    <span className="num w-[76px] shrink-0 text-right text-[12.5px]">
+                      {d.paradas.toLocaleString("es-PE")}
+                      <span className="ml-1 text-[10.5px] text-ink-3">par</span>
+                    </span>
+                    <span className="num w-[76px] shrink-0 text-right text-[12.5px] text-ink-2">
+                      {d.km > 0 ? `${Number(d.km).toFixed(0)} km` : "—"}
+                    </span>
+
+                    <span className="w-[104px] shrink-0 text-right text-[11.5px]">
+                      {d.estado === "cargado" ? (
+                        <span className="text-ink-3">sin rutear</span>
+                      ) : cerradas > 0 ? (
+                        <span className="num font-semibold">{pct}% entregado</span>
+                      ) : d.sin_conductor > 0 && d.rutas > 0 ? (
+                        <span className="num text-warn">
+                          {d.sin_conductor} sin conductor
+                        </span>
+                      ) : (
+                        <span className="text-ok">listo para salir</span>
+                      )}
+                    </span>
+
+                    <span className="w-[104px] shrink-0 truncate text-right text-[11.5px] text-ink-3">
+                      {d.autor ?? ""}
+                    </span>
                   </Link>
                 );
               })}
-            </div>
+
+              {despachos.length === 0 && (
+                <p className="px-4 py-6 text-center text-[13px] text-ink-3">
+                  Ningún despacho en ese estado.
+                </p>
+              )}
+            </Tarjeta>
           </>
         )}
       </div>
@@ -151,15 +185,27 @@ export default async function PaginaDespachos() {
   );
 }
 
-function Mini({ etiqueta, valor }: { etiqueta: string; valor: number }) {
+function Filtro({
+  href,
+  activo,
+  texto,
+  n,
+}: {
+  href: string;
+  activo: boolean;
+  texto: string;
+  n: number;
+}) {
   return (
-    <div>
-      <div className="num text-[16px] font-bold leading-none">
-        {valor.toLocaleString("es-PE")}
-      </div>
-      <div className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-ink-3">
-        {etiqueta}
-      </div>
-    </div>
+    <Link
+      href={href}
+      className={`rounded-full border px-3 py-1 text-[12px] font-semibold transition ${
+        activo
+          ? "border-ink bg-ink text-surface"
+          : "border-line-strong bg-surface text-ink-2 hover:bg-canvas"
+      }`}
+    >
+      {texto} <span className="num opacity-70">{n}</span>
+    </Link>
   );
 }

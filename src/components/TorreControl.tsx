@@ -35,7 +35,6 @@ const COLORES = [
 ];
 const color = (i: number) => COLORES[i % COLORES.length];
 
-const hhmm = (t: string | null) => (t ? t.slice(0, 5) : "—");
 const horaDe = (iso: string | null) =>
   iso
     ? new Date(iso).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })

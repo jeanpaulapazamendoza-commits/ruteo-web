@@ -40,6 +40,33 @@ export function simplificar(puntos: number[][], tolerancia = 0.00012): number[][
   ]);
 }
 
+/**
+ * Ciclo de vida del despacho. Es el hilo del proceso: se sube el archivo
+ * (cargado), se arman las rutas (planificado), se reparte entre conductores
+ * (asignado) y el reparto lo va cerrando.
+ */
+export const ESTADOS = {
+  cargado: { texto: "Cargado sin ruteo", tono: "plan", orden: 1 },
+  planificado: { texto: "Planificado", tono: "live", orden: 2 },
+  asignado: { texto: "Asignado", tono: "warn", orden: 3 },
+  en_curso: { texto: "En reparto", tono: "warn", orden: 4 },
+  cerrado: { texto: "Cerrado", tono: "ok", orden: 5 },
+  anulado: { texto: "Anulado", tono: "bad", orden: 6 },
+} as const satisfies Record<
+  string,
+  { texto: string; tono: "ok" | "warn" | "bad" | "live" | "plan"; orden: number }
+>;
+
+export type EstadoDespacho = keyof typeof ESTADOS;
+
+export function estado(valor: string) {
+  return ESTADOS[valor as EstadoDespacho] ?? { texto: valor, tono: "plan" as const, orden: 0 };
+}
+
+/** Mientras no salga a reparto se le pueden añadir puntos y volver a rutear. */
+export const editable = (valor: string) =>
+  valor === "cargado" || valor === "planificado" || valor === "asignado";
+
 const hora = (v: string | null | undefined) =>
   v && v !== "—" ? v : null;
 
@@ -60,24 +87,54 @@ export type ResumenGuardado = {
   puntosGuardados: number;
 };
 
-/** Guarda el despacho completo en Supabase (una sola transacción). */
+/**
+ * Registra el archivo recién subido como un despacho en estado «cargado».
+ * Todavía no hay rutas: solo los puntos, para poder retomarlo más tarde.
+ */
+export async function crearDespachoCargado({
+  archivo,
+  puntos,
+}: {
+  archivo: string;
+  puntos: TiendaMapa[];
+}): Promise<string> {
+  const supabase = crearClienteNavegador();
+  const { data, error } = await supabase.rpc("crear_despacho_cargado", {
+    p: {
+      archivo,
+      nombre: `Despacho de ${archivo}`,
+      puntos: puntos.map((p) => ({
+        codigo: p.codigo,
+        nombre: p.nombre,
+        distrito: p.distrito,
+        lat: p.lat,
+        lon: p.lon,
+        bultos: p.bultos,
+        prioridad: p.prioridad,
+        ventana_ini: p.ventana_ini,
+        ventana_fin: p.ventana_fin,
+      })),
+    },
+  });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
+/** Guarda las rutas calculadas sobre un despacho que ya existe. */
 export async function guardarDespacho({
+  despachoId,
   nombre,
   rutas,
   cfg,
   parametros,
-  importacionId,
-  archivo,
   puntos = [],
 }: {
-  nombre: string;
+  /** Despacho sobre el que se trabaja: sus rutas se reemplazan. */
+  despachoId: string;
+  nombre?: string | null;
   rutas: Ruta[];
   cfg: ConfigRutear;
   parametros: Record<string, unknown>;
-  /** Carga de tiendas de la que salió este despacho, si aplica. */
-  importacionId?: string | null;
-  /** Archivo del que salieron los puntos; queda registrado con el despacho. */
-  archivo?: { nombre: string; filas: number } | null;
   /** Puntos de trabajo: de aquí salen las ventanas horarias de cada parada. */
   puntos?: TiendaMapa[];
 }): Promise<ResumenGuardado> {
@@ -135,14 +192,12 @@ export async function guardarDespacho({
     costo: Number(validas.reduce((a, r) => a + (r.costo ?? 0), 0).toFixed(2)),
   };
 
-  const { data, error } = await supabase.rpc("guardar_despacho", {
+  const { error } = await supabase.rpc("replanificar_despacho", {
     p: {
-      nombre,
-      estado: "planificado",
+      despacho_id: despachoId,
+      nombre: nombre ?? null,
       cd_lat: cfg.cd_lat,
       cd_lon: cfg.cd_lon,
-      importacion_id: importacionId ?? null,
-      archivo: archivo ?? null,
       parametros,
       kpis,
       rutas: rutasPayload,
@@ -152,10 +207,26 @@ export async function guardarDespacho({
   if (error) throw new Error(error.message);
 
   return {
-    id: data as string,
+    id: despachoId,
     rutas: validas.length,
     paradas: kpis.paradas,
     puntosOriginales,
     puntosGuardados,
   };
+}
+
+/**
+ * Asigna conductor y vehículo a cada ruta. Devuelve el estado en que queda el
+ * despacho: «asignado» si ninguna ruta se quedó sin conductor.
+ */
+export async function asignarRutas(
+  despachoId: string,
+  asignaciones: { ruta_id: string; conductor_id: string | null; vehiculo_id: string | null }[],
+): Promise<string> {
+  const supabase = crearClienteNavegador();
+  const { data, error } = await supabase.rpc("asignar_rutas", {
+    p: { despacho_id: despachoId, asignaciones },
+  });
+  if (error) throw new Error(error.message);
+  return data as string;
 }

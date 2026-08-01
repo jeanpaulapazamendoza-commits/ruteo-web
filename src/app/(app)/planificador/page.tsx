@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraSuperior } from "@/components/ui";
 import Planificador, { type Carga } from "@/components/Planificador";
@@ -23,9 +24,12 @@ export default async function PaginaPlanificador({
         .select("id, nombre_archivo, filas, creado_en, perfiles:creado_por(nombre), despachos(id)")
         .order("creado_en", { ascending: false })
         .limit(50),
+      // Solo lo que está pendiente de rutear: un despacho ya planificado se
+      // retoma desde su ficha, no desde aquí.
       supabase
         .from("despachos")
         .select("id, nombre, fecha")
+        .eq("estado", "cargado")
         .order("creado_en", { ascending: false })
         .limit(30),
     ]);
@@ -58,13 +62,14 @@ export default async function PaginaPlanificador({
   let puntos: TiendaMapa[] = [];
   let gruposIniciales: string[][] | null = null;
   let origenServidor: string | null = null;
+  let estadoDespacho: string | null = null;
 
   if (idDespacho) {
-    // Continuar un despacho: sus paradas son los puntos, y sus rutas los grupos.
-    // El despacho guarda copia completa de cada parada, así que no hace falta
-    // cruzarlo con ninguna otra tabla.
+    // Trabajar sobre un despacho: sus paradas son los puntos, y sus rutas los
+    // grupos. El despacho guarda copia completa de cada parada, así que no hace
+    // falta cruzarlo con ninguna otra tabla.
     const [{ data: cab }, { data: rutas }] = await Promise.all([
-      supabase.from("despachos").select("nombre, fecha").eq("id", idDespacho).maybeSingle(),
+      supabase.from("despachos").select("nombre, fecha, estado").eq("id", idDespacho).maybeSingle(),
       supabase
         .from("rutas")
         .select(
@@ -75,6 +80,7 @@ export default async function PaginaPlanificador({
     ]);
 
     origenServidor = cab ? (cab.nombre ?? cab.fecha) : "Despacho";
+    estadoDespacho = cab?.estado ?? null;
 
     type ParadaFila = {
       orden: number;
@@ -115,6 +121,10 @@ export default async function PaginaPlanificador({
       }
       return ids;
     });
+
+    // Un despacho recién cargado guarda sus puntos en una ruta contenedora
+    // que no es un agrupamiento real: se empieza de cero.
+    if (estadoDespacho === "cargado") gruposIniciales = null;
   } else if (seleccion) {
     // Tiendas guardadas de antes (histórico). Se mantiene por compatibilidad.
     let consulta = supabase
@@ -154,9 +164,15 @@ export default async function PaginaPlanificador({
           porque los puntos del archivo se cargan ya en el navegador. */}
       <BarraSuperior
         migaja={
-          idDespacho ? `Continuando · ${origenServidor}` : (origenServidor ?? "Operación")
+          idDespacho ? (
+            <Link href="/despachos" className="transition hover:text-ink">
+              Despachos
+            </Link>
+          ) : (
+            (origenServidor ?? "Operación")
+          )
         }
-        titulo="Planificación del día"
+        titulo={idDespacho ? (origenServidor ?? "Despacho") : "Planificación del día"}
       />
 
       {/* La `key` ata el planificador a su origen: al cambiar de despacho (o al
@@ -166,6 +182,7 @@ export default async function PaginaPlanificador({
         key={idDespacho ?? seleccion ?? "archivo"}
         puntosServidor={puntos}
         origenServidor={origenServidor}
+        estadoDespacho={estadoDespacho}
         cargas={cargas}
         seleccion={seleccion}
         despachos={despachos ?? []}
