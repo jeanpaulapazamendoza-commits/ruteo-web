@@ -47,6 +47,29 @@ export type Carga = {
 
 type Archivo = { nombre: string; filas: number };
 
+/** Un ruteo cargado y todavía sin rutear, tal como se ofrece para retomarlo. */
+type Pendiente = {
+  id: string;
+  nombre: string | null;
+  fecha: string;
+  autor: string | null;
+  archivo: string | null;
+};
+
+/** «Reparto Norte — 54 puntos · Melissa · 01-ago» y no «Despacho» a secas. */
+function etiquetaPendiente(d: Pendiente) {
+  const fecha = new Date(d.fecha + "T00:00:00").toLocaleDateString("es-PE", {
+    day: "2-digit",
+    month: "short",
+  });
+  return (
+    (d.nombre ?? "Ruteo sin nombre") +
+    (d.autor ? ` · ${d.autor}` : "") +
+    ` · ${fecha}` +
+    (d.archivo ? ` · ${d.archivo}` : "")
+  );
+}
+
 export default function Planificador({
   puntosServidor = [],
   origenServidor = null,
@@ -65,7 +88,7 @@ export default function Planificador({
   /** Cargas antiguas: solo para el aviso de «esta carga ya se ruteó». */
   cargas?: Carga[];
   seleccion?: string | null;
-  despachos?: { id: string; nombre: string | null; fecha: string }[];
+  despachos?: Pendiente[];
   idDespacho?: string | null;
   gruposIniciales?: string[][] | null;
   /** Zonas fijas de la empresa, para repartir los puntos de un botón. */
@@ -241,12 +264,17 @@ export default function Planificador({
     nuevos: TiendaMapa[],
     nombreArchivo: string,
     accion: "reemplazar" | "anadir",
+    alias?: string,
   ) {
     if (!idDespacho && accion === "reemplazar") {
       setCargando("guardar");
       setError(null);
       try {
-        const id = await crearDespachoCargado({ archivo: nombreArchivo, puntos: nuevos });
+        const id = await crearDespachoCargado({
+          archivo: nombreArchivo,
+          nombre: alias || null,
+          puntos: nuevos,
+        });
         router.push(`/planificador?despacho=${id}`);
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -508,7 +536,7 @@ export default function Planificador({
                 <option value="">— elegir —</option>
                 {despachos.map((d) => (
                   <option key={d.id} value={d.id}>
-                    {d.nombre ?? "Despacho"} — {d.fecha}
+                    {etiquetaPendiente(d)}
                   </option>
                 ))}
               </select>
@@ -592,7 +620,7 @@ export default function Planificador({
                   <option value="">— elegir —</option>
                   {despachos.map((d) => (
                     <option key={d.id} value={d.id}>
-                      {d.nombre ?? "Despacho"} — {d.fecha}
+                      {etiquetaPendiente(d)}
                     </option>
                   ))}
                 </select>

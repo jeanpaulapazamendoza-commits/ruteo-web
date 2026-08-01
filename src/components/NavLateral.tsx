@@ -33,18 +33,30 @@ const SECCION_ADMIN = {
   ],
 };
 
+// Solo para quien administra el servicio, no la operación de una empresa.
+const SECCION_DEV = {
+  titulo: "Desarrollador",
+  enlaces: [{ href: "/organizaciones", icono: "⬢", texto: "Empresas" }],
+};
+
 export default function NavLateral({
   nombre,
   empresa,
   rol,
+  esDesarrollador = false,
 }: {
   nombre: string;
   empresa: string;
   rol: string;
+  esDesarrollador?: boolean;
 }) {
   const ruta = usePathname();
   const router = useRouter();
-  const secciones = rol === "admin" ? [...SECCIONES, SECCION_ADMIN] : SECCIONES;
+  const secciones = [
+    ...SECCIONES,
+    ...(rol === "admin" ? [SECCION_ADMIN] : []),
+    ...(esDesarrollador ? [SECCION_DEV] : []),
+  ];
 
   async function salir() {
     const supabase = crearClienteNavegador();

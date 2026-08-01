@@ -4,6 +4,7 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 import { BarraSuperior, Pastilla, Tarjeta } from "@/components/ui";
 import { estado as infoEstado, editable } from "@/lib/despachos";
 import VistaDespacho, { type RutaGuardada } from "@/components/VistaDespacho";
+import BorrarDespacho from "@/components/BorrarDespacho";
 import AsignarRutas, {
   type RutaAsignable,
   type Conductor,
@@ -45,7 +46,11 @@ export default async function PaginaDespacho({
 
   const sinRutear = despacho.estado === "cargado";
 
-  const [{ data: rutasRaw }, { data: equipo }, { data: flota }] = await Promise.all([
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const [{ data: rutasRaw }, { data: equipo }, { data: flota }, { data: yo }] = await Promise.all([
     supabase
       .from("rutas")
       .select(`id, indice, km, duracion_min, costo, salida_prog, fin_estimado, geometria,
@@ -60,6 +65,7 @@ export default async function PaginaDespacho({
       .eq("activo", true)
       .order("nombre"),
     supabase.from("vehiculos").select("id, nombre, placa").eq("activo", true).order("nombre"),
+    supabase.from("perfiles").select("rol").eq("id", user?.id ?? "").maybeSingle(),
   ]);
 
   const rutas: RutaGuardada[] = (rutasRaw ?? []).map((r) => ({
@@ -107,6 +113,12 @@ export default async function PaginaDespacho({
               >
                 {sinRutear ? "◈ Rutear" : "◈ Añadir puntos o recalcular"}
               </Link>
+            )}
+            {yo?.rol === "admin" && (
+              <BorrarDespacho
+                despachoId={despacho.id}
+                nombre={despacho.nombre ?? "Despacho"}
+              />
             )}
             {!sinRutear && (
               <Link

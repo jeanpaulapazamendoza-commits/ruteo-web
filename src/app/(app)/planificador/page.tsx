@@ -29,7 +29,7 @@ export default async function PaginaPlanificador({
       // retoma desde su ficha, no desde aquí.
       supabase
         .from("despachos")
-        .select("id, nombre, fecha")
+        .select("id, nombre, fecha, perfiles:creado_por(nombre), importaciones(nombre_archivo)")
         .eq("estado", "cargado")
         .order("creado_en", { ascending: false })
         .limit(30),
@@ -69,6 +69,17 @@ export default async function PaginaPlanificador({
       autor: (i.perfiles as { nombre?: string } | null)?.nombre ?? null,
       ruteada: ((i.despachos as unknown[] | null)?.length ?? 0) > 0,
     }));
+
+  // Lo que se ofrece para retomar: el alias que le puso el usuario, quién lo
+  // subió y de qué archivo salió. Sin eso, «Despacho» a secas no distingue
+  // dos cargas del mismo día.
+  const pendientes = (despachos ?? []).map((d) => ({
+    id: d.id,
+    nombre: d.nombre,
+    fecha: d.fecha,
+    autor: (d.perfiles as { nombre?: string } | null)?.nombre ?? null,
+    archivo: (d.importaciones as { nombre_archivo?: string } | null)?.nombre_archivo ?? null,
+  }));
 
   const seleccion = idDespacho ? null : (idCarga ?? null);
 
@@ -198,7 +209,7 @@ export default async function PaginaPlanificador({
         estadoDespacho={estadoDespacho}
         cargas={cargas}
         seleccion={seleccion}
-        despachos={despachos ?? []}
+        despachos={pendientes}
         idDespacho={idDespacho ?? null}
         gruposIniciales={gruposIniciales}
         zonas={zonas}

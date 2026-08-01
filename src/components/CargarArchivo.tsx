@@ -30,13 +30,19 @@ export default function CargarArchivo({
   onCerrar,
 }: {
   hayPuntos: boolean;
-  onListo: (puntos: PuntoPlan[], nombreArchivo: string, modo: "reemplazar" | "anadir") => void;
+  onListo: (
+    puntos: PuntoPlan[],
+    nombreArchivo: string,
+    modo: "reemplazar" | "anadir",
+    alias: string,
+  ) => void;
   onCerrar?: () => void;
 }) {
   const inputArchivo = useRef<HTMLInputElement>(null);
   const [analizando, setAnalizando] = useState(false);
   const [lectura, setLectura] = useState<ResultadoLectura | null>(null);
   const [nombre, setNombre] = useState("");
+  const [alias, setAlias] = useState("");
   const [fallo, setFallo] = useState<string | null>(null);
 
   async function alElegirArchivo(e: React.ChangeEvent<HTMLInputElement>) {
@@ -45,6 +51,9 @@ export default function CargarArchivo({
     setFallo(null);
     setLectura(null);
     setNombre(archivo.name);
+    // Un nombre por defecto que ya sirve: la fecha de hoy. Se puede cambiar,
+    // pero nunca queda un ruteo sin forma de identificarlo.
+    setAlias((a) => a || `Reparto ${new Date().toLocaleDateString("es-PE")}`);
     setAnalizando(true);
     try {
       setLectura(await leerArchivo(archivo));
@@ -57,9 +66,10 @@ export default function CargarArchivo({
 
   function usar(modo: "reemplazar" | "anadir") {
     if (!lectura?.filas.length) return;
-    onListo(aPuntos(lectura.filas), nombre || "archivo.csv", modo);
+    onListo(aPuntos(lectura.filas), nombre || "archivo.csv", modo, alias.trim());
     setLectura(null);
     setNombre("");
+    setAlias("");
     if (inputArchivo.current) inputArchivo.current.value = "";
   }
 
@@ -163,6 +173,23 @@ export default function CargarArchivo({
                 )}
               </ul>
             </details>
+          )}
+
+          {lectura.filas.length > 0 && (
+            <label className="mt-3 block">
+              <span className="mb-1 block text-[11.5px] font-semibold text-ink-2">
+                Nombre del ruteo
+              </span>
+              <input
+                value={alias}
+                onChange={(e) => setAlias(e.target.value)}
+                placeholder="Ej. Reparto Norte lunes"
+                className="w-full rounded-[9px] border border-line-strong bg-surface px-2.5 py-2 text-[13.5px]"
+              />
+              <span className="mt-1 block text-[11px] text-ink-3">
+                Con este nombre lo encontrarás luego en Despachos y en la torre.
+              </span>
+            </label>
           )}
 
           {lectura.filas.length > 0 && (

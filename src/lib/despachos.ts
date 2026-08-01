@@ -93,16 +93,19 @@ export type ResumenGuardado = {
  */
 export async function crearDespachoCargado({
   archivo,
+  nombre,
   puntos,
 }: {
   archivo: string;
+  /** Alias que le pone el usuario; si no pone ninguno, se usa el del archivo. */
+  nombre?: string | null;
   puntos: TiendaMapa[];
 }): Promise<string> {
   const supabase = crearClienteNavegador();
   const { data, error } = await supabase.rpc("crear_despacho_cargado", {
     p: {
       archivo,
-      nombre: `Despacho de ${archivo}`,
+      nombre: nombre?.trim() || `Despacho de ${archivo}`,
       puntos: puntos.map((p) => ({
         codigo: p.codigo,
         nombre: p.nombre,
@@ -229,4 +232,11 @@ export async function asignarRutas(
   });
   if (error) throw new Error(error.message);
   return data as string;
+}
+
+/** Borra un ruteo completo. Solo el admin, y solo si no salió a reparto. */
+export async function eliminarDespacho(despachoId: string) {
+  const supabase = crearClienteNavegador();
+  const { error } = await supabase.rpc("eliminar_despacho", { p_despacho: despachoId });
+  if (error) throw new Error(error.message);
 }

@@ -19,7 +19,7 @@ export default async function LayoutApp({
   // aunque esté desactivado; así podemos mostrarle la pantalla de bloqueo.
   const { data: perfil } = await supabase
     .from("perfiles")
-    .select("nombre, rol, activo, organizaciones(nombre)")
+    .select("nombre, rol, activo, es_desarrollador, organizaciones(nombre, activa)")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -27,12 +27,17 @@ export default async function LayoutApp({
     return <CuentaBloqueada email={user.email ?? ""} sinPerfil={!perfil} />;
   }
 
+  // Empresa suspendida: no es culpa del usuario y conviene decirlo distinto,
+  // o el administrador del cliente perseguirá un problema que no existe.
+  const org = perfil.organizaciones as { nombre?: string; activa?: boolean } | null;
+  if (org?.activa === false) {
+    return <CuentaBloqueada email={user.email ?? ""} empresaSuspendida empresa={org.nombre ?? ""} />;
+  }
+
   // El conductor no usa el escritorio: su sitio es la app de reparto.
   if (perfil.rol === "conductor") redirect("/conductor");
 
-  const empresa =
-    (perfil.organizaciones as { nombre?: string } | null)?.nombre ??
-    "Sin empresa";
+  const empresa = org?.nombre ?? "Sin empresa";
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -40,6 +45,7 @@ export default async function LayoutApp({
         nombre={perfil.nombre ?? user.email ?? "Usuario"}
         empresa={empresa}
         rol={perfil.rol}
+        esDesarrollador={perfil.es_desarrollador === true}
       />
       <div className="flex min-w-0 flex-1 flex-col overflow-y-auto bg-surface-2">
         {children}
