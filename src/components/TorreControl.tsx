@@ -26,6 +26,7 @@ export type ParadaSeguimiento = {
   eta: string | null;
   estado_entrega: "pendiente" | "entregado" | "parcial" | "fallido" | "reprogramado";
   hora_entrega: string | null;
+  bultos_entregados: number | null;
   motivo: string | null;
   foto_url: string | null;
   observaciones: string | null;
@@ -62,6 +63,32 @@ const COLORES = [
   "#D9534F", "#2F855A", "#B7791F", "#5A67D8", "#D53F8C", "#319795",
 ];
 const color = (i: number) => COLORES[i % COLORES.length];
+
+/**
+ * Qué pasó en esta parada, en una frase.
+ *
+ * El campo `motivo` de una entrega parcial guarda lo que el conductor escribió
+ * en «¿qué faltó?», que suelto no dice nada: un «1» a secas no es un motivo.
+ * Lo que importa es cuánto entregó de cuánto, y eso vive en otra columna.
+ */
+function queLePaso(p: ParadaSeguimiento): string {
+  const partes: string[] = [];
+
+  if (p.estado_entrega === "parcial") {
+    partes.push(
+      p.bultos_entregados != null
+        ? `Entregó ${p.bultos_entregados} de ${p.bultos} bultos`
+        : "Entrega incompleta",
+    );
+    if (p.motivo) partes.push(`faltó: ${p.motivo}`);
+  } else if (p.motivo) {
+    partes.push(p.motivo);
+  }
+
+  if (p.observaciones && p.observaciones !== p.motivo) partes.push(p.observaciones);
+  if (!partes.length) partes.push("Sin detalle");
+  return partes.join(" · ");
+}
 
 const horaDe = (iso: string | null) =>
   iso
@@ -102,10 +129,12 @@ export default function TorreControl({
         .from("paradas")
         .select(
           `id, orden, codigo, nombre, distrito, lat, lon, bultos, prioridad, eta,
-           estado_entrega, hora_entrega, motivo, foto_url, observaciones, recibe,
+           estado_entrega, hora_entrega, bultos_entregados, motivo, foto_url,
+           observaciones, recibe,
            rutas!inner(indice, despacho_id)`,
         )
         .eq("rutas.despacho_id", despachoId)
+        .eq("rutas.sin_asignar", false)
         .order("orden");
       if (error) throw error;
       if (!montado.current) return;
@@ -348,7 +377,7 @@ export default function TorreControl({
                         R-{String((p.rutas?.indice ?? 0) + 1).padStart(2, "0")}
                       </td>
                       <td className="border-b border-line px-3 py-2 text-ink-2">
-                        {p.motivo ?? p.observaciones ?? "Sin detalle"}
+                        {queLePaso(p)}
                       </td>
                       <td className="num border-b border-line px-3 py-2 text-ink-2">
                         {horaDe(p.hora_entrega)}
@@ -403,7 +432,7 @@ export default function TorreControl({
                   <b className="block text-[12.5px] text-ink">{p.nombre}</b>
                   {p.estado_entrega === "entregado"
                     ? `${p.bultos} bultos${p.recibe ? ` · recibe ${p.recibe}` : ""}`
-                    : (p.motivo ?? p.observaciones ?? p.estado_entrega)}
+                    : queLePaso(p)}
                   {p.foto_url && <FotoEntrega ruta={p.foto_url} />}
                 </div>
               </div>
@@ -500,13 +529,10 @@ function DetalleRuta({
                     {p.distrito ? ` · ${p.distrito}` : ""}
                     {p.hora_entrega ? ` · ${horaDe(p.hora_entrega)}` : ""}
                   </div>
-                  {(p.motivo || p.recibe || p.observaciones) && (
+                  {(p.motivo || p.recibe || p.observaciones || p.estado_entrega === "parcial") && (
                     <div className="mt-0.5 text-[11.5px] text-ink-2">
                       {p.recibe && <>Recibió <b>{p.recibe}</b>. </>}
-                      {p.motivo}
-                      {p.observaciones && p.observaciones !== p.motivo && (
-                        <> {p.observaciones}</>
-                      )}
+                      {p.estado_entrega !== "entregado" && queLePaso(p)}
                     </div>
                   )}
                   {p.foto_url && (

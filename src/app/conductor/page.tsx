@@ -29,6 +29,7 @@ export default async function PaginaConductor() {
        paradas(estado_entrega, bultos)`,
     )
     .eq("conductor_id", user?.id ?? "")
+    .eq("sin_asignar", false)
     .order("indice");
 
   // Una ruta pendiente se muestra siempre, tenga la fecha que tenga: un

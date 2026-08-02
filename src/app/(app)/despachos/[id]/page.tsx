@@ -5,6 +5,10 @@ import { BarraSuperior, Pastilla, Tarjeta } from "@/components/ui";
 import { estado as infoEstado, editable } from "@/lib/despachos";
 import VistaDespacho, { type RutaGuardada } from "@/components/VistaDespacho";
 import BorrarDespacho from "@/components/BorrarDespacho";
+import PuntosSinAsignar, {
+  type ParadaLibre,
+  type RutaDestino,
+} from "@/components/PuntosSinAsignar";
 import AsignarRutas, {
   type RutaAsignable,
   type Conductor,
@@ -54,7 +58,7 @@ export default async function PaginaDespacho({
     supabase
       .from("rutas")
       .select(`id, indice, km, duracion_min, costo, salida_prog, fin_estimado, geometria,
-               conductor_id, vehiculo_id,
+               conductor_id, vehiculo_id, sin_asignar,
                paradas(id, orden, codigo, nombre, distrito, lat, lon, bultos, prioridad, eta, estado_entrega)`)
       .eq("despacho_id", id)
       .order("indice"),
@@ -68,13 +72,36 @@ export default async function PaginaDespacho({
     supabase.from("perfiles").select("rol").eq("id", user?.id ?? "").maybeSingle(),
   ]);
 
-  const rutas: RutaGuardada[] = (rutasRaw ?? []).map((r) => ({
+  // La bandeja de puntos sin asignar no es una ruta de reparto: no se dibuja
+  // en el mapa, no se asigna a nadie y no cuenta en los totales.
+  const crudas = rutasRaw ?? [];
+  const bandeja = crudas.find((r) => r.sin_asignar);
+  const reales = crudas.filter((r) => !r.sin_asignar);
+
+  const libres: ParadaLibre[] = [...(bandeja?.paradas ?? [])]
+    .sort((a, b) => a.orden - b.orden)
+    .map((p) => ({
+      id: p.id,
+      codigo: p.codigo,
+      nombre: p.nombre,
+      distrito: p.distrito,
+      bultos: p.bultos ?? 0,
+    }));
+
+  const destinos: RutaDestino[] = reales.map((r) => ({
+    id: r.id,
+    indice: r.indice,
+    paradas: (r.paradas ?? []).length,
+    bultos: (r.paradas ?? []).reduce((a, p) => a + (p.bultos ?? 0), 0),
+  }));
+
+  const rutas: RutaGuardada[] = reales.map((r) => ({
     ...r,
     geometria: (r.geometria as number[][] | null) ?? [],
     paradas: [...(r.paradas ?? [])].sort((a, b) => a.orden - b.orden),
   })) as RutaGuardada[];
 
-  const asignables: RutaAsignable[] = (rutasRaw ?? []).map((r) => ({
+  const asignables: RutaAsignable[] = reales.map((r) => ({
     id: r.id,
     indice: r.indice,
     paradas: (r.paradas ?? []).length,
@@ -156,6 +183,17 @@ export default async function PaginaDespacho({
           </span>
         ) : null}
       </div>
+
+      {libres.length > 0 && (
+        <div className="px-4 pt-4">
+          <PuntosSinAsignar
+            despachoId={despacho.id}
+            paradas={libres}
+            rutas={destinos}
+            editable={editable(despacho.estado)}
+          />
+        </div>
+      )}
 
       {sinRutear ? (
         <div className="p-4">

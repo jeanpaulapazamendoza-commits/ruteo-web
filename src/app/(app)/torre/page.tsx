@@ -192,10 +192,12 @@ export default async function PaginaTorre({
       .from("paradas")
       .select(
         `id, orden, codigo, nombre, distrito, lat, lon, bultos, prioridad, eta,
-         estado_entrega, hora_entrega, motivo, foto_url, observaciones, recibe,
+         estado_entrega, hora_entrega, bultos_entregados, motivo, foto_url,
+         observaciones, recibe,
          rutas!inner(indice, despacho_id)`,
       )
       .eq("rutas.despacho_id", activo.id)
+      .eq("rutas.sin_asignar", false)
       .order("orden"),
     // La geometría solo se usa para dibujar el recorrido de fondo; se pide
     // una vez aquí y no en cada sondeo, que sería mover mucho por nada.
@@ -203,6 +205,7 @@ export default async function PaginaTorre({
       .from("rutas")
       .select("indice, geometria, salida_real, perfiles:conductor_id(nombre)")
       .eq("despacho_id", activo.id)
+      .eq("sin_asignar", false)
       .order("indice"),
     supabase.from("despachos").select("cd_lat, cd_lon").eq("id", activo.id).maybeSingle(),
   ]);

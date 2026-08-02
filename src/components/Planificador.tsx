@@ -345,6 +345,23 @@ export default function Planificador({
 
   async function hacerGuardar() {
     if (!rutas.length) return;
+
+    // Los puntos libres se guardan igual, pero conviene decirlo antes: es la
+    // diferencia entre «me faltaron dos» y descubrirlo mañana en el reparto.
+    const libres = sinAsignar.map((id) => porId.get(id)).filter(Boolean) as TiendaMapa[];
+    if (libres.length) {
+      const ok = window.confirm(
+        `${libres.length} punto(s) quedaron fuera de toda ruta.
+
+` +
+          `Se guardarán igual, sin asignar, y podrás dárselos a una ruta desde ` +
+          `la ficha del despacho.
+
+¿Guardar así?`,
+      );
+      if (!ok) return;
+    }
+
     setCargando("guardar");
     setError(null);
     try {
@@ -365,6 +382,7 @@ export default function Planificador({
         // Guardar la configuración permite reabrir el despacho tal cual se hizo
         parametros: { modo, ...cfgA, ...cfgR },
         puntos: tiendas,
+        sinAsignar: libres,
       });
       setGuardado(res);
       router.refresh();
@@ -1132,8 +1150,13 @@ export default function Planificador({
               <div className="mb-3 rounded-[10px] border border-ok/30 bg-ok-bg px-3 py-2.5 text-[12.5px] text-ok">
                 <b>✓ Despacho planificado.</b>
                 <div className="mt-1 text-ink-2">
-                  {guardado.rutas} rutas y {guardado.paradas} paradas. Trazado
-                  comprimido de{" "}
+                  {guardado.rutas} rutas y {guardado.paradas} paradas
+                  {guardado.sinAsignar > 0 && (
+                    <>
+                      , más <b className="num">{guardado.sinAsignar}</b> sin asignar
+                    </>
+                  )}
+                  . Trazado comprimido de{" "}
                   <span className="num">{guardado.puntosOriginales.toLocaleString("es-PE")}</span> a{" "}
                   <span className="num">{guardado.puntosGuardados.toLocaleString("es-PE")}</span> puntos.
                 </div>

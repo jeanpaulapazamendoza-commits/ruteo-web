@@ -83,6 +83,7 @@ export type ResumenGuardado = {
   id: string;
   rutas: number;
   paradas: number;
+  sinAsignar: number;
   puntosOriginales: number;
   puntosGuardados: number;
 };
@@ -131,6 +132,7 @@ export async function guardarDespacho({
   cfg,
   parametros,
   puntos = [],
+  sinAsignar = [],
 }: {
   /** Despacho sobre el que se trabaja: sus rutas se reemplazan. */
   despachoId: string;
@@ -140,6 +142,8 @@ export async function guardarDespacho({
   parametros: Record<string, unknown>;
   /** Puntos de trabajo: de aquí salen las ventanas horarias de cada parada. */
   puntos?: TiendaMapa[];
+  /** Los que quedaron fuera de toda ruta. Se guardan igual, en la bandeja. */
+  sinAsignar?: TiendaMapa[];
 }): Promise<ResumenGuardado> {
   const supabase = crearClienteNavegador();
 
@@ -204,6 +208,18 @@ export async function guardarDespacho({
       parametros,
       kpis,
       rutas: rutasPayload,
+      sin_asignar: sinAsignar.map((p) => ({
+        tienda_id: refTienda(p.id),
+        codigo: p.codigo,
+        nombre: p.nombre,
+        distrito: p.distrito,
+        lat: p.lat,
+        lon: p.lon,
+        bultos: p.bultos,
+        prioridad: p.prioridad,
+        ventana_ini: hora(p.ventana_ini),
+        ventana_fin: hora(p.ventana_fin),
+      })),
     },
   });
 
@@ -213,6 +229,7 @@ export async function guardarDespacho({
     id: despachoId,
     rutas: validas.length,
     paradas: kpis.paradas,
+    sinAsignar: sinAsignar.length,
     puntosOriginales,
     puntosGuardados,
   };
@@ -239,4 +256,18 @@ export async function eliminarDespacho(despachoId: string) {
   const supabase = crearClienteNavegador();
   const { error } = await supabase.rpc("eliminar_despacho", { p_despacho: despachoId });
   if (error) throw new Error(error.message);
+}
+
+/** Mueve paradas de la bandeja a una ruta existente, o a una ruta nueva. */
+export async function moverParadas(
+  despachoId: string,
+  paradas: string[],
+  destino: string | "nueva",
+) {
+  const supabase = crearClienteNavegador();
+  const { data, error } = await supabase.rpc("mover_paradas", {
+    p: { despacho_id: despachoId, paradas, destino },
+  });
+  if (error) throw new Error(error.message);
+  return data as { ok: boolean; movidas: number; bandeja_vaciada: boolean };
 }
