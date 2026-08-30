@@ -94,7 +94,7 @@ hacen los archivos `public/manifest.json`, `public/sw.js` y la cola offline.
 
 ## 4. Dónde está cada cosa (rutas de archivos)
 
-Todo cuelga de `C:\Users\jeanm\OneDrive\Escritorio\geolocalizacion\`.
+Todo cuelga de `D:\Archivos Escritorio\geolocalizacion\`.
 
 ### Carpetas principales
 
@@ -281,11 +281,20 @@ señal de que ya toca pagar.
 |---|---|
 | **500 MB** de base de datos | Los datos (rutas, paradas) pesan poco: ~19 MB al mes con 1500 puntos/día. Dura ~2 años. |
 | **1 GB** de fotos de entrega | ⚠️ **Este es el primero que se llena.** Con 1500 entregas/día y foto, ~3 GB/mes. **Se llena en ~10 días.** |
-| El proyecto **se pausa a los 7 días** sin actividad | En pruebas, si no entras una semana, se duerme (se despierta solo al entrar). |
+| El proyecto **se pausa a los 7 días** sin actividad | ⚠️ **Ojo: NO se despierta solo.** Hay que entrar al panel de Supabase y pulsar *Restore project*. Mientras tanto la web carga pero el login no responde. |
 | 50.000 usuarios | Irrelevante. |
 
 **→ Pagar cuando:** empieces a usar fotos de entrega en serio, o cuando no
 quieras que se pause. Pro = $25/mes (incluye 8 GB de fotos y no se pausa).
+
+> **La pausa por inactividad es la avería más probable en pruebas.** Síntoma:
+> la web abre y el login se queda sin responder, sin mensaje de error. Se
+> arregla en `supabase.com/dashboard` → el proyecto aparece *Paused* →
+> **Restore project** (tarda 2-4 min). No se pierde nada. Para evitarlo: entra
+> a la app al menos una vez por semana, o pasa a Pro.
+>
+> Afecta a **cada proyecto de Supabase por separado**, así que cualquier otro
+> que tengas en plan Free se pausará igual si lo dejas una semana sin tocar.
 
 ### Render (el motor) — plan Free (gratis)
 
