@@ -105,10 +105,6 @@ function CapturaDibujo({
     };
   }, [mapa]);
 
-  // Enganche para pruebas automatizadas (nunca en producción).
-  if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") {
-    (window as unknown as { __mapa?: unknown }).__mapa = mapa;
-  }
   return null;
 }
 

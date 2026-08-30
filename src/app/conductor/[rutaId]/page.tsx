@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import RutaReparto, { type ParadaReparto } from "@/components/RutaReparto";
@@ -46,31 +45,22 @@ export default async function PaginaRutaConductor({
   );
 
   return (
-    <>
-      <Link
-        href="/conductor"
-        className="mb-2 inline-block px-1 text-[13px] font-semibold text-ink-2"
-      >
-        ← Tus rutas
-      </Link>
-
-      <RutaReparto
-        rutaId={ruta.id}
-        indice={ruta.indice}
-        despacho={cab?.nombre ?? "Despacho"}
-        fecha={cab?.fecha ?? ""}
-        cd={
-          cab?.cd_lat != null && cab?.cd_lon != null
-            ? { lat: cab.cd_lat, lon: cab.cd_lon }
-            : null
-        }
-        salidaProg={ruta.salida_prog}
-        salidaReal={ruta.salida_real}
-        km={ruta.km}
-        geometria={(ruta.geometria as number[][] | null) ?? null}
-        paradas={paradas}
-        orgId={perfil?.org_id ?? ""}
-      />
-    </>
+    <RutaReparto
+      rutaId={ruta.id}
+      indice={ruta.indice}
+      despacho={cab?.nombre ?? "Despacho"}
+      fecha={cab?.fecha ?? ""}
+      cd={
+        cab?.cd_lat != null && cab?.cd_lon != null
+          ? { lat: cab.cd_lat, lon: cab.cd_lon }
+          : null
+      }
+      salidaProg={ruta.salida_prog}
+      salidaReal={ruta.salida_real}
+      km={ruta.km}
+      geometria={(ruta.geometria as number[][] | null) ?? null}
+      paradas={paradas}
+      orgId={perfil?.org_id ?? ""}
+    />
   );
 }

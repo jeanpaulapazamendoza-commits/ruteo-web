@@ -25,6 +25,16 @@ export type Pendiente = {
   guardadoEn: number;
   intentos: number;
   ultimoError?: string;
+  /**
+   * Instante hasta el que esta entrega no debe subirse.
+   *
+   * Mientras el conductor puede deshacer, lo marcado no puede haber salido ya
+   * hacia el servidor. La retención vive aquí y no en un temporizador de
+   * React porque los tres disparadores de sincronización —recuperar señal,
+   * volver a primer plano, encolar algo nuevo— ocurren fuera del componente
+   * y subirían igual.
+   */
+  retenerHasta?: number;
 };
 
 function abrir(): Promise<IDBDatabase> {
@@ -75,6 +85,20 @@ export async function encolar(p: Omit<Pendiente, "guardadoEn" | "intentos">) {
   avisarCambio();
 }
 
+/**
+ * Cuántas entregas son ya un problema de verdad.
+ *
+ * Recién marcada, una entrega está en la cola durante el instante que tarda
+ * en subir: contarla haría parpadear la alarma en cada parada. Solo cuenta
+ * la que ya falló una vez o la que lleva demasiado tiempo esperando.
+ */
+export async function contarAtascadas(margenMs = 20000) {
+  const ahora = Date.now();
+  return (await listarPendientes()).filter(
+    (p) => p.intentos > 0 || ahora - p.guardadoEn > margenMs,
+  ).length;
+}
+
 export function listarPendientes(): Promise<Pendiente[]> {
   return operar<Pendiente[]>("readonly", (s) => s.getAll() as IDBRequest<Pendiente[]>);
 }
@@ -99,7 +123,11 @@ export type ResultadoSync = { subidas: number; fallidas: number; quedan: number 
 export async function sincronizar(): Promise<ResultadoSync> {
   if (typeof indexedDB === "undefined") return { subidas: 0, fallidas: 0, quedan: 0 };
 
-  const cola = await listarPendientes();
+  // Lo que todavía se puede deshacer no sale de aquí.
+  const ahora = Date.now();
+  const cola = (await listarPendientes()).filter(
+    (p) => !p.retenerHasta || p.retenerHasta <= ahora,
+  );
   let subidas = 0;
   let fallidas = 0;
 
@@ -121,4 +149,90 @@ export async function sincronizar(): Promise<ResultadoSync> {
   const quedan = (await listarPendientes()).length;
   avisarCambio();
   return { subidas, fallidas, quedan };
+}
+
+/**
+ * Añade la posición a una entrega que ya está en la cola.
+ *
+ * El GPS de reserva se pide después de guardar, no antes: la entrega no puede
+ * esperarlo. `get` y `put` van en la misma transacción para no pisar un
+ * `anotarFallo` simultáneo, y si la fila ya no está no se hace nada — subió, y
+ * resucitarla la subiría dos veces.
+ */
+export function parchearPosicion(paradaId: string, lat: number, lon: number) {
+  return abrir().then(
+    (bd) =>
+      new Promise<void>((resolve, reject) => {
+        const tx = bd.transaction(ALMACEN, "readwrite");
+        const s = tx.objectStore(ALMACEN);
+        const lectura = s.get(paradaId) as IDBRequest<Pendiente | undefined>;
+        lectura.onsuccess = () => {
+          const p = lectura.result;
+          if (!p) return;
+          s.put({ ...p, entrega: { ...p.entrega, gps_lat: lat, gps_lon: lon } });
+        };
+        tx.oncomplete = () => { bd.close(); resolve(); };
+        tx.onerror = () => reject(tx.error);
+      }),
+  );
+}
+
+/**
+ * Añade a una entrega ya guardada lo que el conductor adjunta después desde
+ * el carril: la foto, quién recibió o una observación.
+ *
+ * Reescribe la misma fila (la clave es `parada_id`), así que no duplica la
+ * entrega ni crea una segunda subida. Al adjuntar se alarga la retención: si
+ * el conductor está en la cámara, lo guardado no puede irse sin la foto.
+ */
+export function completarPendiente(
+  paradaId: string,
+  extra: { foto?: Blob | null; recibe?: string | null; observaciones?: string | null },
+  retenerMs = 0,
+) {
+  return abrir().then(
+    (bd) =>
+      new Promise<boolean>((resolve, reject) => {
+        let habia = false;
+        const tx = bd.transaction(ALMACEN, "readwrite");
+        const s = tx.objectStore(ALMACEN);
+        const lectura = s.get(paradaId) as IDBRequest<Pendiente | undefined>;
+        lectura.onsuccess = () => {
+          const p = lectura.result;
+          if (!p) return;
+          habia = true;
+          s.put({
+            ...p,
+            foto: extra.foto !== undefined ? extra.foto : p.foto,
+            entrega: {
+              ...p.entrega,
+              recibe: extra.recibe !== undefined ? extra.recibe : p.entrega.recibe,
+              observaciones:
+                extra.observaciones !== undefined
+                  ? extra.observaciones
+                  : p.entrega.observaciones,
+            },
+            retenerHasta: retenerMs
+              ? Math.max(p.retenerHasta ?? 0, Date.now() + retenerMs)
+              : p.retenerHasta,
+          } satisfies Pendiente);
+        };
+        tx.oncomplete = () => { bd.close(); avisarCambio(); resolve(habia); };
+        tx.onerror = () => reject(tx.error);
+      }),
+  );
+}
+
+/**
+ * Saca una entrega de la cola porque el conductor la deshizo.
+ *
+ * Solo funciona mientras siga retenida: si ya subió, deshacer en el móvil no
+ * desharía nada en el servidor y daría una impresión falsa.
+ */
+export async function deshacerPendiente(paradaId: string): Promise<boolean> {
+  const p = (await listarPendientes()).find((x) => x.parada_id === paradaId);
+  if (!p || !p.retenerHasta || p.retenerHasta <= Date.now()) return false;
+  await quitarPendiente(paradaId);
+  avisarCambio();
+  return true;
 }

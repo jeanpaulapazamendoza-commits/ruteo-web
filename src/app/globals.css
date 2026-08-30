@@ -71,6 +71,43 @@ body {
   border-radius: 4px;
 }
 
+/* ------------------------------------------------------------
+   App del conductor: la consola y el carril son `fixed`, así que
+   su altura tiene que estar disponible como número para que el
+   contenido reserve sitio debajo y la última parada nunca quede
+   tapada por los botones.
+   ------------------------------------------------------------ */
+:root {
+  --consola: 210px;
+  --carril: 56px;
+}
+
+/* Cuenta atrás del bloqueo antidoble-toque del botón primario. */
+@keyframes cuenta {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+.cuenta {
+  transform-origin: left;
+  animation: cuenta 3s linear forwards;
+}
+
+/* Entrada de la hoja de resultado y del carril de deshacer. */
+@keyframes subir-hoja {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.hoja {
+  animation: subir-hoja 180ms ease-out;
+}
+@keyframes asomar-carril {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.carril {
+  animation: asomar-carril 140ms ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

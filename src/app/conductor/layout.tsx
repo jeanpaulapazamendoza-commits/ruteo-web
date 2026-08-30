@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import CuentaBloqueada from "@/components/CuentaBloqueada";
-import BarraConductor from "@/components/BarraConductor";
 
 /**
  * La app de reparto va en el móvil del conductor: nada de barra lateral de
@@ -31,8 +30,9 @@ export default async function LayoutConductor({
 
   return (
     <div className="flex min-h-screen flex-col bg-canvas">
-      <BarraConductor nombre={perfil.nombre ?? user.email ?? "Conductor"} />
-      <main className="mx-auto w-full max-w-[560px] flex-1 px-3 pb-24 pt-3">{children}</main>
+      {/* La cabecera la pone cada pantalla: la de la lista y la de una ruta
+          no son la misma, y el relleno inferior depende de la consola. */}
+      <main className="mx-auto w-full max-w-[560px] flex-1">{children}</main>
     </div>
   );
 }

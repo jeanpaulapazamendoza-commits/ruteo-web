@@ -102,7 +102,7 @@ export async function marcarParada(entrega: Entrega) {
 }
 
 /** Posición actual, si el conductor la concede. Nunca bloquea la entrega. */
-export function posicionActual(msMax = 8000): Promise<{ lat: number; lon: number } | null> {
+export function posicionActual(msMax = 6000): Promise<{ lat: number; lon: number } | null> {
   if (typeof navigator === "undefined" || !navigator.geolocation) return Promise.resolve(null);
   return new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
@@ -118,4 +118,19 @@ export function enlaceNavegacion(lat: number, lon: number, app: "maps" | "waze" 
   return app === "waze"
     ? `https://waze.com/ul?ll=${lat},${lon}&navigate=yes`
     : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
+}
+
+/**
+ * Separa un motivo guardado en su opción de lista y su detalle libre.
+ *
+ * Al guardar, «Otros» se compone como `Otros: se mudaron`. Para poder
+ * corregir una entrega hay que volver a partirlo, o el formulario mostraría
+ * el motivo entero como si fuera una opción del desplegable.
+ */
+export function desglosarMotivo(motivo: string | null): { opcion: string; detalle: string } {
+  if (!motivo) return { opcion: "", detalle: "" };
+  if (motivo.startsWith("Otros: ")) return { opcion: "Otros", detalle: motivo.slice(7) };
+  return MOTIVOS_NO_ENTREGA.includes(motivo as (typeof MOTIVOS_NO_ENTREGA)[number])
+    ? { opcion: motivo, detalle: "" }
+    : { opcion: "", detalle: motivo };
 }
