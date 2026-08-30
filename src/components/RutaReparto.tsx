@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import {
   ESTADOS_ENTREGA, MOTIVOS_NO_ENTREGA,
@@ -10,6 +11,14 @@ import {
 } from "@/lib/entregas";
 import { encolar, sincronizar } from "@/lib/cola";
 import { Pastilla } from "@/components/ui";
+
+// Leaflet necesita `window`: solo en el navegador.
+const MapaSeguimiento = dynamic(() => import("@/components/MapaSeguimiento"), {
+  ssr: false,
+  loading: () => (
+    <div className="grid h-full place-items-center text-[12.5px] text-ink-3">Cargando mapa…</div>
+  ),
+});
 
 export type ParadaReparto = {
   id: string;
@@ -35,7 +44,8 @@ export type ParadaReparto = {
 const hhmm = (t: string | null) => (t ? String(t).slice(0, 5) : null);
 
 export default function RutaReparto({
-  rutaId, indice, despacho, fecha, cd, salidaProg, salidaReal, km, paradas, orgId,
+  rutaId, indice, despacho, fecha, cd, salidaProg, salidaReal, km, geometria = null,
+  paradas, orgId,
 }: {
   rutaId: string;
   indice: number;
@@ -45,6 +55,7 @@ export default function RutaReparto({
   salidaProg: string | null;
   salidaReal: string | null;
   km: number | null;
+  geometria?: number[][] | null;
   paradas: ParadaReparto[];
   orgId: string;
 }) {
@@ -52,6 +63,9 @@ export default function RutaReparto({
   const [lista, setLista] = useState(paradas);
   const [salida, setSalida] = useState<string | null>(salidaReal);
   const [abierta, setAbierta] = useState<string | null>(null);
+  // El mapa se puede ocultar: gasta datos y batería, y hay conductores que
+  // prefieren la lista a secas.
+  const [verMapa, setVerMapa] = useState(true);
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -244,6 +258,51 @@ export default function RutaReparto({
         </div>
       )}
 
+      {/* Mapa de su ruta: dónde ha estado y qué le queda */}
+      {salida && (
+        <div className="mt-2.5 overflow-hidden rounded-[14px] border border-line bg-surface">
+          <button
+            onClick={() => setVerMapa((v) => !v)}
+            className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left"
+          >
+            <span className="text-[13px] font-bold">Mapa de la ruta</span>
+            <span className="flex items-center gap-2 text-[11px] text-ink-3">
+              <Punto color="#2F855A" /> hechas
+              <Punto color="#9AA5B1" /> pendientes
+            </span>
+            <span className="ml-auto text-[12px] text-ink-3">{verMapa ? "Ocultar" : "Ver"}</span>
+          </button>
+          {verMapa && (
+            <div className="h-[280px] border-t border-line">
+              <MapaSeguimiento
+                paradas={lista.map((p) => ({
+                  id: p.id,
+                  orden: p.orden,
+                  nombre: p.nombre,
+                  lat: p.lat,
+                  lon: p.lon,
+                  bultos: p.bultos,
+                  estado_entrega: p.estado_entrega,
+                  hora_entrega: p.hora_entrega,
+                  motivo: p.motivo,
+                }))}
+                geometria={geometria}
+                colorRuta="#2E7DD1"
+                cd={cd}
+                siguienteId={siguiente?.id ?? null}
+                onClicParada={(id) => {
+                  setAbierta(id);
+                  document.getElementById(`parada-${id}`)?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center",
+                  });
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Paradas */}
       <h2 className="mb-2 mt-4 px-1 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-3">
         Todas las paradas
@@ -253,7 +312,11 @@ export default function RutaReparto({
           const info = ESTADOS_ENTREGA[p.estado_entrega] ?? ESTADOS_ENTREGA.pendiente;
           const hecha = p.estado_entrega !== "pendiente";
           return (
-            <div key={p.id} className="rounded-[12px] border border-line bg-surface">
+            <div
+              key={p.id}
+              id={`parada-${p.id}`}
+              className="scroll-mt-24 rounded-[12px] border border-line bg-surface"
+            >
               <button
                 onClick={() => setAbierta(abierta === p.id ? null : p.id)}
                 className="flex w-full items-center gap-2.5 p-3 text-left"
@@ -553,5 +616,15 @@ function Campo({ etiqueta, children }: { etiqueta: string; children: React.React
       <span className="mb-1 block text-[12px] font-semibold text-ink-2">{etiqueta}</span>
       {children}
     </label>
+  );
+}
+
+/** Punto de color de la leyenda del mapa. */
+function Punto({ color }: { color: string }) {
+  return (
+    <i
+      className="inline-block h-2 w-2 rounded-full not-italic"
+      style={{ background: color }}
+    />
   );
 }

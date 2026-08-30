@@ -24,14 +24,14 @@ Crea **dos repositorios vacíos** en <https://github.com/new> (sin README, sin
 Luego, en una terminal:
 
 ```bash
-cd C:\Users\jeanm\OneDrive\Escritorio\geolocalizacion\motor-api
+cd "D:\Archivos Escritorio\geolocalizacion\motor-api"
 git remote add origin https://github.com/TU_USUARIO/ruteo-motor.git
 git branch -M main
 git push -u origin main
 ```
 
 ```bash
-cd C:\Users\jeanm\OneDrive\Escritorio\geolocalizacion\ruteo-web
+cd "D:\Archivos Escritorio\geolocalizacion\ruteo-web"
 git remote add origin https://github.com/TU_USUARIO/ruteo-web.git
 git branch -M main
 git push -u origin main

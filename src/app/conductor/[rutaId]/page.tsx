@@ -20,7 +20,7 @@ export default async function PaginaRutaConductor({
     supabase
       .from("rutas")
       .select(
-        `id, indice, km, duracion_min, salida_prog, salida_real, estado,
+        `id, indice, km, duracion_min, salida_prog, salida_real, estado, geometria,
          despachos(nombre, fecha, cd_lat, cd_lon),
          paradas(id, orden, codigo, nombre, distrito, lat, lon, bultos, prioridad,
                  eta, ventana_ini, ventana_fin, estado_entrega, hora_entrega,
@@ -67,6 +67,7 @@ export default async function PaginaRutaConductor({
         salidaProg={ruta.salida_prog}
         salidaReal={ruta.salida_real}
         km={ruta.km}
+        geometria={(ruta.geometria as number[][] | null) ?? null}
         paradas={paradas}
         orgId={perfil?.org_id ?? ""}
       />

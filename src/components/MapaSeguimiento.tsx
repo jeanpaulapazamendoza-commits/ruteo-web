@@ -34,14 +34,16 @@ const TEXTO_ESTADO: Record<string, string> = {
   pendiente: "Pendiente",
 };
 
-function iconoParada(n: number, fondo: string) {
+function iconoParada(n: number, fondo: string, siguiente = false) {
+  const borde = siguiente ? "#F2A33C" : "#fff";
+  const halo = siguiente ? "box-shadow:0 0 0 5px rgba(242,163,60,.45);" : "";
   return L.divIcon({
     className: "",
     iconSize: [24, 24],
     iconAnchor: [12, 12],
-    html: `<div style="background:${fondo};border:2.5px solid #fff;border-radius:50%;
+    html: `<div style="background:${fondo};border:2.5px solid ${borde};border-radius:50%;
       width:22px;height:22px;display:flex;align-items:center;justify-content:center;
-      color:#fff;font:700 10px/1 Arial;box-shadow:0 1px 4px rgba(0,0,0,.45)">${n}</div>`,
+      color:#fff;font:700 10px/1 Arial;box-shadow:0 1px 4px rgba(0,0,0,.45);${halo}">${n}</div>`,
   });
 }
 
@@ -69,11 +71,17 @@ export default function MapaSeguimiento({
   geometria,
   colorRuta,
   cd,
+  siguienteId = null,
+  onClicParada,
 }: {
   paradas: ParadaSeguida[];
   geometria: number[][] | null;
   colorRuta: string;
   cd: { lat: number; lon: number } | null;
+  /** La próxima parada pendiente: se resalta para encontrarla de un vistazo. */
+  siguienteId?: string | null;
+  /** En el móvil del conductor, tocar un punto abre esa parada. */
+  onClicParada?: (id: string) => void;
 }) {
   const limites = useMemo(() => {
     const pts: [number, number][] = paradas.map((p) => [p.lat, p.lon]);
@@ -89,8 +97,9 @@ export default function MapaSeguimiento({
       style={{ height: "100%", width: "100%", background: "#EDF1F6" }}
     >
       <TileLayer
-        url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-        attribution="&copy; OpenStreetMap &copy; CARTO"
+        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution="&copy; OpenStreetMap"
+        maxZoom={19}
       />
 
       {geometria && geometria.length > 1 && (
@@ -104,7 +113,12 @@ export default function MapaSeguimiento({
         <Marker
           key={p.id}
           position={[p.lat, p.lon]}
-          icon={iconoParada(p.orden, COLOR_ESTADO[p.estado_entrega] ?? COLOR_ESTADO.pendiente)}
+          icon={iconoParada(
+            p.orden,
+            COLOR_ESTADO[p.estado_entrega] ?? COLOR_ESTADO.pendiente,
+            p.id === siguienteId,
+          )}
+          eventHandlers={onClicParada ? { click: () => onClicParada(p.id) } : undefined}
         >
           <Tooltip>
             <b>#{p.orden} {p.nombre}</b>
