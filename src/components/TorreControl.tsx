@@ -355,7 +355,11 @@ export default function TorreControl({
             </p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[520px] border-collapse text-[12.5px]">
+              {/* El ancho mínimo cómodo son 520 px, pero con la ventana
+                  estrecha la columna mide 464 y la tabla se iba en scroll
+                  horizontal: cinco datos cortos no merecen que haya que
+                  arrastrar para ver el estado de una incidencia. */}
+              <table className="w-full min-w-[430px] border-collapse text-[12.5px] @5xl:min-w-[520px]">
                 <thead>
                   <tr>
                     {["Tienda", "Ruta", "Motivo", "Hora", "Estado"].map((h) => (
