@@ -17,7 +17,7 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RuteoTiendas — Planificación last mile",
+  title: "PuriqGo — Planificación last mile",
   description: "Agrupación de tiendas por zonas y ruteo óptimo de despacho.",
   manifest: "/manifest.json",
   // Para que en iPhone se abra a pantalla completa al añadirla al inicio.

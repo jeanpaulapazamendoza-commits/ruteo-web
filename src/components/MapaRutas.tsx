@@ -124,7 +124,7 @@ export default function MapaRutas({
   puntosDibujo = [],
   onPuntoDibujo,
   onCerrarDibujo,
-  colorDibujo = "#F2A33C",
+  colorDibujo = "#FFB42E",
   zonasFijas = [],
   onClicZona,
 }: {

@@ -76,7 +76,7 @@ export default function PadronEmpresas({ empresas }: { empresas: ResumenOrg[] })
         </p>
         <button
           onClick={() => { setCreando((v) => !v); setError(null); }}
-          className="ml-auto rounded-[9px] border border-amber-600 bg-amber px-3.5 py-2 text-[13px] font-semibold text-[#231403] transition hover:bg-amber-600 hover:text-white"
+          className="ml-auto rounded-[9px] border border-amber-600 bg-amber px-3.5 py-2 text-[13px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white"
         >
           + Dar de alta una empresa
         </button>
@@ -283,7 +283,7 @@ function FormularioAlta({ onCerrar, onListo }: { onCerrar: () => void; onListo: 
 
       <div className="mt-3 flex gap-2">
         <button type="submit" disabled={enviando}
-          className="rounded-[9px] border border-amber-600 bg-amber px-4 py-2 text-[13px] font-semibold text-[#231403] transition hover:bg-amber-600 hover:text-white disabled:opacity-50">
+          className="rounded-[9px] border border-amber-600 bg-amber px-4 py-2 text-[13px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white disabled:opacity-50">
           {enviando ? "Creando…" : "Crear empresa"}
         </button>
         <button type="button" onClick={onCerrar}

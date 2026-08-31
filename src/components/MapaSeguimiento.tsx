@@ -36,7 +36,7 @@ const TEXTO_ESTADO: Record<string, string> = {
 };
 
 function iconoParada(n: number, fondo: string, siguiente = false) {
-  const borde = siguiente ? "#F2A33C" : "#fff";
+  const borde = siguiente ? "#FFB42E" : "#fff";
   const halo = siguiente ? "box-shadow:0 0 0 5px rgba(242,163,60,.45);" : "";
   return L.divIcon({
     className: "",

@@ -55,7 +55,7 @@ export default async function PaginaDespachos({
         acciones={
           <Link
             href="/planificador"
-            className="rounded-[9px] border border-amber-600 bg-amber px-3.5 py-2 text-[13px] font-semibold text-[#231403] transition hover:bg-amber-600 hover:text-white"
+            className="rounded-[9px] border border-amber-600 bg-amber px-3.5 py-2 text-[13px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white"
           >
             ⇪ Subir archivo del día
           </Link>
@@ -78,7 +78,7 @@ export default async function PaginaDespachos({
               accion={
                 <Link
                   href="/planificador"
-                  className="inline-block rounded-[9px] border border-amber-600 bg-amber px-4 py-2.5 text-[13.5px] font-semibold text-[#231403] transition hover:bg-amber-600 hover:text-white"
+                  className="inline-block rounded-[9px] border border-amber-600 bg-amber px-4 py-2.5 text-[13.5px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white"
                 >
                   Ir al planificador
                 </Link>

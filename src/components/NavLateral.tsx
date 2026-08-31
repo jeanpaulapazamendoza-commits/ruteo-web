@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { crearClienteNavegador } from "@/lib/supabase/client";
+import Logo from "@/components/Logo";
 
 const SECCIONES = [
   {
@@ -132,18 +133,18 @@ export default function NavLateral({
     <nav
       className={`flex ${ancho} shrink-0 flex-col gap-6 bg-navy-900 p-2 text-[#c7d2e2] transition-[width] duration-150 xl:p-3`}
     >
-      <div className="flex items-center gap-3 px-0.5 py-1 xl:px-1.5">
-        <div className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] bg-gradient-to-br from-amber to-amber-600 text-base font-extrabold text-[#231403]">
-          R
-        </div>
-        <div className={`${texto} min-w-0 leading-tight`}>
-          <div className="truncate text-[15px] font-bold tracking-tight text-white">
-            RuteoTiendas
-          </div>
-          <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.09em] text-[#7e90a8]">
-            Last mile
-          </div>
-        </div>
+      {/* Plegada no cabe la palabra, así que entra el isotipo: es exactamente
+          el reparto de versiones que fija la guía de marca. */}
+      {/* La guía fija 160 px de ancho como mínimo para el logo horizontal y
+          24 —mejor 32— para el isotipo. A 46 px de alto el horizontal mide
+          162 y entra holgado en los 208 útiles de la barra desplegada. */}
+      <div className="flex h-12 shrink-0 items-center px-0.5 xl:px-1.5">
+        <span className={soloPlegada}>
+          <Logo variante="isotipo" alto={32} />
+        </span>
+        <span className={texto}>
+          <Logo variante="reverso" alto={46} />
+        </span>
       </div>
 
       {secciones.map((seccion) => (

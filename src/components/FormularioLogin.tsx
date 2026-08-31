@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { crearClienteNavegador } from "@/lib/supabase/client";
+import Logo from "@/components/Logo";
 
 type Modo = "entrar" | "registrar";
 
@@ -68,16 +69,9 @@ export default function FormularioLogin() {
       {/* Panel de marca */}
       <section className="hidden flex-col justify-between bg-navy-900 p-10 text-white lg:flex">
         <div className="flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-[10px] bg-gradient-to-br from-amber to-amber-600 text-lg font-extrabold text-[#231403]">
-            R
-          </div>
-          <div className="leading-tight">
-            <div className="text-[15px] font-bold tracking-tight">
-              RuteoTiendas
-            </div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.09em] text-[#7e90a8]">
-              Last mile
-            </div>
+          <Logo variante="reverso" alto={46} />
+          <div className="text-[10px] font-semibold uppercase tracking-[0.09em] text-[#7e90a8]">
+            Last mile
           </div>
         </div>
 
@@ -112,10 +106,10 @@ export default function FormularioLogin() {
       {/* Formulario */}
       <section className="flex items-center justify-center p-6">
         <div className="w-full max-w-[400px]">
+          {/* En móvil no existe el panel oscuro de la izquierda, así que aquí
+              va la versión horizontal sobre fondo claro. */}
           <div className="mb-7 lg:hidden">
-            <div className="grid h-10 w-10 place-items-center rounded-[10px] bg-gradient-to-br from-amber to-amber-600 text-lg font-extrabold text-[#231403]">
-              R
-            </div>
+            <Logo variante="horizontal" alto={48} />
           </div>
 
           <h2 className="text-[26px] font-extrabold tracking-tight">
@@ -177,7 +171,7 @@ export default function FormularioLogin() {
             <button
               type="submit"
               disabled={cargando}
-              className="w-full rounded-[10px] border border-amber-600 bg-amber px-4 py-2.5 text-[14px] font-semibold text-[#231403] transition hover:bg-amber-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-[10px] border border-amber-600 bg-amber px-4 py-2.5 text-[14px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
             >
               {cargando
                 ? "Un momento…"

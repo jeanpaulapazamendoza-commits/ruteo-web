@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import type { EstadoCola } from "@/hooks/useCola";
+import Logo from "@/components/Logo";
 
 /**
  * Cabecera de la app de reparto, en sus dos formas: la lista de rutas y una
@@ -48,9 +49,7 @@ export default function CabeceraConductor(
       <header className="sticky top-0 z-30 bg-navy-900">
         {props.variante === "lista" ? (
           <div className="mx-auto flex h-14 w-full max-w-[560px] items-center gap-2.5 border-b border-line/20 px-3">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-amber text-[17px] font-extrabold text-navy-900">
-              R
-            </span>
+            <Logo variante="isotipo" alto={30} className="shrink-0" />
             <span className="min-w-0 flex-1 truncate text-[17px] font-bold text-white">
               {props.nombre}
             </span>

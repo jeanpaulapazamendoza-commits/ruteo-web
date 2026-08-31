@@ -171,7 +171,7 @@ export default function FichaEmpresa({ detalle }: { detalle: DetalleOrg }) {
               <button
                 onClick={guardarNota}
                 disabled={ocupado}
-                className="rounded-[9px] border border-amber-600 bg-amber px-3 py-1.5 text-[12.5px] font-semibold text-[#231403] disabled:opacity-50"
+                className="rounded-[9px] border border-amber-600 bg-amber px-3 py-1.5 text-[12.5px] font-semibold text-navy-900 disabled:opacity-50"
               >
                 Guardar
               </button>

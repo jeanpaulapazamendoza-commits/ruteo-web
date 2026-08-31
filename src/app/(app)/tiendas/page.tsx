@@ -146,7 +146,7 @@ export default async function PaginaTiendas() {
                     ) : (
                       <Link
                         href={`/planificador?carga=${a.id}`}
-                        className="flex-1 rounded-[9px] border border-amber-600 bg-amber px-2 py-1.5 text-center text-[12px] font-semibold text-[#231403] transition hover:bg-amber-600 hover:text-white"
+                        className="flex-1 rounded-[9px] border border-amber-600 bg-amber px-2 py-1.5 text-center text-[12px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white"
                       >
                         Rutear
                       </Link>

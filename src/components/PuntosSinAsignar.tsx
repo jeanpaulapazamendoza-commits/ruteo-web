@@ -124,7 +124,7 @@ export default function PuntosSinAsignar({
           <button
             onClick={mover}
             disabled={ocupado || !elegidas.size}
-            className="rounded-[9px] border border-amber-600 bg-amber px-3.5 py-1.5 text-[12.5px] font-semibold text-[#231403] transition hover:bg-amber-600 hover:text-white disabled:opacity-50"
+            className="rounded-[9px] border border-amber-600 bg-amber px-3.5 py-1.5 text-[12.5px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white disabled:opacity-50"
           >
             {ocupado ? "Moviendo…" : "Asignar"}
           </button>

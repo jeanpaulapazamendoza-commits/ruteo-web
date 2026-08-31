@@ -598,7 +598,7 @@ export default function Planificador({
             <div className="mt-2 flex flex-wrap gap-1.5">
               <button
                 onClick={() => setSubiendo((v) => !v)}
-                className="rounded-[8px] border border-amber-600 bg-amber px-2.5 py-1 text-[12px] font-semibold text-[#231403] transition hover:bg-amber-600 hover:text-white"
+                className="rounded-[8px] border border-amber-600 bg-amber px-2.5 py-1 text-[12px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white"
               >
                 {subiendo ? "Cerrar" : "⇪ Otro archivo"}
               </button>
@@ -818,7 +818,7 @@ export default function Planificador({
               {!dibujando ? (
                 <button
                   onClick={() => { setPuntosDibujo([]); setDibujando(true); }}
-                  className="mb-2 w-full rounded-[9px] border border-amber-600 bg-amber px-3 py-2 text-[13px] font-semibold text-[#231403] transition hover:bg-amber-600 hover:text-white"
+                  className="mb-2 w-full rounded-[9px] border border-amber-600 bg-amber px-3 py-2 text-[13px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white"
                 >
                   ✏️ Dibujar sector en el mapa
                 </button>
@@ -835,7 +835,7 @@ export default function Planificador({
                     <button
                       onClick={cerrarSector}
                       disabled={puntosDibujo.length < 3 || cargando === "sector"}
-                      className="flex-1 rounded-[8px] border border-amber-600 bg-amber px-2 py-1.5 text-[12px] font-semibold text-[#231403] disabled:opacity-50"
+                      className="flex-1 rounded-[8px] border border-amber-600 bg-amber px-2 py-1.5 text-[12px] font-semibold text-navy-900 disabled:opacity-50"
                     >
                       {cargando === "sector" ? "Buscando…" : "Cerrar y aplicar"}
                     </button>
@@ -1071,7 +1071,7 @@ export default function Planificador({
           <button
             onClick={hacerRutear}
             disabled={cargando !== null || !grupos.length}
-            className="mt-1 w-full rounded-[9px] border border-amber-600 bg-amber px-3 py-2 text-[13px] font-semibold text-[#231403] transition hover:bg-amber-600 hover:text-white disabled:opacity-50"
+            className="mt-1 w-full rounded-[9px] border border-amber-600 bg-amber px-3 py-2 text-[13px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white disabled:opacity-50"
           >
             {cargando === "rutear" ? "Optimizando…" : "▸ Calcular rutas óptimas"}
           </button>

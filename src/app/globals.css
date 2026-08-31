@@ -1,20 +1,27 @@
 @import "tailwindcss";
 
 /* ============================================================
-   Sistema de diseño RuteoTiendas
-   Identidad existente: ámbar #F2A33C + navy #16263E.
+   Sistema de diseño PuriqGo
+
+   Los acentos son los de la marca: Naranja Destino #FFB42E,
+   Azul Puriq #062A69 y Azul Noche #041735. Los nombres de los
+   tokens («amber», «navy») se conservan a propósito: los usan
+   cientos de clases y renombrarlos sería un cambio enorme sin
+   ganar nada. Lo que importa es que el valor sea el de marca,
+   para que el logotipo no parezca pegado encima de otra paleta.
+
    Neutros con sesgo azul (no gris genérico) y color semántico
    separado del acento.
    ============================================================ */
 @theme {
-  --color-amber: #f2a33c;
-  --color-amber-600: #de8a1c;
-  --color-amber-050: #fef4e4;
+  --color-amber: #ffb42e;
+  --color-amber-600: #e09410;
+  --color-amber-050: #fff5e2;
 
-  --color-navy-900: #0f1d30;
-  --color-navy-800: #16263e;
-  --color-navy-700: #1e3352;
-  --color-navy-600: #2a4568;
+  --color-navy-900: #041735;
+  --color-navy-800: #062a69;
+  --color-navy-700: #0d3d8f;
+  --color-navy-600: #1a55b5;
 
   --color-canvas: #f4f6f9;
   --color-surface: #ffffff;

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 512" role="img" aria-labelledby="title desc">
+  <title id="title">PuriqGo primary horizontal logo</title>
+  <desc id="desc">A stepped letter P containing an optimized route and destination pin beside the PuriqGo wordmark.</desc>
+  <g id="puriqgo-mark">
+    <path fill="#062A69" d="M96 472V392h80v-80h80v-64h-96v-80h160c42 0 66-20 66-56S362 56 320 56H160V16h168c96 0 156 58 156 150 0 94-60 154-156 154h-56v104h-80v48H96Z"/>
+    <path d="M84 418h66c22 0 38-16 38-38v-30h44c22 0 38-16 38-38v-26h42c42 0 72-28 72-68" fill="none" stroke="#09C9B8" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="84" cy="418" r="24" fill="#09C9B8"/>
+    <path fill="#FFB42E" fill-rule="evenodd" d="M384 78c-35 0-64 28-64 63 0 47 64 113 64 113s64-66 64-113c0-35-29-63-64-63Zm0 88a25 25 0 1 0 0-50 25 25 0 0 0 0 50Z"/>
+  </g>
+  <g id="puriqgo-wordmark" font-family="DejaVu Sans,Arial,sans-serif" font-weight="700" font-size="260" letter-spacing="-13">
+    <text x="548" y="352" fill="#062A69">Puriq</text>
+    <text x="1255" y="352" fill="#09C9B8">Go</text>
+  </g>
+</svg>

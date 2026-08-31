@@ -196,7 +196,7 @@ export default function CargarArchivo({
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 onClick={() => usar("reemplazar")}
-                className="rounded-[9px] border border-amber-600 bg-amber px-4 py-2 text-[13px] font-semibold text-[#231403] transition hover:bg-amber-600 hover:text-white"
+                className="rounded-[9px] border border-amber-600 bg-amber px-4 py-2 text-[13px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white"
               >
                 {hayPuntos
                   ? `Reemplazar por estos ${lectura.filas.length}`
