@@ -138,28 +138,77 @@ export default function HojaResultado({
 
   const nombre = parada.nombre ?? parada.codigo ?? "Parada";
 
+  /**
+   * Qué se pregunta en cada paso, y qué falta para poder guardar.
+   *
+   * La pregunta ocupa el sitio de los datos de la parada en la cabecera en vez
+   * de una fila propia dentro del cuerpo: en una pantalla de móvil ese renglón
+   * era la diferencia entre ver las cinco opciones o dejar la primera fuera.
+   */
+  const paso = !estado
+    ? { pregunta: null, guardar: null, impedido: null }
+    : estado === "entregado"
+      ? { pregunta: "¿Quién recibió? (opcional)", guardar: guardarConforme, impedido: null }
+      : estado === "parcial"
+        ? {
+            pregunta: `¿Cuántos bultos entregaste? (de ${parada.bultos})`,
+            guardar: () => guardarParcial(bultosElegidos as number),
+            impedido: bultosElegidos == null ? "Elige cuántos bultos entregaste." : null,
+          }
+        : {
+            pregunta: "¿Por qué no se entregó?",
+            guardar: () => guardarFallido(motivo, detalle),
+            impedido: !motivo
+              ? "Elige el motivo de la no entrega."
+              : motivo === "Otros" && !detalle.trim()
+                ? "Escribe qué pasó para poder guardar."
+                : null,
+          };
+
   return (
     <div className="fixed inset-0 z-50 bg-navy-900/45" onClick={onCerrar}>
       <div
         onClick={(e) => e.stopPropagation()}
-        className="hoja absolute inset-x-0 bottom-0 mx-auto flex max-h-[88dvh] w-full max-w-[560px] flex-col rounded-t-[14px] bg-surface pb-[env(safe-area-inset-bottom)]"
+        className="hoja absolute inset-x-0 bottom-0 mx-auto flex max-h-[94dvh] w-full max-w-[560px] flex-col rounded-t-[14px] bg-surface pb-[env(safe-area-inset-bottom)]"
       >
-        <div className="mx-auto mt-2.5 h-1 w-10 shrink-0 rounded-full bg-line-strong" />
+        <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-line-strong" />
 
-        {/* Cabecera: de qué parada estamos hablando */}
-        <div className="shrink-0 px-4 pb-3 pt-3">
-          <h2 className="truncate text-[24px] font-extrabold leading-none tracking-tight text-ink">
-            #{parada.orden} · {nombre}
-          </h2>
-          <p className="mt-1.5 text-[14px] font-medium text-ink-2">
-            <span className="num">{parada.bultos}</span> bultos
-            {parada.distrito ? ` · ${parada.distrito}` : ""}
-            {parada.codigo ? ` · ${parada.codigo}` : ""}
-          </p>
+        {/* Cabecera: de qué parada hablamos, y qué se está preguntando */}
+        <div className="flex shrink-0 items-start gap-1 px-2 pb-2.5 pt-2">
+          {estado && (
+            <button
+              onClick={() => setEstado(null)}
+              aria-label="Elegir otro resultado"
+              className="-ml-1 grid h-11 w-9 shrink-0 place-items-center text-[20px] text-ink-2 active:bg-canvas"
+            >
+              ‹
+            </button>
+          )}
+          <div className="min-w-0 flex-1 pt-0.5">
+            <h2 className="truncate text-[22px] font-extrabold leading-none tracking-tight text-ink">
+              #{parada.orden} · {nombre}
+            </h2>
+            <p className="mt-1 truncate text-[14px] font-semibold text-ink-2">
+              {paso.pregunta ?? (
+                <>
+                  <span className="num">{parada.bultos}</span> bultos
+                  {parada.distrito ? ` · ${parada.distrito}` : ""}
+                  {parada.codigo ? ` · ${parada.codigo}` : ""}
+                </>
+              )}
+            </p>
+          </div>
+          <button
+            onClick={onCerrar}
+            aria-label="Cerrar"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-[10px] text-[18px] text-ink-2 active:bg-canvas"
+          >
+            ✕
+          </button>
         </div>
 
         {corrigiendo && (
-          <p className="shrink-0 border-t border-line px-4 py-2.5 text-[14px] text-ink-2">
+          <p className="shrink-0 border-t border-line px-3 py-2 text-[14px] text-ink-2">
             Ya la marcaste como <b>{ESTADOS_ENTREGA[parada.estado_entrega].texto}</b>
             {resumenEntrega({ ...parada, bultos: parada.bultos })?.includes("·")
               ? ` · ${parada.motivo ?? ""}`
@@ -169,29 +218,23 @@ export default function HojaResultado({
         )}
 
         {/* Adjuntos: fijos, siempre a la vista */}
-        <div className="flex h-14 shrink-0 items-center gap-2 border-t border-line px-3">
+        <div className="flex h-12 shrink-0 items-center gap-2 border-t border-line px-3">
           <button
             onClick={() => archivo.current?.click()}
-            className="h-11 rounded-[9px] border-2 border-line-strong bg-surface px-3 text-[14px] font-bold text-ink active:bg-canvas"
+            className="h-10 rounded-[9px] border-2 border-line-strong bg-surface px-3 text-[14px] font-bold text-ink active:bg-canvas"
           >
             📷 Foto
           </button>
           <button
             onClick={() => setVerObs((v) => !v)}
-            className="h-11 rounded-[9px] border-2 border-line-strong bg-surface px-3 text-[14px] font-bold text-ink active:bg-canvas"
+            className="h-10 rounded-[9px] border-2 border-line-strong bg-surface px-3 text-[14px] font-bold text-ink active:bg-canvas"
           >
             ✎ Observación
           </button>
           {miniatura && (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={miniatura} alt="" className="h-11 w-11 rounded-[9px] object-cover" />
+            <img src={miniatura} alt="" className="ml-auto h-10 w-10 rounded-[9px] object-cover" />
           )}
-          <button
-            onClick={onCerrar}
-            className="ml-auto h-11 rounded-[9px] px-3 text-[14px] font-bold text-ink-2"
-          >
-            Cerrar
-          </button>
         </div>
 
         {verObs && (
@@ -206,47 +249,34 @@ export default function HojaResultado({
           </div>
         )}
 
-        {/* Decisión */}
-        <div className="min-h-[280px] flex-1 overflow-y-auto border-t border-line p-3">
+        {/* Decisión. `min-h-0` es lo que permite que esta zona ceda y haga
+            scroll en vez de empujar el botón de guardar fuera de la pantalla. */}
+        <div className="sombras-scroll min-h-0 flex-1 overflow-y-auto border-t border-line p-3">
           {!estado ? (
             <Paso1 parada={parada} onElegir={setEstado} />
           ) : estado === "entregado" ? (
-            <>
-              <Etiqueta>¿Quién recibió? (opcional)</Etiqueta>
-              <input
-                value={recibe}
-                onChange={(e) => setRecibe(e.target.value)}
-                placeholder="Nombre de quien recibe"
-                className="h-14 w-full rounded-[10px] border-2 border-line-strong bg-surface px-3 text-[16px]"
-              />
-              <BotonGuardar onClick={guardarConforme} guardando={guardando} impedido={null} />
-              <Volver onClick={() => setEstado(null)} />
-            </>
+            <input
+              value={recibe}
+              onChange={(e) => setRecibe(e.target.value)}
+              placeholder="Nombre de quien recibe"
+              className="h-14 w-full rounded-[10px] border-2 border-line-strong bg-surface px-3 text-[16px]"
+            />
           ) : estado === "parcial" ? (
             <>
-              <Etiqueta>¿Qué faltó? (opcional)</Etiqueta>
               <input
                 value={falto}
                 onChange={(e) => setFalto(e.target.value)}
-                placeholder="Ej. faltaron 2 cajas de gaseosa"
-                className="mb-4 h-14 w-full rounded-[10px] border-2 border-line-strong bg-surface px-3 text-[16px]"
+                placeholder="¿Qué faltó? (opcional)"
+                className="mb-3 h-14 w-full rounded-[10px] border-2 border-line-strong bg-surface px-3 text-[16px]"
               />
-              <Etiqueta>¿Cuántos bultos entregaste? (de {parada.bultos})</Etiqueta>
               <RejillaBultos
                 max={parada.bultos - 1}
                 elegido={bultosElegidos}
                 onElegir={setBultosElegidos}
               />
-              <BotonGuardar
-                onClick={() => guardarParcial(bultosElegidos as number)}
-                guardando={guardando}
-                impedido={bultosElegidos == null ? "Elige cuántos bultos entregaste." : null}
-              />
-              <Volver onClick={() => setEstado(null)} />
             </>
           ) : (
             <>
-              <Etiqueta>¿Por qué no se entregó?</Etiqueta>
               <div className="flex flex-col gap-2">
                 {MOTIVOS_NO_ENTREGA.map((m) => (
                   <button
@@ -262,32 +292,34 @@ export default function HojaResultado({
               </div>
 
               {motivo === "Otros" && (
-                <div className="mt-3">
-                  <Etiqueta>Cuéntanos qué pasó</Etiqueta>
-                  <input
-                    autoFocus
-                    value={detalle}
-                    onChange={(e) => setDetalle(e.target.value)}
-                    className="h-14 w-full rounded-[10px] border-2 border-line-strong bg-surface px-3 text-[16px]"
-                  />
-                </div>
+                <input
+                  autoFocus
+                  value={detalle}
+                  onChange={(e) => setDetalle(e.target.value)}
+                  placeholder="Cuéntanos qué pasó"
+                  className="mt-3 h-14 w-full rounded-[10px] border-2 border-line-strong bg-surface px-3 text-[16px]"
+                />
               )}
-
-              <BotonGuardar
-                onClick={() => guardarFallido(motivo, detalle)}
-                guardando={guardando}
-                impedido={
-                  !motivo
-                    ? "Elige el motivo de la no entrega."
-                    : motivo === "Otros" && !detalle.trim()
-                      ? "Escribe qué pasó para poder guardar."
-                      : null
-                }
-              />
-              <Volver onClick={() => setEstado(null)} />
             </>
           )}
         </div>
+
+        {/* Guardar, anclado. Vivía dentro de la zona que hace scroll y en un
+            móvil quedaba por debajo del borde: el conductor no lo veía. */}
+        {paso.guardar && (
+          <div className="shrink-0 border-t border-line px-3 pb-3 pt-2.5">
+            {paso.impedido && (
+              <p className="mb-2 text-[14px] font-semibold text-ink-2">{paso.impedido}</p>
+            )}
+            <button
+              onClick={paso.guardar}
+              disabled={guardando || !!paso.impedido}
+              className="h-[72px] w-full rounded-[10px] border border-amber-600 bg-amber text-[17px] font-extrabold text-navy-900 active:bg-amber-600 disabled:pointer-events-none disabled:opacity-50"
+            >
+              {guardando ? "Guardando…" : "GUARDAR"}
+            </button>
+          </div>
+        )}
 
         <input
           ref={archivo}
@@ -461,44 +493,5 @@ function RejillaBultos({
   );
 }
 
-function Etiqueta({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="mb-2 text-[13px] font-bold uppercase tracking-[0.1em] text-ink-2">{children}</p>
-  );
-}
 
-/**
- * El botón que manda la entrega.
- *
- * Cuando falta algo no se apaga sin más: dice qué falta. Un botón atenuado y
- * mudo deja al conductor tocándolo en mitad de la calle sin entender por qué
- * no pasa nada.
- */
-function BotonGuardar({
-  onClick, guardando, impedido,
-}: {
-  onClick: () => void;
-  guardando: boolean;
-  impedido: string | null;
-}) {
-  return (
-    <>
-      <button
-        onClick={onClick}
-        disabled={guardando || !!impedido}
-        className="mt-3 h-[72px] w-full rounded-[10px] border border-amber-600 bg-amber text-[17px] font-extrabold text-navy-900 active:bg-amber-600 disabled:pointer-events-none disabled:opacity-50"
-      >
-        {guardando ? "Guardando…" : "GUARDAR"}
-      </button>
-      {impedido && <p className="mt-2 text-[14px] font-semibold text-ink-2">{impedido}</p>}
-    </>
-  );
-}
 
-function Volver({ onClick }: { onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="mt-2 h-11 w-full text-[14px] font-bold text-ink-2">
-      ‹ Elegir otro resultado
-    </button>
-  );
-}

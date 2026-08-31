@@ -92,6 +92,30 @@ body {
   animation: cuenta 3s linear forwards;
 }
 
+/* ------------------------------------------------------------
+   Sombras de scroll: avisan de que hay más contenido arriba o
+   abajo, y desaparecen solas al llegar al borde.
+
+   Son cuatro fondos: dos tapaderas del color del panel, ancladas
+   al contenido (`local`), y dos sombras ancladas al marco
+   (`scroll`). Cuando el contenido está arriba del todo, su
+   tapadera cubre la sombra; al hacer scroll, la tapadera se va
+   con el contenido y la sombra asoma. Sin JavaScript y sin medir
+   nada, que es lo que hace que funcione también mientras el
+   teclado del móvil cambia el alto de la caja.
+   ------------------------------------------------------------ */
+.sombras-scroll {
+  background:
+    linear-gradient(var(--color-surface) 30%, rgba(255, 255, 255, 0)) top / 100% 26px no-repeat
+      local,
+    linear-gradient(rgba(255, 255, 255, 0), var(--color-surface) 70%) bottom / 100% 26px no-repeat
+      local,
+    radial-gradient(farthest-side at 50% 0, rgba(16, 27, 43, 0.14), rgba(16, 27, 43, 0)) top / 100%
+      12px no-repeat scroll,
+    radial-gradient(farthest-side at 50% 100%, rgba(16, 27, 43, 0.14), rgba(16, 27, 43, 0)) bottom /
+      100% 12px no-repeat scroll;
+}
+
 /* Entrada de la hoja de resultado y del carril de deshacer. */
 @keyframes subir-hoja {
   from { transform: translateY(100%); }

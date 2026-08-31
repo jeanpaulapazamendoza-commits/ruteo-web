@@ -452,8 +452,12 @@ export default function RutaReparto({
                 </span>
               </span>
             </button>
+            {/* `isolate` no es decorativo: Leaflet pinta sus capas con z-index
+                de 400 a 1000 y, sin un contexto de apilamiento propio, esos
+                números compiten con los de la app. El mapa atravesaba la hoja
+                de resultado (z-50) y tapaba sus primeras opciones. */}
             {verMapa && (
-              <div className="relative h-[200px] border-t border-line">
+              <div className="relative isolate h-[200px] border-t border-line">
                 <MapaSeguimiento
                   paradas={lista.map((p) => ({
                     id: p.id,
