@@ -140,7 +140,7 @@ export default function EditorZonas({
   const editandoTrazo = dibujando || vertices.length > 0;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[340px_1fr]">
+    <div className="grid min-h-0 flex-1 grid-cols-1 @3xl:grid-cols-[300px_1fr] @5xl:grid-cols-[340px_1fr]">
       <aside className="min-w-0 overflow-y-auto border-r border-line bg-surface p-4">
         {!editandoTrazo ? (
           <>

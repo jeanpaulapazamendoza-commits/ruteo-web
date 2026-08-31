@@ -121,7 +121,7 @@ export default function VistaDespacho({
   const rutaAbierta = resaltado !== null ? rutas.find((r) => r.indice === resaltado) : null;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[1fr_360px]">
+    <div className="grid min-h-0 flex-1 grid-cols-1 @3xl:grid-cols-[1fr_330px] @5xl:grid-cols-[1fr_360px]">
       <section className="relative min-h-[420px] min-w-0">
         <MapaRutas
           tiendas={tiendasMapa}

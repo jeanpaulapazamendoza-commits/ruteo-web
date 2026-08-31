@@ -89,7 +89,7 @@ export default async function PaginaTiendas() {
             />
           </Tarjeta>
         ) : (
-          <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-2.5 @xl:grid-cols-2 @4xl:grid-cols-3">
             {archivos.map((a) => {
               const { fecha, hora } = fechaHora(a.creado_en);
               const autor = (a.perfiles as { nombre?: string } | null)?.nombre;

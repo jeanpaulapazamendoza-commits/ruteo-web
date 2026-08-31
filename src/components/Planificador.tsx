@@ -566,9 +566,14 @@ export default function Planificador({
   }
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[320px_1fr_340px]">
+    /* Tres formas según el sitio disponible, no según la ventana:
+       - estrecho: una columna que fluye, con el mapa a una altura decente;
+       - medio (≥768 de contenedor, ~1000 de ventana): configuración y mapa
+         lado a lado, y las rutas debajo a todo lo ancho;
+       - ancho (≥1024, ~1256): las tres columnas de siempre. */
+    <div className="grid min-h-0 flex-1 grid-cols-1 @3xl:grid-cols-[290px_1fr] @3xl:grid-rows-[minmax(0,1fr)_auto] @5xl:grid-cols-[300px_1fr_320px] @5xl:grid-rows-1">
       {/* ---------------- Configuración ---------------- */}
-      <aside className="min-w-0 overflow-y-auto border-r border-line bg-surface p-4">
+      <aside className="min-w-0 border-line bg-surface p-4 @3xl:overflow-y-auto @3xl:border-r">
         <Seccion titulo="Puntos a repartir">
           <div className="mb-2.5 rounded-[10px] border border-line bg-canvas p-2.5">
             <div className="flex items-start gap-2">
@@ -1079,7 +1084,7 @@ export default function Planificador({
       </aside>
 
       {/* ---------------- Mapa ---------------- */}
-      <section className="relative min-h-[420px] min-w-0">
+      <section className="relative h-[62vh] min-h-[380px] min-w-0 border-y border-line @3xl:h-auto @3xl:border-y-0">
         <MapaRutas
           tiendas={tiendas}
           grupos={grupos}
@@ -1122,7 +1127,7 @@ export default function Planificador({
       </section>
 
       {/* ---------------- Resultados ---------------- */}
-      <aside className="min-w-0 overflow-y-auto border-l border-line bg-surface p-4">
+      <aside className="min-w-0 border-line bg-surface p-4 @3xl:col-span-2 @3xl:border-t @5xl:col-span-1 @5xl:overflow-y-auto @5xl:border-l @5xl:border-t-0">
         {error && (
           <p className="mb-3 rounded-[10px] border border-bad/30 bg-bad-bg px-3 py-2 text-[12.5px] text-bad">
             {error}

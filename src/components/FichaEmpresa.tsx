@@ -194,7 +194,7 @@ export default function FichaEmpresa({ detalle }: { detalle: DetalleOrg }) {
       </Tarjeta>
 
       {/* Uso */}
-      <div className="grid gap-3 lg:grid-cols-[1fr_1fr]">
+      <div className="grid gap-3 @2xl:grid-cols-[1fr_1fr]">
         <Tarjeta className="p-4">
           <h3 className="mb-2.5 text-[13.5px] font-bold">Uso del servicio</h3>
           <div className="grid grid-cols-2 gap-y-3 sm:grid-cols-3">

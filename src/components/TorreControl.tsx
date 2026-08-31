@@ -206,7 +206,7 @@ export default function TorreControl({
   );
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[1fr_340px]">
+    <div className="grid min-h-0 flex-1 grid-cols-1 @3xl:grid-cols-[1fr_320px] @5xl:grid-cols-[1fr_340px]">
       <div className="min-w-0 space-y-3.5 overflow-y-auto p-4">
         {error && (
           <p className="rounded-[10px] border border-bad/30 bg-bad-bg px-3 py-2 text-[12.5px] text-bad">
@@ -483,7 +483,7 @@ function DetalleRuta({
         </span>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-[1fr_1fr]">
+      <div className="grid gap-3 @2xl:grid-cols-[1fr_1fr]">
         <div className="h-[300px] overflow-hidden rounded-[10px] border border-line">
           <MapaSeguimiento
             paradas={ordenadas.map((p) => ({

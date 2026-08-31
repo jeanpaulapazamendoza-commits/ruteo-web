@@ -30,7 +30,7 @@ export function FranjaKpis({
   items: { etiqueta: string; valor: string; nota?: string; icono: string; tinte: string }[];
 }) {
   return (
-    <div className="grid gap-px border-b border-line bg-line sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+    <div className="grid gap-px border-b border-line bg-line @sm:grid-cols-2 @2xl:grid-cols-3 @4xl:grid-cols-6">
       {items.map((k) => (
         <div key={k.etiqueta} className="min-w-0 bg-surface px-4 py-3">
           <div className="flex items-center gap-2 text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-3">

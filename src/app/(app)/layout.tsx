@@ -47,7 +47,12 @@ export default async function LayoutApp({
         rol={perfil.rol}
         esDesarrollador={perfil.es_desarrollador === true}
       />
-      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto bg-surface-2">
+      {/* `@container` para que las pantallas midan el sitio que de verdad
+          tienen. Con puntos de corte por ventana, el planificador pedía 1280
+          px para abrir sus tres columnas sin descontar los 232 de esta barra:
+          en un portátil de 1280 el mapa se quedaba en 388 px, y por debajo
+          colapsaba a una sola columna con el mapa espachurrado. */}
+      <div className="@container flex min-w-0 flex-1 flex-col overflow-y-auto bg-surface-2">
         {children}
       </div>
     </div>
