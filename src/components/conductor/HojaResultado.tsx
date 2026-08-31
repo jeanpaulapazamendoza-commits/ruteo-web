@@ -80,6 +80,7 @@ export default function HojaResultado({
   const [foto, setFoto] = useState<Blob | null>(null);
   const [miniatura, setMiniatura] = useState<string | null>(null);
   const [verObs, setVerObs] = useState(false);
+  const [teclado, setTeclado] = useState(false);
   const archivo = useRef<HTMLInputElement>(null);
 
   // El botón atrás de Android cierra la hoja en vez de salir de la ruta.
@@ -263,15 +264,21 @@ export default function HojaResultado({
             />
           ) : estado === "parcial" ? (
             <>
-              <input
-                value={falto}
-                onChange={(e) => setFalto(e.target.value)}
-                placeholder="¿Qué faltó? (opcional)"
-                className="mb-3 h-14 w-full rounded-[10px] border-2 border-line-strong bg-surface px-3 text-[16px]"
-              />
+              {/* Con el teclado abierto este campo opcional se retira: es lo
+                  que empujaba la última fila de teclas fuera de la pantalla. */}
+              {!teclado && (
+                <input
+                  value={falto}
+                  onChange={(e) => setFalto(e.target.value)}
+                  placeholder="¿Qué faltó? (opcional)"
+                  className="mb-3 h-14 w-full rounded-[10px] border-2 border-line-strong bg-surface px-3 text-[16px]"
+                />
+              )}
               <RejillaBultos
                 max={parada.bultos - 1}
                 elegido={bultosElegidos}
+                teclado={teclado}
+                onTeclado={setTeclado}
                 onElegir={setBultosElegidos}
               />
             </>
@@ -415,51 +422,79 @@ function Opcion({
 /**
  * Cuántos bultos se entregaron, en fichas.
  *
- * Tocar la ficha guarda: es el último dato obligatorio del camino parcial y
- * no hace falta confirmarlo dos veces. Con más de ocho bultos aparece un
- * teclado acotado al rango válido, para no llenar la pantalla de fichas.
+ * Con más de ocho bultos aparece un teclado acotado al rango válido, para no
+ * llenar la pantalla de fichas.
+ *
+ * El teclado no tiene tecla «OK»: cada dígito fija ya el número, y confirmar
+ * es GUARDAR, que está anclado al pie. La tenía, y era la cuarta fila del
+ * teclado —la primera que se cae por debajo del borde en un móvil—, así que
+ * el conductor tecleaba la cantidad, la veía en el visor y no encontraba la
+ * tecla que la validaba, con GUARDAR apagado sin explicación.
  */
 function RejillaBultos({
-  max, elegido, onElegir,
+  max, elegido, teclado, onTeclado, onElegir,
 }: {
   max: number;
   elegido: number | null;
-  onElegir: (n: number) => void;
+  teclado: boolean;
+  onTeclado: (v: boolean) => void;
+  onElegir: (n: number | null) => void;
 }) {
-  const [teclado, setTeclado] = useState(false);
-  const [buffer, setBuffer] = useState("");
+  const [buffer, setBuffer] = useState(elegido ? String(elegido) : "");
+  // Lo tecleado vive además en una referencia: dos toques rápidos ocurren
+  // antes de que React vuelva a pintar, y leyendo el estado el segundo dígito
+  // se comía al primero.
+  const tecleado = useRef(buffer);
 
   if (teclado) {
-    const n = Number(buffer);
-    const valido = Number.isFinite(n) && n >= 1 && n <= max && buffer !== "";
+    const leer = (b: string) => {
+      const n = Number(b);
+      return b !== "" && Number.isFinite(n) && n >= 1 && n <= max ? n : null;
+    };
+    const escribir = (t: string) => {
+      const b =
+        t === "←"
+          ? tecleado.current.slice(0, -1)
+          : (tecleado.current + t).replace(/^0+/, "").slice(0, 4);
+      tecleado.current = b;
+      setBuffer(b);
+      onElegir(leer(b));
+    };
+    const n = leer(buffer);
+
     return (
       <div>
-        <div className="num mb-2 h-14 rounded-[10px] border-2 border-line-strong bg-surface px-3 text-[24px] font-extrabold leading-[3.25rem] text-ink">
+        <div
+          className={`num mb-2 flex h-12 items-center rounded-[10px] border-2 px-3 text-[24px] font-extrabold ${
+            n ? "border-amber-600 bg-amber-050 text-ink" : "border-line-strong bg-surface text-ink-2"
+          }`}
+        >
           {buffer || "—"}
+          <span className="ml-auto text-[14px] font-semibold text-ink-2">
+            de <span className="num">{max + 1}</span>
+          </span>
         </div>
         <div className="grid grid-cols-3 gap-2">
-          {["1", "2", "3", "4", "5", "6", "7", "8", "9", "←", "0", "OK"].map((t) => (
-            <button
-              key={t}
-              onClick={() => {
-                if (t === "←") setBuffer((b) => b.slice(0, -1));
-                else if (t === "OK") { if (valido) { onElegir(n); setTeclado(false); } }
-                else setBuffer((b) => (b + t).replace(/^0+/, "").slice(0, 4));
-              }}
-              className={`num h-16 rounded-[12px] border-2 border-line-strong text-[24px] font-extrabold text-ink active:bg-canvas ${
-                t === "OK" && valido ? "border-amber-600 bg-amber text-navy-900" : "bg-surface"
-              } ${t === "OK" && !valido ? "opacity-40" : ""}`}
-            >
-              {t}
-            </button>
-          ))}
+          {["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "←"].map((t, i) =>
+            t === "" ? (
+              <span key={`hueco-${i}`} />
+            ) : (
+              <button
+                key={t}
+                onClick={() => escribir(t)}
+                className="num h-14 rounded-[12px] border-2 border-line-strong bg-surface text-[24px] font-extrabold text-ink active:bg-canvas"
+              >
+                {t}
+              </button>
+            ),
+          )}
         </div>
         <p className="mt-2 text-[14px] font-semibold text-ink-2">
           Entre <span className="num">1</span> y <span className="num">{max}</span>.
         </p>
         <button
-          onClick={() => setTeclado(false)}
-          className="mt-2 h-11 text-[14px] font-bold text-ink-2"
+          onClick={() => onTeclado(false)}
+          className="mt-1 h-11 text-[14px] font-bold text-ink-2"
         >
           Volver a las fichas
         </button>
@@ -483,7 +518,7 @@ function RejillaBultos({
       ))}
       {max > 8 && (
         <button
-          onClick={() => setTeclado(true)}
+          onClick={() => onTeclado(true)}
           className="h-16 rounded-[12px] border-2 border-line-strong bg-surface text-[14px] font-bold text-ink active:bg-canvas"
         >
           Más…

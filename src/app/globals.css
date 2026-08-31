@@ -79,7 +79,12 @@ body {
    ------------------------------------------------------------ */
 :root {
   --consola: 210px;
-  --carril: 56px;
+  /* La barra de la última entrega, en su forma más alta: la que añade
+     «Guardada en el móvil · sube sola al recuperar señal». Se reservan sus
+     88 px siempre, tanto si la barra está como si no, para que aparecer no
+     mueva la lista de sitio. Con los 56 px de antes la última parada quedaba
+     por debajo de la barra al llegar al final de una ruta larga. */
+  --carril: 88px;
 }
 
 /* Cuenta atrás del bloqueo antidoble-toque del botón primario. */

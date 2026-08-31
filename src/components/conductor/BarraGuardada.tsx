@@ -68,7 +68,12 @@ export default function BarraGuardada({
   }
 
   return (
-    <div className="carril fixed inset-x-0 bottom-[calc(var(--consola)+env(safe-area-inset-bottom))] z-50 mx-auto w-full max-w-[560px] px-3">
+    /* z-40, el mismo nivel que la consola y por debajo de las hojas (z-50).
+       Estando también en z-50 ganaba por ir después en el DOM: se pintaba
+       encima del aviso «Tienes N entregas sin subir» al cerrar sesión —justo
+       el aviso que evita perderlas— y seguía respondiendo a los toques por
+       encima de un diálogo que debería bloquear la pantalla. */
+    <div className="carril fixed inset-x-0 bottom-[calc(var(--consola)+env(safe-area-inset-bottom))] z-40 mx-auto w-full max-w-[560px] px-3">
       {escribiendo ? (
         <div className="rounded-[10px] border border-navy-700 bg-navy-800 p-2.5">
           <label className="mb-1.5 block text-[13px] font-bold uppercase tracking-[0.1em] text-white/70">
