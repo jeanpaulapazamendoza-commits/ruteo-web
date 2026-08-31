@@ -1,9 +1,10 @@
 "use client";
 
 import {
-  MapContainer, TileLayer, CircleMarker, Polyline, Polygon,
+  MapContainer, CircleMarker, Polyline, Polygon,
   Tooltip, Marker, useMap,
 } from "react-leaflet";
+import FondoMapa from "@/components/FondoMapa";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo, useRef } from "react";
@@ -175,11 +176,7 @@ export default function MapaRutas({
         cursor: dibujando ? "crosshair" : undefined,
       }}
     >
-      <TileLayer
-        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution="&copy; OpenStreetMap"
-        maxZoom={19}
-      />
+      <FondoMapa />
 
       <CapturaDibujo
         activo={dibujando}

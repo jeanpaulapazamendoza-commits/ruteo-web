@@ -1119,7 +1119,7 @@ export default function Planificador({
         {resaltado !== null && (
           <button
             onClick={() => setResaltado(null)}
-            className="absolute bottom-3 left-3 z-[500] rounded-[9px] border border-line bg-surface px-3 py-1.5 text-[12px] font-semibold shadow"
+            className="absolute bottom-3 left-1/2 z-[500] -translate-x-1/2 rounded-[9px] border border-line bg-surface px-3 py-1.5 text-[12px] font-semibold shadow"
           >
             Ver todas las rutas
           </button>

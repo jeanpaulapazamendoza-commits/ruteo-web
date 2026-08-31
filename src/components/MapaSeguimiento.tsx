@@ -1,6 +1,7 @@
 "use client";
 
-import { MapContainer, TileLayer, Polyline, Marker, Tooltip } from "react-leaflet";
+import { MapContainer, Polyline, Marker, Tooltip } from "react-leaflet";
+import FondoMapa from "@/components/FondoMapa";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useMemo } from "react";
@@ -96,11 +97,7 @@ export default function MapaSeguimiento({
       scrollWheelZoom
       style={{ height: "100%", width: "100%", background: "#EDF1F6" }}
     >
-      <TileLayer
-        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution="&copy; OpenStreetMap"
-        maxZoom={19}
-      />
+      <FondoMapa compacto />
 
       {geometria && geometria.length > 1 && (
         <Polyline
