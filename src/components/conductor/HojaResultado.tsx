@@ -37,12 +37,14 @@ export type ParadaHoja = {
 /**
  * Hoja de resultado: todo lo que no es «entregado conforme».
  *
- * Dos pasos, y el último toque obligatorio *es* el guardado: elegir el motivo
- * guarda, tocar el número de bultos guarda. No hay un botón «Guardar» que
- * confirme lo que ya se ha decidido, y sobre todo no hay ningún campo
- * obligatorio con valor por defecto — un motivo preseleccionado se graba solo,
- * y entonces el informe de incidencias dice «Ausencia del cliente» de cosas
- * que no lo fueron.
+ * Dos pasos, y nada sale de aquí hasta que el conductor pulsa GUARDAR. Elegir
+ * el motivo o el número de bultos solo lo elige; antes guardaba en el mismo
+ * toque y eso le quitaba al conductor la última ocasión de mirar lo que iba a
+ * mandar.
+ *
+ * Ningún campo obligatorio tiene valor por defecto: un motivo preseleccionado
+ * se graba solo, y entonces el informe de incidencias dice «Ausencia del
+ * cliente» de cosas que no lo fueron.
  *
  * Los bultos se eligen en una rejilla de fichas y no en un `<input
  * type="number">`: no hay zoom de iOS, no hay teclado que tape media pantalla
@@ -52,10 +54,12 @@ export default function HojaResultado({
   parada,
   onCerrar,
   onGuardar,
+  guardando,
 }: {
   parada: ParadaHoja;
   onCerrar: () => void;
   onGuardar: (d: DatosEntrega) => void;
+  guardando: boolean;
 }) {
   const corrigiendo = parada.estado_entrega !== "pendiente";
   const anterior = corrigiendo ? desglosarMotivo(parada.motivo) : { opcion: "", detalle: "" };
@@ -66,12 +70,16 @@ export default function HojaResultado({
   const [recibe, setRecibe] = useState(parada.recibe ?? "");
   const [falto, setFalto] = useState(corrigiendo && parada.estado_entrega === "parcial" ? (parada.motivo ?? "") : "");
   const [motivo, setMotivo] = useState(anterior.opcion);
+  // Los bultos se eligen aquí y se mandan con el botón. Tocar una ficha ya no
+  // cierra la parada: el conductor decide cuándo sale la entrega.
+  const [bultosElegidos, setBultosElegidos] = useState<number | null>(
+    corrigiendo && parada.estado_entrega === "parcial" ? parada.bultos_entregados : null,
+  );
   const [detalle, setDetalle] = useState(anterior.detalle);
   const [observaciones, setObservaciones] = useState(parada.observaciones ?? "");
   const [foto, setFoto] = useState<Blob | null>(null);
   const [miniatura, setMiniatura] = useState<string | null>(null);
   const [verObs, setVerObs] = useState(false);
-  const [tecleando, setTecleando] = useState(false);
   const archivo = useRef<HTMLInputElement>(null);
 
   // El botón atrás de Android cierra la hoja en vez de salir de la ruta.
@@ -211,7 +219,7 @@ export default function HojaResultado({
                 placeholder="Nombre de quien recibe"
                 className="h-14 w-full rounded-[10px] border-2 border-line-strong bg-surface px-3 text-[16px]"
               />
-              <BotonGuardar onClick={guardarConforme}>Guardar</BotonGuardar>
+              <BotonGuardar onClick={guardarConforme} guardando={guardando} impedido={null} />
               <Volver onClick={() => setEstado(null)} />
             </>
           ) : estado === "parcial" ? (
@@ -226,16 +234,35 @@ export default function HojaResultado({
               <Etiqueta>¿Cuántos bultos entregaste? (de {parada.bultos})</Etiqueta>
               <RejillaBultos
                 max={parada.bultos - 1}
-                elegido={parada.bultos_entregados}
-                onElegir={guardarParcial}
+                elegido={bultosElegidos}
+                onElegir={setBultosElegidos}
+              />
+              <BotonGuardar
+                onClick={() => guardarParcial(bultosElegidos as number)}
+                guardando={guardando}
+                impedido={bultosElegidos == null ? "Elige cuántos bultos entregaste." : null}
               />
               <Volver onClick={() => setEstado(null)} />
             </>
           ) : (
             <>
               <Etiqueta>¿Por qué no se entregó?</Etiqueta>
-              {motivo === "Otros" || tecleando ? (
-                <>
+              <div className="flex flex-col gap-2">
+                {MOTIVOS_NO_ENTREGA.map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setMotivo(m)}
+                    className={`flex h-16 w-full items-center gap-3 rounded-[12px] border-2 px-4 text-left text-[17px] font-bold text-ink active:bg-canvas ${
+                      motivo === m ? "border-bad bg-bad-bg" : "border-line-strong bg-surface"
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+
+              {motivo === "Otros" && (
+                <div className="mt-3">
                   <Etiqueta>Cuéntanos qué pasó</Etiqueta>
                   <input
                     autoFocus
@@ -243,41 +270,21 @@ export default function HojaResultado({
                     onChange={(e) => setDetalle(e.target.value)}
                     className="h-14 w-full rounded-[10px] border-2 border-line-strong bg-surface px-3 text-[16px]"
                   />
-                  {!detalle.trim() && (
-                    <p className="mt-2 text-[14px] font-semibold text-ink-2">
-                      Escribe qué pasó para poder guardar.
-                    </p>
-                  )}
-                  <button
-                    onClick={() => guardarFallido("Otros", detalle)}
-                    className={`mt-3 h-[72px] w-full rounded-[10px] border border-amber-600 bg-amber text-[17px] font-extrabold text-navy-900 active:bg-amber-600 ${
-                      detalle.trim() ? "" : "pointer-events-none opacity-50"
-                    }`}
-                  >
-                    Guardar
-                  </button>
-                  <Volver onClick={() => { setMotivo(""); setTecleando(false); }} />
-                </>
-              ) : (
-                <>
-                  <div className="flex flex-col gap-2">
-                    {MOTIVOS_NO_ENTREGA.map((m) => (
-                      <button
-                        key={m}
-                        onClick={() => (m === "Otros" ? setTecleando(true) : guardarFallido(m))}
-                        className={`flex h-16 w-full items-center gap-3 rounded-[12px] border-2 px-4 text-left text-[17px] font-bold text-ink active:bg-canvas ${
-                          anterior.opcion === m
-                            ? "border-bad bg-bad-bg"
-                            : "border-line-strong bg-surface"
-                        }`}
-                      >
-                        {m}
-                      </button>
-                    ))}
-                  </div>
-                  <Volver onClick={() => setEstado(null)} />
-                </>
+                </div>
               )}
+
+              <BotonGuardar
+                onClick={() => guardarFallido(motivo, detalle)}
+                guardando={guardando}
+                impedido={
+                  !motivo
+                    ? "Elige el motivo de la no entrega."
+                    : motivo === "Otros" && !detalle.trim()
+                      ? "Escribe qué pasó para poder guardar."
+                      : null
+                }
+              />
+              <Volver onClick={() => setEstado(null)} />
             </>
           )}
         </div>
@@ -404,7 +411,7 @@ function RejillaBultos({
               key={t}
               onClick={() => {
                 if (t === "←") setBuffer((b) => b.slice(0, -1));
-                else if (t === "OK") { if (valido) onElegir(n); }
+                else if (t === "OK") { if (valido) { onElegir(n); setTeclado(false); } }
                 else setBuffer((b) => (b + t).replace(/^0+/, "").slice(0, 4));
               }}
               className={`num h-16 rounded-[12px] border-2 border-line-strong text-[24px] font-extrabold text-ink active:bg-canvas ${
@@ -460,14 +467,31 @@ function Etiqueta({ children }: { children: React.ReactNode }) {
   );
 }
 
-function BotonGuardar({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+/**
+ * El botón que manda la entrega.
+ *
+ * Cuando falta algo no se apaga sin más: dice qué falta. Un botón atenuado y
+ * mudo deja al conductor tocándolo en mitad de la calle sin entender por qué
+ * no pasa nada.
+ */
+function BotonGuardar({
+  onClick, guardando, impedido,
+}: {
+  onClick: () => void;
+  guardando: boolean;
+  impedido: string | null;
+}) {
   return (
-    <button
-      onClick={onClick}
-      className="mt-3 h-[72px] w-full rounded-[10px] border border-amber-600 bg-amber text-[17px] font-extrabold text-navy-900 active:bg-amber-600"
-    >
-      {children}
-    </button>
+    <>
+      <button
+        onClick={onClick}
+        disabled={guardando || !!impedido}
+        className="mt-3 h-[72px] w-full rounded-[10px] border border-amber-600 bg-amber text-[17px] font-extrabold text-navy-900 active:bg-amber-600 disabled:pointer-events-none disabled:opacity-50"
+      >
+        {guardando ? "Guardando…" : "GUARDAR"}
+      </button>
+      {impedido && <p className="mt-2 text-[14px] font-semibold text-ink-2">{impedido}</p>}
+    </>
   );
 }
 

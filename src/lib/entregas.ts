@@ -25,6 +25,16 @@ export const MOTIVOS_NO_ENTREGA = [
 export type Entrega = {
   parada_id: string;
   estado: EstadoEntrega;
+  /**
+   * Cuándo tocó el conductor el botón, en su móvil.
+   *
+   * El servidor grababa la hora en que recibía la fila. Con la subida
+   * diferida —o sin señal— eso es una hora que no ocurrió: en una ruta real
+   * quedó la parada 8 antes que la 7 estando marcadas al revés, y la torre
+   * ordena su actividad por ese campo. El servidor la acota al presente, así
+   * que un reloj adelantado no puede grabar entregas en el futuro.
+   */
+  marcada_en?: string | null;
   motivo?: string | null;
   bultos_entregados?: number | null;
   observaciones?: string | null;
@@ -89,6 +99,7 @@ export async function marcarParada(entrega: Entrega) {
     p: {
       parada_id: entrega.parada_id,
       estado: entrega.estado,
+      marcada_en: entrega.marcada_en ?? null,
       motivo: entrega.motivo ?? null,
       bultos_entregados: entrega.bultos_entregados ?? null,
       observaciones: entrega.observaciones ?? null,

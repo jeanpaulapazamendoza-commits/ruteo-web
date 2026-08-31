@@ -1,35 +1,40 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { EVENTO_COLA, contarAtascadas, sincronizar } from "@/lib/cola";
+import { EVENTO_COLA, contarAtascadas, idsPendientes, sincronizar } from "@/lib/cola";
 
 export type EstadoCola = {
   /** Entregas que ya son un problema: fallaron o llevan demasiado esperando. */
   pendientes: number;
+  /** Qué paradas siguen sin llegar al servidor. Lo local manda sobre ellas. */
+  ids: Set<string>;
   enLinea: boolean;
   sincronizando: boolean;
   subir: () => Promise<void>;
 };
 
 /**
- * Estado de la cola de entregas sin subir.
+ * Estado de las entregas que todavía no llegaron al servidor.
  *
  * Vive en un hook y no en la cabecera porque lo consumen dos pantallas —la
  * lista de rutas y la ruta abierta— y duplicar los escuchadores acabaría con
- * dos sincronizaciones simultáneas peleándose por las mismas filas.
+ * dos sincronizaciones peleándose por las mismas filas.
  *
  * En iPhone Safari no sincroniza en segundo plano, así que reintentar al
  * volver a primer plano (`visibilitychange`) no es un adorno: es la única
- * oportunidad real de que suba lo guardado sin señal.
+ * oportunidad real de que suba lo que se guardó sin cobertura.
  */
-export function useCola(): EstadoCola {
+export function useCola(alSubir?: () => void): EstadoCola {
   const [pendientes, setPendientes] = useState(0);
+  const [ids, setIds] = useState<Set<string>>(new Set());
   const [enLinea, setEnLinea] = useState(true);
   const [sincronizando, setSincronizando] = useState(false);
 
   const revisar = useCallback(async () => {
     try {
-      setPendientes(await contarAtascadas());
+      const [n, s] = await Promise.all([contarAtascadas(), idsPendientes()]);
+      setPendientes(n);
+      setIds(s);
     } catch {
       /* sin IndexedDB no hay cola que mostrar */
     }
@@ -39,11 +44,14 @@ export function useCola(): EstadoCola {
     setSincronizando(true);
     try {
       const r = await sincronizar();
-      setPendientes(r.quedan);
+      await revisar();
+      // Si algo llegó al servidor, la página tiene datos viejos: una parada
+      // que ya está cerrada allí se seguiría enseñando como pendiente.
+      if (r.subidas > 0) alSubir?.();
     } finally {
       setSincronizando(false);
     }
-  }, []);
+  }, [alSubir, revisar]);
 
   useEffect(() => {
     // `navigator.onLine` no existe en el servidor: se sincroniza al montar.
@@ -64,9 +72,8 @@ export function useCola(): EstadoCola {
     document.addEventListener("visibilitychange", alMostrar);
     window.addEventListener(EVENTO_COLA, revisar);
 
-    // Lo retenido por el deshacer deja de estarlo sin que nadie lo toque:
-    // hace falta un repaso periódico o se quedaría en el móvil hasta que el
-    // conductor cambiara de app.
+    // Repaso periódico: una entrega que falló por un bache de cobertura no
+    // debe esperar a que el conductor cambie de app para volver a intentarlo.
     const t = setInterval(() => {
       revisar();
       if (navigator.onLine) subir();
@@ -81,5 +88,5 @@ export function useCola(): EstadoCola {
     };
   }, [revisar, subir]);
 
-  return { pendientes, enLinea, sincronizando, subir };
+  return { pendientes, ids, enLinea, sincronizando, subir };
 }

@@ -4,18 +4,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import {
-  enlaceNavegacion, iniciarRuta, marcarParada, posicionActual,
-  type EstadoEntrega,
+  enlaceNavegacion, iniciarRuta, marcarParada, posicionActual, subirFoto,
+  type Entrega, type EstadoEntrega,
 } from "@/lib/entregas";
 import { usePosicion } from "@/lib/posicion";
 import {
-  completarPendiente, deshacerPendiente, encolar, parchearPosicion, sincronizar,
+  completarPendiente, encolar, parchearPosicion, subirUna, type Resultado,
 } from "@/lib/cola";
 import { pinta, resumenEntrega } from "@/lib/estadoParada";
 import { useCola } from "@/hooks/useCola";
 import CabeceraConductor from "@/components/conductor/CabeceraConductor";
 import Consola from "@/components/conductor/Consola";
-import CarrilDeshacer from "@/components/conductor/CarrilDeshacer";
+import BarraGuardada from "@/components/conductor/BarraGuardada";
 import HojaResultado, { type DatosEntrega } from "@/components/conductor/HojaResultado";
 import HojaFicha from "@/components/conductor/HojaFicha";
 
@@ -50,10 +50,18 @@ export type ParadaReparto = {
 
 const hhmm = (t: string | null) => (t ? String(t).slice(0, 5) : null);
 
-/** Ventana en la que una entrega recién marcada aún puede deshacerse. */
-const MS_DESHACER = 8000;
 /** Bloqueo del botón primario tras cerrar una parada: mata el doble toque. */
 const MS_BLOQUEO = 3000;
+
+/** Lo último que se guardó, para poder añadirle una foto o un nombre después. */
+type UltimaEntrega = {
+  paradaId: string;
+  orden: number;
+  entrega: Entrega;
+  resultado: Resultado;
+  texto: string;
+  etiqueta: string;
+};
 
 /**
  * La pantalla de una ruta.
@@ -81,7 +89,9 @@ export default function RutaReparto({
   orgId: string;
 }) {
   const router = useRouter();
-  const cola = useCola();
+  // Cuando la cola consigue subir algo, la página tiene datos viejos: una
+  // parada ya cerrada en el servidor se seguiría enseñando como pendiente.
+  const cola = useCola(useCallback(() => router.refresh(), [router]));
   const leerPosicion = usePosicion();
 
   const [lista, setLista] = useState(paradas);
@@ -89,12 +99,8 @@ export default function RutaReparto({
   const [fijada, setFijada] = useState<string | null>(null);
   const [hoja, setHoja] = useState(false);
   const [ficha, setFicha] = useState(false);
-  const [carril, setCarril] = useState<{
-    paradaId: string;
-    texto: string;
-    etiqueta: string;
-    previa: ParadaReparto;
-  } | null>(null);
+  const [ultima, setUltima] = useState<UltimaEntrega | null>(null);
+  const [guardando, setGuardando] = useState<string | null>(null);
   const [bloqueado, setBloqueado] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [errorLocal, setErrorLocal] = useState<string | null>(null);
@@ -125,31 +131,46 @@ export default function RutaReparto({
   }, []);
 
   /**
+   * Lo que este móvil ha guardado y el servidor todavía no ha devuelto.
+   *
+   * Subir una entrega no actualiza la página: los datos del servidor llegaron
+   * al abrir la ruta y siguen diciendo «pendiente» hasta el siguiente refresco.
+   * Sin esta memoria, la parada que el conductor acaba de cerrar volvía a
+   * pintarse pendiente en cuanto salía de la cola.
+   */
+  const esperado = useRef(new Map<string, EstadoEntrega>());
+
+  /**
    * Fusiona lo que llega del servidor con lo que el conductor acaba de marcar.
    *
-   * Sustituir sin más perdería una entrega recién guardada que todavía está en
-   * la cola: el servidor aún la da por pendiente y la pantalla volvería atrás
-   * delante del conductor.
+   * Lo local manda mientras la entrega siga en la cola —no ha subido— o
+   * mientras el servidor no haya devuelto todavía lo que guardamos. Antes la
+   * regla miraba el estado, y eso tiraba las correcciones: cambiar una entrega
+   * que el servidor ya tenía cerrada hacía que la pantalla volviera al valor
+   * viejo con la corrección aún esperando a subir.
    */
+  const enCola = cola.ids;
   useEffect(() => {
-    // Es exactamente el caso que la regla permite: sincronizar el estado con
-    // un dato de fuera de React —lo que el servidor acaba de devolver— sin
-    // perder lo que el conductor marcó hace un segundo.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    for (const p of paradas) {
+      if (esperado.current.get(p.id) === p.estado_entrega) esperado.current.delete(p.id);
+    }
+     
     setLista((prev) =>
       paradas.map((p) => {
         const local = prev.find((x) => x.id === p.id);
-        return local && local.estado_entrega !== "pendiente" && p.estado_entrega === "pendiente"
-          ? local
-          : p;
+        if (!local) return p;
+        return esperado.current.has(p.id) || enCola.has(p.id) ? local : p;
       }),
     );
-  }, [paradas]);
+  }, [paradas, enCola]);
 
-  // Al abrir la ruta se intenta subir lo que quedó de otra jornada.
+  // Al abrir la ruta se reintenta lo que quedó de otra jornada. Va por el hook
+  // para que la lista se entere de lo que suba: si no, una parada que acaba de
+  // cerrarse en el servidor se seguiría enseñando pendiente.
+  const subirCola = cola.subir;
   useEffect(() => {
-    if (navigator.onLine) sincronizar().catch(() => {});
-  }, []);
+    if (navigator.onLine) subirCola().catch(() => {});
+  }, [subirCola]);
 
   const total = lista.length;
   const cerradas = lista.filter((p) => p.estado_entrega !== "pendiente");
@@ -200,7 +221,7 @@ export default function RutaReparto({
    * marcar la misma parada corrige la fila en vez de duplicarla.
    */
   const guardar = useCallback(
-    (parada: ParadaReparto, datos: DatosEntrega) => {
+    async (parada: ParadaReparto, datos: DatosEntrega) => {
       setErrorLocal(null);
 
       const pos = leerPosicion();
@@ -211,12 +232,18 @@ export default function RutaReparto({
         bultos_entregados: datos.bultosEntregados,
         observaciones: datos.observaciones,
         recibe: datos.recibe,
+        // La hora del toque, no la de la subida. Sin esto el servidor sella la
+        // entrega cuando la recibe, y una parada hecha sin cobertura aparece
+        // en la torre a una hora que no ocurrió.
+        marcada_en: new Date().toISOString(),
         gps_lat: pos?.lat ?? null,
         gps_lon: pos?.lon ?? null,
         foto_url: null as string | null,
       };
 
-      // 1) La pantalla responde ya.
+      // 1) La pantalla responde en el mismo frame del toque, y se recuerda que
+      //    el servidor todavía no ha devuelto este resultado.
+      esperado.current.set(parada.id, datos.estado);
       setLista((prev) =>
         prev.map((p) =>
           p.id === parada.id
@@ -228,77 +255,130 @@ export default function RutaReparto({
                   datos.estado === "entregado" ? p.bultos : datos.bultosEntregados,
                 observaciones: datos.observaciones,
                 recibe: datos.recibe,
-                hora_entrega: new Date().toISOString(),
+                hora_entrega: entrega.marcada_en,
               }
             : p,
         ),
       );
       setHoja(false);
       setFijada(null);
-
-      // 2) Ocho segundos para arreglarlo, tres para no repetirlo sin querer.
-      const etiqueta = `#${parada.orden}`;
-      setCarril({
-        paradaId: parada.id,
-        previa: parada,
-        texto:
-          datos.estado === "entregado"
-            ? `✓ ${etiqueta} entregada`
-            : datos.estado === "parcial"
-              ? `◑ ${etiqueta} parcial ${datos.bultosEntregados} de ${parada.bultos}`
-              : `✕ ${etiqueta} no entregada`,
-        etiqueta: datos.estado === "entregado" ? "¿Quién recibió?" : "Observación",
-      });
+      setGuardando(parada.id);
       setBloqueado(true);
       programar(() => setBloqueado(false), MS_BLOQUEO);
-      programar(() => setCarril((c) => (c?.paradaId === parada.id ? null : c)), MS_DESHACER);
 
-      // 3) Y el viaje a la red va detrás, sin que nadie lo espere.
-      void (async () => {
+      // 2) Y se manda ahora mismo. Antes esperaba ocho segundos a un
+      //    temporizador; si el conductor cerraba la app en ese hueco, la
+      //    entrega no salía nunca y el móvil la daba por buena igual.
+      const datosParada = {
+        parada_id: parada.id,
+        entrega,
+        foto: datos.foto,
+        orgId,
+        nombreParada: parada.nombre ?? parada.codigo ?? "Parada",
+      };
+
+      let resultado: Resultado;
+      try {
+        await encolar(datosParada);
+        resultado = await subirUna(parada.id);
+      } catch {
+        // Sin sitio en el móvil, o en modo privado: no hay red de seguridad,
+        // así que se intenta directo. Si tampoco, la fila vuelve a pendiente:
+        // dar por buena una entrega que no está en ninguna parte es el único
+        // fallo que no se puede permitir.
         try {
-          await encolar({
-            parada_id: parada.id,
-            entrega,
-            foto: datos.foto,
-            orgId,
-            nombreParada: parada.nombre ?? parada.codigo ?? "Parada",
-            retenerHasta: Date.now() + MS_DESHACER,
-          });
-          programar(() => void cola.subir(), MS_DESHACER + 200);
-        } catch {
-          // Sin sitio en el móvil o en modo privado: se intenta directo, y si
-          // tampoco, la fila vuelve a pendiente. Dar por buena una entrega que
-          // no está en ninguna parte es el único fallo que no se puede
-          // permitir.
-          try {
-            await marcarParada(entrega);
-          } catch (e2) {
-            setLista((prev) => prev.map((p) => (p.id === parada.id ? parada : p)));
-            setCarril((c) => (c?.paradaId === parada.id ? null : c));
-            setErrorLocal(e2 instanceof Error ? e2.message : String(e2));
-          }
+          await marcarParada(entrega);
+          resultado = { estado: "subida" };
+        } catch (e) {
+          setLista((prev) => prev.map((p) => (p.id === parada.id ? parada : p)));
+          setGuardando(null);
+          setErrorLocal(e instanceof Error ? e.message : String(e));
+          return;
         }
-      })();
+      }
 
-      // 4) El GPS de respaldo llega cuando llegue, y se añade a la fila si
-      //    todavía no ha subido.
+      setGuardando(null);
+      setUltima({
+        paradaId: parada.id,
+        orden: parada.orden,
+        entrega,
+        resultado,
+        texto:
+          datos.estado === "entregado"
+            ? `#${parada.orden} entregada`
+            : datos.estado === "parcial"
+              ? `#${parada.orden} parcial ${datos.bultosEntregados} de ${parada.bultos}`
+              : `#${parada.orden} no entregada`,
+        etiqueta: datos.estado === "entregado" ? "¿Quién recibió?" : "Observación",
+      });
+
+      // 3) El GPS de respaldo llega cuando llegue. Si la entrega ya subió no
+      //    se hace nada: no vale la pena mandarla otra vez por una coordenada.
       if (!pos) {
         void posicionActual(6000).then((p) => {
           if (p) parchearPosicion(parada.id, p.lat, p.lon).catch(() => {});
         });
       }
     },
-    [cola, leerPosicion, orgId, programar],
+    [leerPosicion, orgId, programar],
   );
 
-  /** Deshacer: la entrega nunca salió del móvil, así que basta con sacarla. */
-  async function deshacer() {
-    if (!carril) return;
-    const ok = await deshacerPendiente(carril.paradaId);
-    if (ok) setLista((prev) => prev.map((p) => (p.id === carril.paradaId ? carril.previa : p)));
-    setCarril(null);
-    setBloqueado(false);
-  }
+  /**
+   * Adjunta después lo que no cabía en el momento del toque: la foto o el
+   * nombre de quien recibió.
+   *
+   * Si la entrega sigue en la cola basta con completar su fila. Si ya subió,
+   * hay que volver a mandarla entera —`marcar_parada` sobreescribe `recibe` y
+   * `observaciones` con lo que le llegue, así que mandar solo el añadido
+   * borraría el resto—. Antes esto se hacía a ciegas y, cuando la entrega ya
+   * había subido, la foto se perdía sin decir nada.
+   */
+  const adjuntar = useCallback(
+    async (extra: { foto?: Blob | null; recibe?: string | null; observaciones?: string | null }) => {
+      if (!ultima) return;
+      const { paradaId, entrega } = ultima;
+
+      const completa = {
+        ...entrega,
+        recibe: extra.recibe !== undefined ? extra.recibe : entrega.recibe,
+        observaciones:
+          extra.observaciones !== undefined ? extra.observaciones : entrega.observaciones,
+      };
+
+      setLista((prev) =>
+        prev.map((p) =>
+          p.id === paradaId
+            ? {
+                ...p,
+                recibe: completa.recibe ?? null,
+                observaciones: completa.observaciones ?? null,
+              }
+            : p,
+        ),
+      );
+      setUltima((u) => (u && u.paradaId === paradaId ? { ...u, entrega: completa } : u));
+
+      try {
+        const seguiaEnCola = await completarPendiente(paradaId, extra);
+        if (seguiaEnCola) {
+          const r = await subirUna(paradaId);
+          setUltima((u) => (u && u.paradaId === paradaId ? { ...u, resultado: r } : u));
+          return;
+        }
+        // Ya estaba en el servidor: se manda otra vez, con foto si la hay.
+        const fotoUrl = extra.foto ? await subirFoto(orgId, paradaId, extra.foto) : null;
+        await marcarParada({ ...completa, foto_url: fotoUrl });
+        setUltima((u) =>
+          u && u.paradaId === paradaId ? { ...u, resultado: { estado: "subida" } } : u,
+        );
+      } catch (e) {
+        setErrorLocal(
+          "No se pudo añadir eso a la entrega: " + (e instanceof Error ? e.message : String(e)),
+        );
+      }
+    },
+    [orgId, ultima],
+  );
 
   const paradaHoja = hoja && activa ? activa : null;
 
@@ -432,7 +512,7 @@ export default function RutaReparto({
                 key={p.id}
                 parada={p}
                 activa={p.id === activa?.id}
-                enCola={false}
+                enCola={cola.ids.has(p.id)}
                 appNav={appNav}
                 onSeleccionar={() => setFijada(p.id)}
               />
@@ -448,6 +528,7 @@ export default function RutaReparto({
         fueraDeSecuencia={fueraDeSecuencia}
         appNav={appNav}
         bloqueado={bloqueado}
+        guardando={!!guardando}
         onPrimario={() => {
           // Con la jornada cerrada y nada elegido, el botón enseña lo hecho:
           // la lista de cerradas es el resumen del día, parada por parada.
@@ -479,40 +560,33 @@ export default function RutaReparto({
         salidaProg={salidaProg}
       />
 
-      {carril && (
-        <CarrilDeshacer
-          texto={carril.texto}
-          etiquetaTexto={carril.etiqueta}
-          onDeshacer={deshacer}
-          onFoto={(foto) => {
-            // Mientras el conductor está en la cámara la entrega no puede
-            // subir sin la foto: se alarga la retención dos minutos.
-            void completarPendiente(carril.paradaId, { foto }, 120000);
+      {ultima && (
+        <BarraGuardada
+          texto={ultima.texto}
+          etiquetaTexto={ultima.etiqueta}
+          subida={ultima.resultado.estado === "subida"}
+          onFoto={(foto) => void adjuntar({ foto })}
+          onTexto={(valor) =>
+            void adjuntar(
+              ultima.etiqueta.startsWith("¿Quién")
+                ? { recibe: valor || null }
+                : { observaciones: valor || null },
+            )
+          }
+          onCorregir={() => {
+            setFijada(ultima.paradaId);
+            setHoja(true);
           }}
-          onTexto={(valor) => {
-            const esRecibe = carril.etiqueta.startsWith("¿Quién");
-            void completarPendiente(
-              carril.paradaId,
-              esRecibe ? { recibe: valor || null } : { observaciones: valor || null },
-            );
-            setLista((prev) =>
-              prev.map((p) =>
-                p.id === carril.paradaId
-                  ? esRecibe
-                    ? { ...p, recibe: valor || null }
-                    : { ...p, observaciones: valor || null }
-                  : p,
-              ),
-            );
-          }}
+          onCerrar={() => setUltima(null)}
         />
       )}
 
       {paradaHoja && (
         <HojaResultado
           parada={paradaHoja}
+          guardando={guardando === paradaHoja.id}
           onCerrar={() => setHoja(false)}
-          onGuardar={(d) => guardar(paradaHoja, d)}
+          onGuardar={(d) => void guardar(paradaHoja, d)}
         />
       )}
 

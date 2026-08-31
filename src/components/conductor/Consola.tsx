@@ -43,6 +43,7 @@ export default function Consola({
   fueraDeSecuencia,
   appNav,
   bloqueado,
+  guardando,
   onPrimario,
   onOtro,
   onFicha,
@@ -62,6 +63,8 @@ export default function Consola({
   appNav: "maps" | "waze";
   /** Los 3 s posteriores a cerrar una parada: evita el doble toque. */
   bloqueado: boolean;
+  /** La entrega está viajando al servidor ahora mismo. */
+  guardando: boolean;
   onPrimario: () => void;
   onOtro: () => void;
   onFicha: () => void;
@@ -205,7 +208,7 @@ export default function Consola({
 
                 <button
                   onClick={onPrimario}
-                  disabled={bloqueado || (!activa && !terminada)}
+                  disabled={guardando || bloqueado || (!activa && !terminada)}
                   className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 overflow-hidden rounded-[10px] ${
                     terminada || cerrada
                       ? "border border-navy-800 bg-navy-800 text-white active:bg-navy-700"
@@ -219,7 +222,7 @@ export default function Consola({
                   ) : (
                     <>
                       <span className="text-[17px] font-extrabold leading-none">
-                        {cerrada ? "✎ CORREGIR" : "✓ ENTREGADO"}
+                        {guardando ? "Guardando…" : cerrada ? "✎ CORREGIR" : "✓ ENTREGADO"}
                       </span>
                       <span className="max-w-full truncate px-1 text-[13px] font-bold leading-none">
                         #{activa?.orden} · {nombre}
