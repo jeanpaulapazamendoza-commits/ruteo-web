@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { crearClienteNavegador } from "@/lib/supabase/client";
+import { guardarNotaEmpresa } from "@/app/acciones/datos";
+import { rpc } from "@/app/acciones/rpc";
 import { Pastilla, Tarjeta } from "@/components/ui";
 
 export type DetalleOrg = {
@@ -76,13 +77,11 @@ export default function FichaEmpresa({ detalle }: { detalle: DetalleOrg }) {
     setOcupado(true);
     setError(null);
     try {
-      const supabase = crearClienteNavegador();
-      const { error: fallo } = await supabase.rpc("cambiar_estado_organizacion", {
+      await rpc("cambiar_estado_organizacion", {
         p_org: empresa.id,
         p_activa: !empresa.activa,
         p_nota: null,
       });
-      if (fallo) throw fallo;
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -95,12 +94,7 @@ export default function FichaEmpresa({ detalle }: { detalle: DetalleOrg }) {
     setOcupado(true);
     setError(null);
     try {
-      const supabase = crearClienteNavegador();
-      const { error: fallo } = await supabase
-        .from("organizaciones")
-        .update({ nota: nota.trim() || null })
-        .eq("id", empresa.id);
-      if (fallo) throw fallo;
+      await guardarNotaEmpresa(empresa.id, nota.trim() || null);
       setEditandoNota(false);
       router.refresh();
     } catch (e) {

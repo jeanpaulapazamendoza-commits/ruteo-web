@@ -1,5 +1,47 @@
 import "server-only";
-import { neon } from "@neondatabase/serverless";
+import { neon, types as pg } from "@neondatabase/serverless";
+
+/**
+ * Cómo llegan los valores de Postgres a JavaScript.
+ *
+ * El driver sigue la convención de node-postgres, que no es la que traía la
+ * API REST de Supabase. Son diferencias silenciosas —compilan igual y
+ * revientan al pintar—, así que se corrigen aquí, una vez, en lugar de en
+ * cada pantalla:
+ *
+ * - `bigint` y `numeric` llegaban como cadena. Un `count(*)` se convertía en
+ *   `"7"`, y `"7".toLocaleString()` no agrupa miles ni `.toFixed(1)` existe.
+ * - `date`, `time` y `timestamptz` llegaban como objetos `Date`, que React no
+ *   sabe pintar: «Objects are not valid as a React child».
+ *
+ * Las fechas y horas se dejan en texto, que es lo que el código espera y
+ * recorta con `slice(0, 5)`. Los instantes se normalizan a ISO 8601 porque
+ * `new Date(...)` sobre el formato de Postgres («2026-11-19 12:30:00+00»)
+ * depende del navegador.
+ */
+const TAL_CUAL = (v: string) => v;
+
+const tipos = {
+  getTypeParser(id: number, formato?: "text" | "binary") {
+    switch (id) {
+      case pg.builtins.INT8:
+      case pg.builtins.NUMERIC:
+        return Number;
+      case pg.builtins.DATE:
+      case pg.builtins.TIME:
+      case pg.builtins.TIMETZ:
+        return TAL_CUAL;
+      case pg.builtins.TIMESTAMP:
+      case pg.builtins.TIMESTAMPTZ:
+        return (v: string) => {
+          const fecha = pg.getTypeParser(id, formato)(v) as Date;
+          return fecha instanceof Date && !isNaN(+fecha) ? fecha.toISOString() : v;
+        };
+      default:
+        return pg.getTypeParser(id, formato);
+    }
+  },
+};
 
 /**
  * Acceso a la base de datos.
@@ -16,6 +58,32 @@ import { neon } from "@neondatabase/serverless";
  * alguien lo importa desde un componente de cliente.
  */
 const sql = neon(process.env.DATABASE_URL!);
+
+/**
+ * Los conversores van en cada consulta, no en `neon(...)`.
+ *
+ * El driver los acepta en tres sitios y solo uno funciona. En la fábrica
+ * `neon(url, { types })` se ignoran, y en `sql.transaction(..., { types })`
+ * también: la implementación de la transacción solo mira `fetchOptions`,
+ * `arrayMode`, `fullResults`, `isolationLevel`, `readOnly` y `deferrable`.
+ * Lo que sí viaja son las opciones de cada consulta suelta, que la
+ * transacción recoge una por una. Comprobado contra la base.
+ */
+const OPCIONES = { types: tipos };
+
+/**
+ * El tercer argumento de `query` dentro de una transacción.
+ *
+ * La implementación lo usa —de ahí sale el array de opciones por consulta—,
+ * pero la declaración de tipos de la versión instalada solo describe dos
+ * parámetros. Esto apunta a la firma real en lugar de desactivar el
+ * comprobador en la línea de la llamada.
+ */
+type ConsultaConOpciones = (
+  texto: string,
+  params?: unknown[],
+  opciones?: typeof OPCIONES,
+) => ReturnType<typeof sql.query>;
 
 /** Rol sin privilegios especiales con el que corren las consultas de la app. */
 const ROL_APP = "authenticated";
@@ -48,7 +116,7 @@ export async function comoUsuario<T = Record<string, unknown>>(
   const resultados = await sql.transaction((tx) => [
     tx.query(`set local role ${ROL_APP}`),
     tx.query("select set_config('request.jwt.claims', $1, true)", [claims]),
-    tx.query(texto, params),
+    (tx.query as unknown as ConsultaConOpciones)(texto, params, OPCIONES),
   ]);
 
   return resultados[2] as T[];
@@ -89,5 +157,5 @@ export function comoServicio<T = Record<string, unknown>>(
   texto: string,
   params: unknown[] = [],
 ): Promise<T[]> {
-  return sql.query(texto, params) as Promise<T[]>;
+  return sql.query(texto, params, OPCIONES) as Promise<T[]>;
 }

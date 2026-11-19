@@ -1,45 +1,22 @@
-import { createClient } from "@supabase/supabase-js";
-import { crearClienteServidor } from "@/lib/supabase/server";
+import { auth } from "@/auth";
+import { comoUsuario } from "@/lib/db";
 
 /**
  * Alta de un usuario del equipo. Solo un admin puede llamarlo.
  *
- * Crear cuentas requiere la clave de servicio (`service_role`), que NUNCA
- * puede estar en el navegador: por eso vive en este endpoint de servidor.
- * La empresa del nuevo usuario se toma del admin autenticado, jamás del
- * cuerpo de la petición: así un admin no puede colar a alguien en otra empresa.
+ * El alta la hace `crear_usuario` en la base: perfil y credencial en una sola
+ * transacción, con la contraseña cifrada dentro de Postgres —nunca sale de
+ * ahí en claro ni vuelve al servidor.
+ *
+ * La llamada va con la identidad del admin, y la función toma la empresa de
+ * `private.mi_org()` y no del cuerpo de la petición: así un admin no puede
+ * colar a alguien en otra empresa aunque manipule la llamada.
  */
 const ROLES = new Set(["admin", "planificador", "conductor"]);
 
 export async function POST(peticion: Request) {
-  const supabase = await crearClienteServidor();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return Response.json({ detail: "No autenticado." }, { status: 401 });
-
-  // El propio perfil se lee siempre; confirmamos que es admin y su empresa.
-  const { data: yo } = await supabase
-    .from("perfiles")
-    .select("org_id, rol")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (yo?.rol !== "admin") {
-    return Response.json({ detail: "Solo un administrador puede crear usuarios." }, { status: 403 });
-  }
-
-  const clave = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!clave) {
-    return Response.json(
-      {
-        detail:
-          "Falta configurar SUPABASE_SERVICE_ROLE_KEY en el servidor. " +
-          "Cópiala del panel de Supabase (Settings → API) a las variables de Vercel y a .env.local.",
-      },
-      { status: 501 },
-    );
-  }
+  const sesion = await auth();
+  if (!sesion?.user) return Response.json({ detail: "No autenticado." }, { status: 401 });
 
   let cuerpo: { nombre?: string; email?: string; rol?: string; password?: string };
   try {
@@ -59,30 +36,26 @@ export async function POST(peticion: Request) {
   if (!ROLES.has(rol)) {
     return Response.json({ detail: "Rol no permitido." }, { status: 400 });
   }
-  if (password.length < 6) {
-    return Response.json({ detail: "La contraseña debe tener al menos 6 caracteres." }, { status: 400 });
-  }
-
-  const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, clave, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-
-  // Crear el usuario ya confirmado (sin correo) y con la empresa del admin.
-  // El trigger `alta_usuario` crea el perfil leyendo estos metadatos.
-  const { data, error } = await admin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: { nombre: nombre || email.split("@")[0], org_id: yo.org_id, rol },
-  });
-
-  if (error) {
-    const dup = /already been registered|already exists/i.test(error.message);
+  if (password.length < 8) {
     return Response.json(
-      { detail: dup ? "Ese correo ya tiene una cuenta." : error.message },
-      { status: dup ? 409 : 400 },
+      { detail: "La contraseña debe tener al menos 8 caracteres." },
+      { status: 400 },
     );
   }
 
-  return Response.json({ ok: true, id: data.user?.id, email });
+  try {
+    const filas = await comoUsuario<{ crear_usuario: string }>(
+      sesion.user.id,
+      "select public.crear_usuario($1, $2, $3, $4) as crear_usuario",
+      [nombre || email.split("@")[0], email, rol, password],
+    );
+    return Response.json({ ok: true, id: filas[0]?.crear_usuario, email });
+  } catch (e) {
+    const mensaje = e instanceof Error ? e.message : String(e);
+    if (/Solo un administrador/i.test(mensaje)) {
+      return Response.json({ detail: mensaje }, { status: 403 });
+    }
+    const duplicado = /ya tiene una cuenta/i.test(mensaje);
+    return Response.json({ detail: mensaje }, { status: duplicado ? 409 : 400 });
+  }
 }

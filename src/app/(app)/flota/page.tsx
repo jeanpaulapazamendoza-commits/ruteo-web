@@ -9,7 +9,7 @@ export default function Pagina() {
           <EstadoVacio
             icono="▣"
             titulo="Flota"
-            descripcion="Esta sección se construye en la siguiente etapa, sobre las mismas tablas de Supabase que ya están creadas."
+            descripcion="Esta sección se construye en la siguiente etapa, sobre la tabla de vehículos que ya está creada."
           />
         </Tarjeta>
       </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { crearClienteNavegador } from "@/lib/supabase/client";
+import { salir as cerrarSesion } from "@/app/acciones-sesion";
 
 export default function CuentaBloqueada({
   email,
@@ -18,9 +18,7 @@ export default function CuentaBloqueada({
   const router = useRouter();
 
   async function salir() {
-    await crearClienteNavegador().auth.signOut();
-    router.push("/login");
-    router.refresh();
+    await cerrarSesion();
   }
 
   return (

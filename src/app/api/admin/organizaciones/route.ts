@@ -1,45 +1,31 @@
-import { createClient } from "@supabase/supabase-js";
-import { crearClienteServidor } from "@/lib/supabase/server";
+import { auth } from "@/auth";
+import { comoServicio, unaFila } from "@/lib/db";
 
 /**
  * Alta de una empresa cliente con su primer administrador.
  *
- * Solo el desarrollador. Necesita la clave de servicio porque crea una cuenta
- * de acceso, y esa clave no puede pisar el navegador: por eso vive aquí.
+ * Solo el desarrollador. El alta la hace `registrar_empresa` en una sola
+ * transacción —empresa, perfil y credencial—, así que ya no hay que deshacer
+ * nada a mano si el usuario falla después de crear la empresa.
  *
- * Si la creación del usuario falla, la empresa recién creada se deshace: una
- * empresa sin administrador no la puede arreglar nadie desde la aplicación.
+ * Esa función está revocada al rol `authenticated` (crea cuentas de acceso),
+ * de ahí `comoServicio`: antes se comprueba aquí quién llama, porque esa vía
+ * no pasa por el RLS.
  */
 export async function POST(peticion: Request) {
-  const supabase = await crearClienteServidor();
+  const sesion = await auth();
+  if (!sesion?.user) return Response.json({ detail: "No autenticado." }, { status: 401 });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return Response.json({ detail: "No autenticado." }, { status: 401 });
-
-  const { data: yo } = await supabase
-    .from("perfiles")
-    .select("es_desarrollador")
-    .eq("id", user.id)
-    .maybeSingle();
+  const yo = await unaFila<{ es_desarrollador: boolean }>(
+    sesion.user.id,
+    "select es_desarrollador from perfiles where id = $1",
+    [sesion.user.id],
+  );
 
   if (!yo?.es_desarrollador) {
     return Response.json(
       { detail: "Solo el desarrollador puede dar de alta empresas." },
       { status: 403 },
-    );
-  }
-
-  const clave = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!clave) {
-    return Response.json(
-      {
-        detail:
-          "Falta configurar SUPABASE_SERVICE_ROLE_KEY en el servidor. " +
-          "Cópiala del panel de Supabase (Settings → API) a las variables de Vercel y a .env.local.",
-      },
-      { status: 501 },
     );
   }
 
@@ -59,38 +45,22 @@ export async function POST(peticion: Request) {
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return Response.json({ detail: "Correo inválido." }, { status: 400 });
   }
-  if (password.length < 6) {
-    return Response.json({ detail: "La contraseña debe tener al menos 6 caracteres." }, { status: 400 });
-  }
-
-  const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, clave, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-
-  const { data: org, error: errOrg } = await admin
-    .from("organizaciones")
-    .insert({ nombre: empresa })
-    .select("id")
-    .single();
-
-  if (errOrg) return Response.json({ detail: errOrg.message }, { status: 400 });
-
-  const { data, error } = await admin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: { nombre: nombre || email.split("@")[0], org_id: org.id, rol: "admin" },
-  });
-
-  if (error) {
-    // Sin administrador la empresa nace inservible: se deshace el alta.
-    await admin.from("organizaciones").delete().eq("id", org.id);
-    const dup = /already been registered|already exists/i.test(error.message);
+  if (password.length < 8) {
     return Response.json(
-      { detail: dup ? "Ese correo ya tiene una cuenta." : error.message },
-      { status: dup ? 409 : 400 },
+      { detail: "La contraseña debe tener al menos 8 caracteres." },
+      { status: 400 },
     );
   }
 
-  return Response.json({ ok: true, org_id: org.id, admin_id: data.user?.id, email });
+  try {
+    const filas = await comoServicio<{ registrar_empresa: string }>(
+      "select public.registrar_empresa($1, $2, $3, $4) as registrar_empresa",
+      [empresa, nombre || email.split("@")[0], email, password],
+    );
+    return Response.json({ ok: true, admin_id: filas[0]?.registrar_empresa, email });
+  } catch (e) {
+    const mensaje = e instanceof Error ? e.message : String(e);
+    const duplicado = /ya tiene una cuenta/i.test(mensaje);
+    return Response.json({ detail: mensaje }, { status: duplicado ? 409 : 400 });
+  }
 }

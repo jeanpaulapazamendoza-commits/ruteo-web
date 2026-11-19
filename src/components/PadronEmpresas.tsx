@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { crearClienteNavegador } from "@/lib/supabase/client";
+import { rpc } from "@/app/acciones/rpc";
 import { Pastilla, Tarjeta } from "@/components/ui";
 
 export type ResumenOrg = {
@@ -52,13 +52,11 @@ export default function PadronEmpresas({ empresas }: { empresas: ResumenOrg[] })
     setOcupado(org.id);
     setError(null);
     try {
-      const supabase = crearClienteNavegador();
-      const { error: fallo } = await supabase.rpc("cambiar_estado_organizacion", {
+      await rpc("cambiar_estado_organizacion", {
         p_org: org.id,
         p_activa: !org.activa,
         p_nota: null,
       });
-      if (fallo) throw fallo;
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { crearClienteNavegador } from "@/lib/supabase/client";
+import { rpc } from "@/app/acciones/rpc";
 import { Pastilla } from "@/components/ui";
 
 export type TiendaFila = {
@@ -79,11 +79,7 @@ export default function TablaTiendas({
     setBorrando(true);
     setError(null);
     try {
-      const supabase = crearClienteNavegador();
-      const { error } = await supabase.rpc("eliminar_tiendas", {
-        p_ids: [...seleccion],
-      });
-      if (error) throw error;
+      await rpc("eliminar_tiendas", { p_ids: [...seleccion] });
       setSeleccion(new Set());
       router.refresh();
     } catch (e) {
@@ -97,14 +93,11 @@ export default function TablaTiendas({
     setBorrando(true);
     setError(null);
     try {
-      const supabase = crearClienteNavegador();
       if (esSinArchivo) {
-        const { error } = await supabase.rpc("eliminar_tiendas_sin_archivo");
-        if (error) throw error;
+        await rpc("eliminar_tiendas_sin_archivo");
         router.refresh();
       } else if (cargaId) {
-        const { error } = await supabase.rpc("eliminar_carga", { p_id: cargaId });
-        if (error) throw error;
+        await rpc("eliminar_carga", { p_id: cargaId });
         router.push("/tiendas");
       }
       router.refresh();

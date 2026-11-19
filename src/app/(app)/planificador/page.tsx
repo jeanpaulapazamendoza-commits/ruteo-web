@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { crearClienteServidor } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
+import { comoUsuario, unaFila } from "@/lib/db";
 import { BarraSuperior } from "@/components/ui";
 import Planificador, { type Carga } from "@/components/Planificador";
 import type { TiendaMapa } from "@/lib/motor";
@@ -13,73 +15,59 @@ export default async function PaginaPlanificador({
   searchParams: Promise<{ carga?: string; despacho?: string }>;
 }) {
   const { carga: idCarga, despacho: idDespacho } = await searchParams;
-  const supabase = await crearClienteServidor();
+  const sesion = await auth();
+  if (!sesion?.user) redirect("/login");
+  const yo = sesion.user.id;
 
-  // De entrada no se consulta nada: el día empieza subiendo el archivo, que
-  // vive en el navegador hasta que se guarda el despacho. Solo se va a la base
-  // cuando el usuario pide continuar algo ya guardado.
-  const [{ data: importaciones }, { data: despachos }, { data: zonasRaw }] =
-    await Promise.all([
-      supabase
-        .from("importaciones")
-        .select("id, nombre_archivo, filas, creado_en, perfiles:creado_por(nombre), despachos(id)")
-        .order("creado_en", { ascending: false })
-        .limit(50),
-      // Solo lo que está pendiente de rutear: un despacho ya planificado se
-      // retoma desde su ficha, no desde aquí.
-      supabase
-        .from("despachos")
-        .select("id, nombre, fecha, perfiles:creado_por(nombre), importaciones(nombre_archivo)")
-        .eq("estado", "cargado")
-        .order("creado_en", { ascending: false })
-        .limit(30),
-      supabase
-        .from("zonas")
-        .select("id, nombre, color, poligono")
-        .eq("activo", true)
-        .order("nombre"),
-    ]);
-
-  const zonas: Zona[] = (zonasRaw ?? []).map((z) => ({
-    id: z.id,
-    nombre: z.nombre,
-    color: z.color,
-    poligono: z.poligono as Zona["poligono"],
-  }));
-
+  // De entrada no se consulta nada del archivo del día: ese vive en el
+  // navegador hasta que se guarda el despacho. Solo se va a la base para
+  // ofrecer lo que ya está guardado.
+  //
   // Solo interesan las cargas que dejaron tiendas guardadas (las del sistema
   // anterior). Las de ahora solo registran el nombre del archivo del despacho,
-  // y ofrecerlas como origen abriría el planificador sin un solo punto.
-  const { data: conTiendas } = await supabase
-    .from("tiendas")
-    .select("importacion_id")
-    .not("importacion_id", "is", null)
-    .eq("activo", true)
-    .limit(5000);
-
-  const conPuntos = new Set((conTiendas ?? []).map((t) => t.importacion_id));
-
-  const cargas: Carga[] = (importaciones ?? [])
-    .filter((i) => conPuntos.has(i.id))
-    .map((i) => ({
-      id: i.id,
-      nombre: i.nombre_archivo,
-      filas: i.filas ?? 0,
-      creado_en: i.creado_en,
-      autor: (i.perfiles as { nombre?: string } | null)?.nombre ?? null,
-      ruteada: ((i.despachos as unknown[] | null)?.length ?? 0) > 0,
-    }));
-
-  // Lo que se ofrece para retomar: el alias que le puso el usuario, quién lo
-  // subió y de qué archivo salió. Sin eso, «Despacho» a secas no distingue
-  // dos cargas del mismo día.
-  const pendientes = (despachos ?? []).map((d) => ({
-    id: d.id,
-    nombre: d.nombre,
-    fecha: d.fecha,
-    autor: (d.perfiles as { nombre?: string } | null)?.nombre ?? null,
-    archivo: (d.importaciones as { nombre_archivo?: string } | null)?.nombre_archivo ?? null,
-  }));
+  // y ofrecerlas como origen abriría el planificador sin un solo punto. El
+  // filtro va como `exists` en la base: antes se traían 5000 filas de tiendas
+  // solo para cruzar identificadores aquí.
+  const [cargas, pendientes, zonas] = await Promise.all([
+    comoUsuario<Carga>(
+      yo,
+      `select i.id, i.nombre_archivo as nombre, coalesce(i.filas, 0) as filas,
+              i.creado_en, a.nombre as autor,
+              exists (select 1 from despachos d where d.importacion_id = i.id)
+                as ruteada
+         from importaciones i
+         left join perfiles a on a.id = i.creado_por
+        where exists (select 1 from tiendas t
+                       where t.importacion_id = i.id and t.activo)
+        order by i.creado_en desc
+        limit 50`,
+    ),
+    // Lo que se ofrece para retomar: el alias que le puso el usuario, quién lo
+    // subió y de qué archivo salió. Sin eso, «Despacho» a secas no distingue
+    // dos cargas del mismo día. Solo lo pendiente de rutear: un despacho ya
+    // planificado se retoma desde su ficha, no desde aquí.
+    comoUsuario<{
+      id: string;
+      nombre: string | null;
+      fecha: string;
+      autor: string | null;
+      archivo: string | null;
+    }>(
+      yo,
+      `select d.id, d.nombre, d.fecha, a.nombre as autor,
+              i.nombre_archivo as archivo
+         from despachos d
+         left join perfiles a on a.id = d.creado_por
+         left join importaciones i on i.id = d.importacion_id
+        where d.estado = 'cargado'
+        order by d.creado_en desc
+        limit 30`,
+    ),
+    comoUsuario<Zona>(
+      yo,
+      "select id, nombre, color, poligono from zonas where activo order by nombre",
+    ),
+  ]);
 
   const seleccion = idDespacho ? null : (idCarga ?? null);
 
@@ -92,20 +80,6 @@ export default async function PaginaPlanificador({
     // Trabajar sobre un despacho: sus paradas son los puntos, y sus rutas los
     // grupos. El despacho guarda copia completa de cada parada, así que no hace
     // falta cruzarlo con ninguna otra tabla.
-    const [{ data: cab }, { data: rutas }] = await Promise.all([
-      supabase.from("despachos").select("nombre, fecha, estado").eq("id", idDespacho).maybeSingle(),
-      supabase
-        .from("rutas")
-        .select(
-          "indice, paradas(orden, tienda_id, codigo, nombre, distrito, lat, lon, bultos, prioridad, ventana_ini, ventana_fin)",
-        )
-        .eq("despacho_id", idDespacho)
-        .order("indice"),
-    ]);
-
-    origenServidor = cab ? (cab.nombre ?? cab.fecha) : "Despacho";
-    estadoDespacho = cab?.estado ?? null;
-
     type ParadaFila = {
       orden: number;
       tienda_id: string | null;
@@ -120,10 +94,38 @@ export default async function PaginaPlanificador({
       ventana_fin: string | null;
     };
 
+    const [cab, rutas] = await Promise.all([
+      unaFila<{ nombre: string | null; fecha: string; estado: string }>(
+        yo,
+        "select nombre, fecha, estado from despachos where id = $1",
+        [idDespacho],
+      ),
+      comoUsuario<{ indice: number; paradas: ParadaFila[] }>(
+        yo,
+        `select r.indice,
+                coalesce(
+                  (select json_agg(x order by x.orden)
+                     from (select p.orden, p.tienda_id, p.codigo, p.nombre,
+                                  p.distrito, p.lat, p.lon, p.bultos,
+                                  p.prioridad, p.ventana_ini, p.ventana_fin
+                             from paradas p
+                            where p.ruta_id = r.id) x),
+                  '[]'::json
+                ) as paradas
+           from rutas r
+          where r.despacho_id = $1
+          order by r.indice`,
+        [idDespacho],
+      ),
+    ]);
+
+    origenServidor = cab ? (cab.nombre ?? cab.fecha) : "Despacho";
+    estadoDespacho = cab?.estado ?? null;
+
     const vistos = new Set<string>();
-    gruposIniciales = (rutas ?? []).map((r) => {
+    gruposIniciales = rutas.map((r) => {
       const ids: string[] = [];
-      for (const p of ((r.paradas ?? []) as ParadaFila[]).sort((a, b) => a.orden - b.orden)) {
+      for (const p of r.paradas ?? []) {
         // El identificador de trabajo es el de la tienda si la parada apunta a
         // una, y si no su código: en ambos casos es único dentro del despacho.
         const id = p.tienda_id ?? p.codigo ?? `${p.lat},${p.lon}`;
@@ -151,19 +153,36 @@ export default async function PaginaPlanificador({
     if (estadoDespacho === "cargado") gruposIniciales = null;
   } else if (seleccion) {
     // Tiendas guardadas de antes (histórico). Se mantiene por compatibilidad.
-    let consulta = supabase
-      .from("tiendas")
-      .select("id, codigo, nombre, distrito, lat, lon, bultos_default, prioridad, ventana_ini, ventana_fin")
-      .eq("activo", true)
-      .order("codigo")
-      .limit(5000);
+    const filtro =
+      seleccion === SIN_ARCHIVO
+        ? "and importacion_id is null"
+        : seleccion === "todas"
+          ? ""
+          : "and importacion_id = $1";
 
-    if (seleccion === SIN_ARCHIVO) consulta = consulta.is("importacion_id", null);
-    else if (seleccion !== "todas") consulta = consulta.eq("importacion_id", seleccion);
+    const filas = await comoUsuario<{
+      id: string;
+      codigo: string;
+      nombre: string;
+      distrito: string | null;
+      lat: number;
+      lon: number;
+      bultos_default: number | null;
+      prioridad: number | null;
+      ventana_ini: string | null;
+      ventana_fin: string | null;
+    }>(
+      yo,
+      `select id, codigo, nombre, distrito, lat, lon, bultos_default,
+              prioridad, ventana_ini, ventana_fin
+         from tiendas
+        where activo ${filtro}
+        order by codigo
+        limit 5000`,
+      filtro.includes("$1") ? [seleccion] : [],
+    );
 
-    const { data: filas } = await consulta;
-
-    puntos = (filas ?? []).map((t) => ({
+    puntos = filas.map((t) => ({
       id: t.id,
       codigo: t.codigo,
       nombre: t.nombre,

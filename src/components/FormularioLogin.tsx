@@ -138,7 +138,7 @@ export default function FormularioLogin() {
               tipo="password"
               valor={clave}
               onChange={setClave}
-              placeholder="Mínimo 6 caracteres"
+              placeholder="Mínimo 8 caracteres"
               requerido
             />
 
@@ -218,18 +218,16 @@ function Campo({
   );
 }
 
-/** Mensajes de Supabase en español y en términos accionables. */
+/**
+ * La base ya habla español: sus `raise exception` son el mensaje que ve el
+ * usuario. Solo quedan aquí los fallos de infraestructura, que llegan en
+ * inglés y no dicen nada útil a quien está intentando entrar.
+ */
 function traducir(mensaje: string) {
   const m = mensaje.toLowerCase();
-  if (m.includes("invalid login credentials"))
-    return "Correo o contraseña incorrectos.";
-  if (m.includes("user already registered"))
+  if (m.includes("ya tiene una cuenta"))
     return "Ese correo ya tiene cuenta. Inicia sesión.";
-  if (m.includes("password should be at least"))
-    return "La contraseña debe tener al menos 6 caracteres.";
-  if (m.includes("email not confirmed"))
-    return "Confirma tu correo antes de entrar.";
-  if (m.includes("unable to validate email"))
-    return "Ese correo no parece válido.";
+  if (m.includes("fetch failed") || m.includes("econnrefused") || m.includes("timeout"))
+    return "No hay conexión con el servidor. Inténtalo de nuevo en un momento.";
   return mensaje;
 }

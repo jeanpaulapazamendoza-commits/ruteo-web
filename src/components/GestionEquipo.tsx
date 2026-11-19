@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { crearClienteNavegador } from "@/lib/supabase/client";
+import { actualizarPerfil } from "@/app/acciones/datos";
 import { Tarjeta, Pastilla } from "@/components/ui";
 
 export type MiembroEquipo = {
@@ -36,9 +36,7 @@ export default function GestionEquipo({
     setOcupado(ctx);
     setError(null);
     try {
-      const supabase = crearClienteNavegador();
-      const { error } = await supabase.from("perfiles").update(cambios).eq("id", id);
-      if (error) throw error;
+      await actualizarPerfil(id, cambios);
       router.refresh();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { crearClienteServidor } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
+import { comoUsuario, unaFila } from "@/lib/db";
 import { BarraSuperior, Tarjeta, EstadoVacio, Pastilla } from "@/components/ui";
 import TorreControl, {
   type ParadaSeguimiento,
@@ -21,10 +23,19 @@ type ResumenDespacho = {
   fallidas: number;
   reprogramadas: number;
   bultos: number;
+  /** Puntos que quedaron sin asignar: no salen a reparto, pero están guardados. */
+  bandeja: number;
+  bultos_bandeja: number;
 };
 
-function fechaLarga(iso: string) {
-  return new Date(iso).toLocaleDateString("es-PE", {
+/**
+ * `fecha` es un día sin hora («2026-11-19»). Se parte a mano en vez de pasarlo
+ * a `new Date(...)`: esa forma lo interpreta como medianoche UTC y, en Lima
+ * (UTC-5), lo pintaría como el día anterior.
+ */
+function fechaLarga(dia: string) {
+  const [a, m, d] = dia.split("-").map(Number);
+  return new Date(a, m - 1, d).toLocaleDateString("es-PE", {
     weekday: "short",
     day: "2-digit",
     month: "short",
@@ -39,11 +50,15 @@ export default async function PaginaTorre({
   searchParams: Promise<{ despacho?: string }>;
 }) {
   const { despacho: elegido } = await searchParams;
-  const supabase = await crearClienteServidor();
+  const sesion = await auth();
+  if (!sesion?.user) redirect("/login");
+  const yo = sesion.user.id;
 
-  const { data } = await supabase.rpc("resumen_despachos");
   // Lo que está solo cargado todavía no tiene rutas que seguir.
-  const lista = ((data ?? []) as ResumenDespacho[]).filter((d) => d.estado !== "cargado");
+  const lista = await comoUsuario<ResumenDespacho>(
+    yo,
+    "select * from public.resumen_despachos() where estado <> 'cargado'",
+  );
 
   if (!lista.length) {
     return (
@@ -167,6 +182,13 @@ export default async function PaginaTorre({
                         style={{ width: `${pct}%` }}
                       />
                     </div>
+                    {/* Los recuentos son de reparto: la bandeja no sale, así
+                        que se avisa aparte en vez de hundir el porcentaje. */}
+                    {d.bandeja > 0 && (
+                      <div className="num mt-1 text-[11px] text-warn">
+                        {d.bandeja} sin asignar
+                      </div>
+                    )}
                     {d.fallidas > 0 && (
                       <div className="num mt-1 text-[11px] font-semibold text-bad">
                         {d.fallidas} fallidas
@@ -187,35 +209,36 @@ export default async function PaginaTorre({
   }
 
   // ── Detalle: seguimiento en vivo del despacho elegido ────────────────────
-  const [{ data: paradas }, { data: rutasRaw }, { data: cab }] = await Promise.all([
-    supabase
-      .from("paradas")
-      .select(
-        `id, orden, codigo, nombre, distrito, lat, lon, bultos, prioridad, eta,
-         estado_entrega, hora_entrega, bultos_entregados, motivo, foto_url,
-         observaciones, recibe,
-         rutas!inner(indice, despacho_id)`,
-      )
-      .eq("rutas.despacho_id", activo.id)
-      .eq("rutas.sin_asignar", false)
-      .order("orden"),
+  const [paradas, rutas, cab] = await Promise.all([
+    comoUsuario<ParadaSeguimiento>(
+      yo,
+      `select p.id, p.orden, p.codigo, p.nombre, p.distrito, p.lat, p.lon,
+              p.bultos, p.prioridad, p.eta, p.estado_entrega, p.hora_entrega,
+              p.bultos_entregados, p.motivo, p.foto_url, p.observaciones,
+              p.recibe, r.indice as ruta_indice
+         from paradas p
+         join rutas r on r.id = p.ruta_id
+        where r.despacho_id = $1 and not r.sin_asignar
+        order by r.indice, p.orden`,
+      [activo.id],
+    ),
     // La geometría solo se usa para dibujar el recorrido de fondo; se pide
     // una vez aquí y no en cada sondeo, que sería mover mucho por nada.
-    supabase
-      .from("rutas")
-      .select("indice, geometria, salida_real, perfiles:conductor_id(nombre)")
-      .eq("despacho_id", activo.id)
-      .eq("sin_asignar", false)
-      .order("indice"),
-    supabase.from("despachos").select("cd_lat, cd_lon").eq("id", activo.id).maybeSingle(),
+    comoUsuario<RutaSeguida>(
+      yo,
+      `select r.indice, r.geometria, r.salida_real, c.nombre as conductor
+         from rutas r
+         left join perfiles c on c.id = r.conductor_id
+        where r.despacho_id = $1 and not r.sin_asignar
+        order by r.indice`,
+      [activo.id],
+    ),
+    unaFila<{ cd_lat: number | null; cd_lon: number | null }>(
+      yo,
+      "select cd_lat, cd_lon from despachos where id = $1",
+      [activo.id],
+    ),
   ]);
-
-  const rutas: RutaSeguida[] = (rutasRaw ?? []).map((r) => ({
-    indice: r.indice,
-    geometria: (r.geometria as number[][] | null) ?? null,
-    salida_real: r.salida_real,
-    conductor: (r.perfiles as { nombre?: string } | null)?.nombre ?? null,
-  }));
 
   return (
     <>
@@ -245,7 +268,7 @@ export default async function PaginaTorre({
 
       <TorreControl
         despachoId={activo.id}
-        inicial={(paradas ?? []) as unknown as ParadaSeguimiento[]}
+        inicial={paradas}
         rutas={rutas}
         cd={
           cab?.cd_lat != null && cab?.cd_lon != null

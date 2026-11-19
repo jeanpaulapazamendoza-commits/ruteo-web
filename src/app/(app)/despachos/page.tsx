@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { crearClienteServidor } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
+import { comoUsuario } from "@/lib/db";
 import { BarraSuperior, Tarjeta, EstadoVacio, Pastilla } from "@/components/ui";
 import { estado as infoEstado, ESTADOS } from "@/lib/despachos";
 
@@ -20,6 +22,9 @@ type Fila = {
   km: number;
   costo: number;
   sin_conductor: number;
+  /** Puntos que quedaron en la bandeja: cuentan en el documento, no en el reparto. */
+  bandeja: number;
+  bultos_bandeja: number;
 };
 
 function fechaCorta(f: string) {
@@ -36,10 +41,22 @@ export default async function PaginaDespachos({
   searchParams: Promise<{ estado?: string }>;
 }) {
   const { estado: filtro } = await searchParams;
-  const supabase = await crearClienteServidor();
+  const sesion = await auth();
+  if (!sesion?.user) redirect("/login");
 
-  const { data, error } = await supabase.rpc("resumen_despachos");
-  const todos = (data ?? []) as Fila[];
+  // Si la base no responde se muestra el aviso y la página sigue en pie: es
+  // un histórico, no vale tumbar la pantalla entera por una lectura caída.
+  let todos: Fila[] = [];
+  let error: string | null = null;
+  try {
+    todos = await comoUsuario<Fila>(
+      sesion.user.id,
+      "select * from public.resumen_despachos()",
+    );
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+  }
+
   const despachos = filtro ? todos.filter((d) => d.estado === filtro) : todos;
 
   const cuenta = (e: string) => todos.filter((d) => d.estado === e).length;
@@ -65,7 +82,7 @@ export default async function PaginaDespachos({
       <div className="p-4">
         {error && (
           <div className="mb-4 rounded-[10px] border border-bad/30 bg-bad-bg px-4 py-3 text-[13.5px] text-bad">
-            No se pudo leer el histórico: {error.message}
+            No se pudo leer el histórico: {error}
           </div>
         )}
 
@@ -143,8 +160,10 @@ export default async function PaginaDespachos({
                         </>
                       )}
                     </span>
+                    {/* El tamaño del documento sí incluye la bandeja: lo que
+                        se subió está guardado aunque nadie lo reparta. */}
                     <span className="num w-[76px] shrink-0 text-right text-[12.5px]">
-                      {d.paradas.toLocaleString("es-PE")}
+                      {(d.paradas + d.bandeja).toLocaleString("es-PE")}
                       <span className="ml-1 text-[10.5px] text-ink-3">par</span>
                     </span>
                     <span className="num w-[76px] shrink-0 text-right text-[12.5px] text-ink-2">

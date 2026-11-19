@@ -3,7 +3,7 @@
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { crearClienteNavegador } from "@/lib/supabase/client";
+import { borrarZona, guardarZona, renombrarZona } from "@/app/acciones/datos";
 import { COLORES_ZONA, type Vertice, type Zona } from "@/lib/zonas";
 import { Pastilla } from "@/components/ui";
 
@@ -70,15 +70,12 @@ export default function EditorZonas({
     setOcupado(true);
     setError(null);
     try {
-      const supabase = crearClienteNavegador();
-      const fila = { nombre: nombre.trim(), color, poligono: vertices, org_id: orgId };
-      const { error: fallo } = editando
-        ? await supabase
-            .from("zonas")
-            .update({ ...fila, actualizado_en: new Date().toISOString() })
-            .eq("id", editando)
-        : await supabase.from("zonas").insert({ ...fila, creado_por: miId });
-      if (fallo) throw fallo;
+      await guardarZona({
+        id: editando,
+        nombre: nombre.trim(),
+        color,
+        poligono: vertices,
+      });
       cancelar();
       setColor(COLORES_ZONA[(zonas.length + 1) % COLORES_ZONA.length]);
       router.refresh();
@@ -103,12 +100,7 @@ export default function EditorZonas({
     if (!nuevo?.trim() || nuevo.trim() === z.nombre) return;
     setOcupado(true);
     try {
-      const supabase = crearClienteNavegador();
-      const { error: fallo } = await supabase
-        .from("zonas")
-        .update({ nombre: nuevo.trim(), actualizado_en: new Date().toISOString() })
-        .eq("id", z.id);
-      if (fallo) throw fallo;
+      await renombrarZona(z.id, nuevo.trim());
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -121,9 +113,7 @@ export default function EditorZonas({
     if (!window.confirm(`¿Borrar la zona «${z.nombre}»? Los despachos ya hechos no cambian.`)) return;
     setOcupado(true);
     try {
-      const supabase = crearClienteNavegador();
-      const { error: fallo } = await supabase.from("zonas").delete().eq("id", z.id);
-      if (fallo) throw fallo;
+      await borrarZona(z.id);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

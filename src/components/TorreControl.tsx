@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { crearClienteNavegador } from "@/lib/supabase/client";
+import { paradasDeDespacho } from "@/app/acciones/datos";
+import { verFoto } from "@/app/acciones/fotos";
 import { Pastilla, Tarjeta } from "@/components/ui";
 
 // Leaflet necesita `window`: solo en el navegador.
@@ -31,7 +32,7 @@ export type ParadaSeguimiento = {
   foto_url: string | null;
   observaciones: string | null;
   recibe: string | null;
-  rutas: { indice: number; despacho_id: string } | null;
+  ruta_indice: number;
 };
 
 export type RutaSeguida = {
@@ -124,21 +125,9 @@ export default function TorreControl({
   const refrescar = useCallback(async () => {
     setCargando(true);
     try {
-      const supabase = crearClienteNavegador();
-      const { data, error } = await supabase
-        .from("paradas")
-        .select(
-          `id, orden, codigo, nombre, distrito, lat, lon, bultos, prioridad, eta,
-           estado_entrega, hora_entrega, bultos_entregados, motivo, foto_url,
-           observaciones, recibe,
-           rutas!inner(indice, despacho_id)`,
-        )
-        .eq("rutas.despacho_id", despachoId)
-        .eq("rutas.sin_asignar", false)
-        .order("orden");
-      if (error) throw error;
+      const datos = await paradasDeDespacho(despachoId);
       if (!montado.current) return;
-      setParadas((data ?? []) as unknown as ParadaSeguimiento[]);
+      setParadas(datos as unknown as ParadaSeguimiento[]);
       setActualizado(new Date());
       setError(null);
     } catch (e) {
@@ -178,7 +167,7 @@ export default function TorreControl({
   const porRuta = useMemo(() => {
     const m = new Map<number, ParadaSeguimiento[]>();
     paradas.forEach((p) => {
-      const i = p.rutas?.indice ?? 0;
+      const i = p.ruta_indice ?? 0;
       if (!m.has(i)) m.set(i, []);
       m.get(i)!.push(p);
     });
@@ -378,7 +367,7 @@ export default function TorreControl({
                         <span className="text-[11.5px] text-ink-3">{p.distrito ?? "—"}</span>
                       </td>
                       <td className="num border-b border-line px-3 py-2">
-                        R-{String((p.rutas?.indice ?? 0) + 1).padStart(2, "0")}
+                        R-{String((p.ruta_indice ?? 0) + 1).padStart(2, "0")}
                       </td>
                       <td className="border-b border-line px-3 py-2 text-ink-2">
                         {queLePaso(p)}
@@ -571,10 +560,9 @@ function FotoEntrega({ ruta }: { ruta: string }) {
 
   async function abrir() {
     try {
-      const supabase = crearClienteNavegador();
-      const { data, error } = await supabase.storage.from("pod").createSignedUrl(ruta, 300);
-      if (error) throw error;
-      setUrl(data.signedUrl);
+      const firmada = await verFoto(ruta);
+      if (!firmada) throw new Error("sin acceso");
+      setUrl(firmada);
     } catch {
       setFallo(true);
     }
