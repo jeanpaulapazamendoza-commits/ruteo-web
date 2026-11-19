@@ -1,4 +1,4 @@
-import { crearClienteNavegador } from "@/lib/supabase/client";
+import { rpc } from "@/app/acciones/rpc";
 import type { ConfigRutear, Ruta, TiendaMapa } from "@/lib/motor";
 
 /**
@@ -102,8 +102,7 @@ export async function crearDespachoCargado({
   nombre?: string | null;
   puntos: TiendaMapa[];
 }): Promise<string> {
-  const supabase = crearClienteNavegador();
-  const { data, error } = await supabase.rpc("crear_despacho_cargado", {
+  return rpc<string>("crear_despacho_cargado", {
     p: {
       archivo,
       nombre: nombre?.trim() || `Despacho de ${archivo}`,
@@ -120,8 +119,6 @@ export async function crearDespachoCargado({
       })),
     },
   });
-  if (error) throw new Error(error.message);
-  return data as string;
 }
 
 /** Guarda las rutas calculadas sobre un despacho que ya existe. */
@@ -145,8 +142,6 @@ export async function guardarDespacho({
   /** Los que quedaron fuera de toda ruta. Se guardan igual, en la bandeja. */
   sinAsignar?: TiendaMapa[];
 }): Promise<ResumenGuardado> {
-  const supabase = crearClienteNavegador();
-
   const validas = rutas.filter((r) => !r.error && r.paradas.length > 0);
   if (!validas.length) throw new Error("No hay rutas calculadas para guardar.");
 
@@ -199,7 +194,7 @@ export async function guardarDespacho({
     costo: Number(validas.reduce((a, r) => a + (r.costo ?? 0), 0).toFixed(2)),
   };
 
-  const { error } = await supabase.rpc("replanificar_despacho", {
+  await rpc("replanificar_despacho", {
     p: {
       despacho_id: despachoId,
       nombre: nombre ?? null,
@@ -223,8 +218,6 @@ export async function guardarDespacho({
     },
   });
 
-  if (error) throw new Error(error.message);
-
   return {
     id: despachoId,
     rutas: validas.length,
@@ -243,19 +236,14 @@ export async function asignarRutas(
   despachoId: string,
   asignaciones: { ruta_id: string; conductor_id: string | null; vehiculo_id: string | null }[],
 ): Promise<string> {
-  const supabase = crearClienteNavegador();
-  const { data, error } = await supabase.rpc("asignar_rutas", {
+  return rpc<string>("asignar_rutas", {
     p: { despacho_id: despachoId, asignaciones },
   });
-  if (error) throw new Error(error.message);
-  return data as string;
 }
 
 /** Borra un ruteo completo. Solo el admin, y solo si no salió a reparto. */
 export async function eliminarDespacho(despachoId: string) {
-  const supabase = crearClienteNavegador();
-  const { error } = await supabase.rpc("eliminar_despacho", { p_despacho: despachoId });
-  if (error) throw new Error(error.message);
+  await rpc("eliminar_despacho", { p_despacho: despachoId });
 }
 
 /** Mueve paradas de la bandeja a una ruta existente, o a una ruta nueva. */
@@ -264,10 +252,8 @@ export async function moverParadas(
   paradas: string[],
   destino: string | "nueva",
 ) {
-  const supabase = crearClienteNavegador();
-  const { data, error } = await supabase.rpc("mover_paradas", {
-    p: { despacho_id: despachoId, paradas, destino },
-  });
-  if (error) throw new Error(error.message);
-  return data as { ok: boolean; movidas: number; bandeja_vaciada: boolean };
+  return rpc<{ ok: boolean; movidas: number; bandeja_vaciada: boolean }>(
+    "mover_paradas",
+    { p: { despacho_id: despachoId, paradas, destino } },
+  );
 }

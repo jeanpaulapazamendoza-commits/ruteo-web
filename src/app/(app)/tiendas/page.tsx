@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { crearClienteServidor } from "@/lib/supabase/server";
+import { auth } from "@/auth";
+import { comoUsuario, unaFila } from "@/lib/db";
 import { BarraSuperior, Tarjeta, EstadoVacio, Pastilla } from "@/components/ui";
 
 function fechaHora(iso: string) {
@@ -14,47 +15,52 @@ function fechaHora(iso: string) {
 }
 
 export default async function PaginaTiendas() {
-  const supabase = await crearClienteServidor();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const sesion = await auth();
+  if (!sesion?.user) redirect("/login");
 
   // Pantalla de mantenimiento, no de operación: solo administradores.
-  const { data: yo } = await supabase
-    .from("perfiles")
-    .select("rol")
-    .eq("id", user?.id ?? "")
-    .maybeSingle();
-  if (yo?.rol !== "admin") redirect("/planificador");
-
-  const [{ data: importaciones }, { count: totalTiendas }, { count: sueltas }] =
-    await Promise.all([
-      supabase
-        .from("importaciones")
-        .select("id, nombre_archivo, filas, creado_en, perfiles:creado_por(nombre), despachos(id, nombre)")
-        .order("creado_en", { ascending: false })
-        .limit(60),
-      supabase.from("tiendas").select("id", { count: "exact", head: true }).eq("activo", true),
-      supabase
-        .from("tiendas")
-        .select("id", { count: "exact", head: true })
-        .is("importacion_id", null)
-        .eq("activo", true),
-    ]);
+  if (sesion.user.rol !== "admin") redirect("/planificador");
 
   // Las importaciones nuevas solo registran el nombre del archivo de un
   // despacho, sin dejar tiendas: aquí solo tienen sentido las del sistema
-  // anterior, que son las que sí dejaron filas que consultar o borrar.
-  const { data: conTiendas } = await supabase
-    .from("tiendas")
-    .select("importacion_id")
-    .not("importacion_id", "is", null)
-    .eq("activo", true)
-    .limit(5000);
+  // anterior, que son las que sí dejaron filas que consultar o borrar. El
+  // cruce se hace en la base en vez de traer cinco mil ids para filtrarlos.
+  const [archivos, totales] = await Promise.all([
+    comoUsuario<{
+      id: string;
+      nombre_archivo: string;
+      filas: number | null;
+      creado_en: string;
+      autor: string | null;
+      despacho_id: string | null;
+      despacho_nombre: string | null;
+    }>(
+      sesion.user.id,
+      `select i.id, i.nombre_archivo, i.filas, i.creado_en,
+              pf.nombre as autor,
+              d.id as despacho_id, d.nombre as despacho_nombre
+         from importaciones i
+         left join perfiles pf on pf.id = i.creado_por
+         left join lateral (
+           select id, nombre from despachos
+            where importacion_id = i.id order by creado_en limit 1
+         ) d on true
+        where exists (
+          select 1 from tiendas t where t.importacion_id = i.id and t.activo
+        )
+        order by i.creado_en desc
+        limit 60`,
+    ),
+    unaFila<{ total: number; sueltas: number }>(
+      sesion.user.id,
+      `select count(*)::int as total,
+              count(*) filter (where importacion_id is null)::int as sueltas
+         from tiendas where activo`,
+    ),
+  ]);
 
-  const conPuntos = new Set((conTiendas ?? []).map((t) => t.importacion_id));
-  const archivos = (importaciones ?? []).filter((i) => conPuntos.has(i.id));
+  const totalTiendas = totales?.total ?? 0;
+  const sueltas = totales?.sueltas ?? 0;
 
   return (
     <>
@@ -63,7 +69,7 @@ export default async function PaginaTiendas() {
         titulo="Tiendas guardadas"
         acciones={
           <span className="text-[12px] text-ink-3">
-            <b className="num text-ink-2">{(totalTiendas ?? 0).toLocaleString("es-PE")}</b> tiendas en total
+            <b className="num text-ink-2">{totalTiendas.toLocaleString("es-PE")}</b> tiendas en total
           </span>
         }
       />
@@ -80,7 +86,7 @@ export default async function PaginaTiendas() {
           volver a rutearlas o borrarlas.
         </p>
 
-        {archivos.length === 0 && (sueltas ?? 0) === 0 ? (
+        {archivos.length === 0 && sueltas === 0 ? (
           <Tarjeta>
             <EstadoVacio
               icono="✓"
@@ -92,8 +98,8 @@ export default async function PaginaTiendas() {
           <div className="grid gap-2.5 @xl:grid-cols-2 @4xl:grid-cols-3">
             {archivos.map((a) => {
               const { fecha, hora } = fechaHora(a.creado_en);
-              const autor = (a.perfiles as { nombre?: string } | null)?.nombre;
-              const desp = (a.despachos as { id: string; nombre: string | null }[] | null) ?? [];
+              const autor = a.autor;
+              const desp = a.despacho_id ? [{ id: a.despacho_id, nombre: a.despacho_nombre }] : [];
               const ruteada = desp.length > 0;
               return (
                 <div
@@ -156,7 +162,7 @@ export default async function PaginaTiendas() {
               );
             })}
 
-            {(sueltas ?? 0) > 0 && (
+            {sueltas > 0 && (
               <div className="flex flex-col rounded-[14px] border border-dashed border-line-strong bg-surface p-3.5">
                 <div className="flex items-start gap-2.5">
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[9px] bg-canvas text-base">
@@ -171,7 +177,7 @@ export default async function PaginaTiendas() {
                 </div>
                 <div className="mt-2.5 flex items-center gap-2 border-t border-line pt-2.5">
                   <span className="num text-[18px] font-bold">
-                    {(sueltas ?? 0).toLocaleString("es-PE")}
+                    {sueltas.toLocaleString("es-PE")}
                   </span>
                   <span className="text-[11px] font-bold uppercase tracking-wide text-ink-3">
                     tiendas

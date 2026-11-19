@@ -1,35 +1,26 @@
 import { redirect } from "next/navigation";
-import { crearClienteServidor } from "@/lib/supabase/server";
+import { auth } from "@/auth";
+import { comoUsuario } from "@/lib/db";
 import { BarraSuperior } from "@/components/ui";
 import GestionEquipo, { type MiembroEquipo } from "@/components/GestionEquipo";
 
 export default async function PaginaEquipo() {
-  const supabase = await crearClienteServidor();
+  const sesion = await auth();
+  if (!sesion?.user) redirect("/login");
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  // Solo administradores. RLS ya limita, pero cortamos aquí para no
-  // mostrar la pantalla a quien no debe verla.
-  const { data: yo } = await supabase
-    .from("perfiles")
-    .select("rol, organizaciones(nombre)")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (yo?.rol !== "admin") redirect("/planificador");
+  // Solo administradores. El RLS ya limita qué puede tocar, pero se corta
+  // aquí para no mostrar la pantalla a quien no debe verla.
+  if (sesion.user.rol !== "admin") redirect("/planificador");
 
   // Sin el nombre de la empresa delante, en una plataforma con varias
   // organizaciones no se sabe a qué equipo se le está tocando el rol.
-  const empresa = (yo.organizaciones as { nombre?: string } | null)?.nombre ?? "tu empresa";
+  const empresa = sesion.user.empresa ?? "tu empresa";
 
-  const { data: equipo } = await supabase
-    .from("perfiles")
-    .select("id, nombre, email, rol, activo, creado_en")
-    .order("creado_en", { ascending: true });
-
-  const miembros = (equipo ?? []) as MiembroEquipo[];
+  const miembros = await comoUsuario<MiembroEquipo>(
+    sesion.user.id,
+    `select id, nombre, email, rol, activo, creado_en
+       from perfiles order by creado_en`,
+  );
 
   return (
     <>
@@ -45,7 +36,7 @@ export default async function PaginaEquipo() {
         }
       />
       <div className="p-4">
-        <GestionEquipo miembros={miembros} miId={user.id} />
+        <GestionEquipo miembros={miembros} miId={sesion.user.id} />
       </div>
     </>
   );

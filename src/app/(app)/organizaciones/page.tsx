@@ -1,27 +1,20 @@
 import { redirect } from "next/navigation";
-import { crearClienteServidor } from "@/lib/supabase/server";
+import { auth } from "@/auth";
+import { comoUsuario } from "@/lib/db";
 import { BarraSuperior } from "@/components/ui";
 import PadronEmpresas, { type ResumenOrg } from "@/components/PadronEmpresas";
 
 export default async function PaginaOrganizaciones() {
-  const supabase = await crearClienteServidor();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: yo } = await supabase
-    .from("perfiles")
-    .select("es_desarrollador")
-    .eq("id", user.id)
-    .maybeSingle();
+  const sesion = await auth();
+  if (!sesion?.user) redirect("/login");
 
   // El padrón es del desarrollador; para cualquier otro no existe.
-  if (!yo?.es_desarrollador) redirect("/planificador");
+  if (!sesion.user.esDesarrollador) redirect("/planificador");
 
-  const { data, error } = await supabase.rpc("resumen_organizaciones");
-  const empresas = (data ?? []) as ResumenOrg[];
+  const empresas = await comoUsuario<ResumenOrg>(
+    sesion.user.id,
+    "select * from resumen_organizaciones()",
+  );
 
   const activas = empresas.filter((e) => e.activa).length;
 
@@ -38,11 +31,6 @@ export default async function PaginaOrganizaciones() {
         }
       />
       <div className="p-4">
-        {error && (
-          <p className="mb-3 rounded-[10px] border border-bad/30 bg-bad-bg px-3 py-2 text-[13px] text-bad">
-            {error.message}
-          </p>
-        )}
         <PadronEmpresas empresas={empresas} />
       </div>
     </>

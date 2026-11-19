@@ -1,4 +1,5 @@
-import { crearClienteNavegador } from "@/lib/supabase/client";
+import { rpc } from "@/app/acciones/rpc";
+import { guardarFoto } from "@/app/acciones/fotos";
 
 export type EstadoEntrega = "pendiente" | "entregado" | "parcial" | "fallido" | "reprogramado";
 
@@ -75,27 +76,20 @@ export async function comprimirFoto(archivo: File, ladoMax = 1280, calidad = 0.7
 
 /** Sube la foto de la entrega. La ruta empieza por la empresa: así lo exige el bucket. */
 export async function subirFoto(orgId: string, paradaId: string, foto: Blob): Promise<string> {
-  const supabase = crearClienteNavegador();
-  const ruta = `${orgId}/${paradaId}-${Date.now()}.jpg`;
-  const { error } = await supabase.storage
-    .from("pod")
-    .upload(ruta, foto, { contentType: "image/jpeg", upsert: true });
-  if (error) throw new Error(error.message);
-  return ruta;
+  const datos = new FormData();
+  datos.append("foto", foto, `${paradaId}.jpg`);
+  datos.append("paradaId", paradaId);
+  return guardarFoto(datos);
 }
 
 /** Confirma la ruta y marca la hora real de salida del CD. */
 export async function iniciarRuta(rutaId: string): Promise<string> {
-  const supabase = crearClienteNavegador();
-  const { data, error } = await supabase.rpc("iniciar_ruta", { p_ruta: rutaId });
-  if (error) throw new Error(error.message);
-  return data as string;
+  return rpc<string>("iniciar_ruta", { p_ruta: rutaId });
 }
 
 /** Registra el resultado de una parada. */
 export async function marcarParada(entrega: Entrega) {
-  const supabase = crearClienteNavegador();
-  const { error } = await supabase.rpc("marcar_parada", {
+  await rpc("marcar_parada", {
     p: {
       parada_id: entrega.parada_id,
       estado: entrega.estado,
@@ -109,7 +103,6 @@ export async function marcarParada(entrega: Entrega) {
       gps_lon: entrega.gps_lon ?? null,
     },
   });
-  if (error) throw new Error(error.message);
 }
 
 /** Posición actual, si el conductor la concede. Nunca bloquea la entrega. */

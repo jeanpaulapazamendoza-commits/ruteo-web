@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { crearClienteServidor } from "@/lib/supabase/server";
+import { auth } from "@/auth";
+import { unaFila } from "@/lib/db";
 import { BarraSuperior, Tarjeta, Pastilla } from "@/components/ui";
 import FichaEmpresa, { type DetalleOrg } from "@/components/FichaEmpresa";
 
@@ -11,34 +12,18 @@ export default async function PaginaEmpresa({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = await crearClienteServidor();
+  const sesion = await auth();
+  if (!sesion?.user) redirect("/login");
+  if (!sesion.user.esDesarrollador) redirect("/planificador");
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: yo } = await supabase
-    .from("perfiles")
-    .select("es_desarrollador")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (!yo?.es_desarrollador) redirect("/planificador");
-
-  const { data, error } = await supabase.rpc("detalle_organizacion", { p_org: id });
-  const detalle = data as DetalleOrg | null;
-
-  if (error) {
-    return (
-      <>
-        <BarraSuperior migaja="Desarrollador" titulo="Empresa" />
-        <div className="p-4">
-          <Tarjeta className="p-4 text-[13px] text-bad">{error.message}</Tarjeta>
-        </div>
-      </>
-    );
-  }
-
+  const fila = await unaFila<{ detalle: DetalleOrg | null }>(
+    sesion.user.id,
+    "select public.detalle_organizacion($1) as detalle",
+    [id],
+  );
+  // La función se niega sola si quien pregunta no es el desarrollador, así
+  // que aquí un resultado vacío solo puede significar que la empresa no existe.
+  const detalle = fila?.detalle ?? null;
   if (!detalle?.empresa) notFound();
 
   return (

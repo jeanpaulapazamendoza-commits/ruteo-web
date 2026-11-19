@@ -1,30 +1,17 @@
-import { crearClienteServidor } from "@/lib/supabase/server";
+import { auth } from "@/auth";
+import { comoUsuario } from "@/lib/db";
 import { BarraSuperior } from "@/components/ui";
 import EditorZonas from "@/components/EditorZonas";
 import type { Zona } from "@/lib/zonas";
 
 export default async function PaginaZonas() {
-  const supabase = await crearClienteServidor();
+  const sesion = await auth();
+  const id = sesion!.user.id;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const [{ data: filas }, { data: perfil }] = await Promise.all([
-    supabase
-      .from("zonas")
-      .select("id, nombre, color, poligono")
-      .eq("activo", true)
-      .order("nombre"),
-    supabase.from("perfiles").select("org_id").eq("id", user?.id ?? "").maybeSingle(),
-  ]);
-
-  const zonas: Zona[] = (filas ?? []).map((z) => ({
-    id: z.id,
-    nombre: z.nombre,
-    color: z.color,
-    poligono: z.poligono as Zona["poligono"],
-  }));
+  const zonas = await comoUsuario<Zona>(
+    id,
+    "select id, nombre, color, poligono from zonas where activo order by nombre",
+  );
 
   return (
     <>
@@ -37,7 +24,7 @@ export default async function PaginaZonas() {
           </span>
         }
       />
-      <EditorZonas zonas={zonas} orgId={perfil?.org_id ?? null} miId={user?.id ?? null} />
+      <EditorZonas zonas={zonas} orgId={sesion!.user.orgId} miId={id} />
     </>
   );
 }
