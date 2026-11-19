@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { crearClienteServidor } from "@/lib/supabase/server";
+import { auth } from "@/auth";
+import { unaFila } from "@/lib/db";
 import CuentaBloqueada from "@/components/CuentaBloqueada";
 
 /**
@@ -11,21 +12,17 @@ export default async function LayoutConductor({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await crearClienteServidor();
+  const sesion = await auth();
+  if (!sesion?.user) redirect("/login");
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: perfil } = await supabase
-    .from("perfiles")
-    .select("nombre, rol, activo, org_id")
-    .eq("id", user.id)
-    .maybeSingle();
+  const perfil = await unaFila<{ activo: boolean }>(
+    sesion.user.id,
+    "select activo from perfiles where id = $1",
+    [sesion.user.id],
+  );
 
   if (!perfil || perfil.activo === false) {
-    return <CuentaBloqueada email={user.email ?? ""} sinPerfil={!perfil} />;
+    return <CuentaBloqueada email={sesion.user.email ?? ""} sinPerfil={!perfil} />;
   }
 
   return (

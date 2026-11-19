@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { crearClienteNavegador } from "@/lib/supabase/client";
+import { salir as cerrarSesion } from "@/app/acciones-sesion";
 import type { EstadoCola } from "@/hooks/useCola";
 import Logo from "@/components/Logo";
 
@@ -35,8 +35,7 @@ export default function CabeceraConductor(
   const pendientes = props.cola.pendientes;
 
   async function salir() {
-    const supabase = crearClienteNavegador();
-    await supabase.auth.signOut();
+    await cerrarSesion();
     router.push("/login");
     router.refresh();
   }

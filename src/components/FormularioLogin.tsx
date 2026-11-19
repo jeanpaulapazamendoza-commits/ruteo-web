@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { crearClienteNavegador } from "@/lib/supabase/client";
+import { entrar, registrar } from "@/app/login/acciones";
 import Logo from "@/components/Logo";
 
 type Modo = "entrar" | "registrar";
@@ -26,39 +26,24 @@ export default function FormularioLogin() {
     setError(null);
     setAviso(null);
     setCargando(true);
-    const supabase = crearClienteNavegador();
 
     try {
-      if (modo === "entrar") {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: correo,
-          password: clave,
-        });
-        if (error) throw error;
-        router.push(volverA);
-        router.refresh();
-      } else {
-        const { data, error } = await supabase.auth.signUp({
-          email: correo,
-          password: clave,
-          // El trigger de la base lee estos datos para crear la empresa
-          // y el perfil automáticamente.
-          options: { data: { nombre, empresa } },
-        });
-        if (error) throw error;
-        if (data.session) {
-          router.push(volverA);
-          router.refresh();
-        } else {
-          setAviso(
-            "Cuenta creada. Revisa tu correo para confirmarla y luego inicia sesión.",
-          );
-          setModo("entrar");
-        }
+      const r =
+        modo === "entrar"
+          ? await entrar(correo, clave)
+          : await registrar(empresa, nombre, correo, clave);
+
+      if (!r.ok) {
+        setError(traducir(r.error));
+        return;
       }
+
+      // `refresh` antes de navegar: el layout lee la sesión en el servidor y
+      // sin esto renderizaría con la anterior, que todavía está vacía.
+      router.refresh();
+      router.push(volverA);
     } catch (err) {
-      const mensaje = err instanceof Error ? err.message : String(err);
-      setError(traducir(mensaje));
+      setError(traducir(err instanceof Error ? err.message : String(err)));
     } finally {
       setCargando(false);
     }

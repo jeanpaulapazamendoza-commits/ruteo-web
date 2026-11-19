@@ -1,72 +1,45 @@
-import { createServerClient } from "@supabase/ssr";
-import { NextResponse, type NextRequest } from "next/server";
+import NextAuth from "next-auth";
+import { NextResponse } from "next/server";
+import { configAuth, RUTAS_PUBLICAS } from "@/auth.config";
 
 /**
- * En Next.js 16 el antiguo `middleware.ts` se llama `proxy.ts`.
- * (Los ejemplos de Supabase todavía usan el nombre viejo; con ese
- *  nombre el archivo simplemente no se ejecuta y la sesión no se renueva.)
+ * En Next 16 el antiguo `middleware.ts` se llama `proxy.ts`. Los ejemplos de
+ * Auth.js todavía usan el nombre viejo; con ese nombre el archivo no se
+ * ejecuta y nadie queda protegido, sin ningún error que lo delate.
  *
- * Aquí se refresca el token de Supabase en cada petición y se redirige
- * a /login a quien no tenga sesión.
+ * Se monta con `configAuth` y no con el `auth` completo porque el proxy corre
+ * fuera del servidor de render y no puede cargar el driver de base de datos.
+ * Aquí solo se lee el token de sesión; quién puede ver qué lo decide después
+ * el RLS, en cada consulta.
  */
-const RUTAS_PUBLICAS = ["/login", "/registro"];
+const { auth } = NextAuth(configAuth);
 
-export async function proxy(request: NextRequest) {
-  let respuesta = NextResponse.next({ request });
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesAEscribir) {
-          cookiesAEscribir.forEach(({ name, value }) =>
-            request.cookies.set(name, value),
-          );
-          respuesta = NextResponse.next({ request });
-          cookiesAEscribir.forEach(({ name, value, options }) =>
-            respuesta.cookies.set(name, value, options),
-          );
-        },
-      },
-    },
-  );
-
-  // No insertar código entre crear el cliente y getUser: cualquier await
-  // intermedio puede desincronizar las cookies de sesión.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const ruta = request.nextUrl.pathname;
+export const proxy = auth((peticion) => {
+  const ruta = peticion.nextUrl.pathname;
+  const haySesion = !!peticion.auth?.user;
   const esPublica = RUTAS_PUBLICAS.some((p) => ruta.startsWith(p));
 
-  if (!user && !esPublica) {
-    const url = request.nextUrl.clone();
+  if (!haySesion && !esPublica) {
+    const url = peticion.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("volver", ruta);
     return NextResponse.redirect(url);
   }
 
-  if (user && esPublica) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/planificador";
+  if (haySesion && esPublica) {
+    const url = peticion.nextUrl.clone();
+    // El conductor no usa el escritorio: su sitio es la app de reparto.
+    url.pathname = peticion.auth?.user?.rol === "conductor" ? "/conductor" : "/planificador";
     url.search = "";
     return NextResponse.redirect(url);
   }
 
-  // Devolver esta misma respuesta (no una nueva) para conservar las cookies.
-  return respuesta;
-}
+  return NextResponse.next();
+});
 
 export const config = {
   matcher: [
-    /*
-     * Todas las rutas salvo estáticos e imágenes.
-     */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // Todo salvo estáticos, imágenes y las rutas de Auth.js.
+    "/((?!api/auth|_next/static|_next/image|favicon.ico|manifest.json|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

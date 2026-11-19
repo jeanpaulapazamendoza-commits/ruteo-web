@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { crearClienteNavegador } from "@/lib/supabase/client";
+import { salir as cerrarSesion } from "@/app/acciones-sesion";
 import Logo from "@/components/Logo";
 
 const SECCIONES = [
@@ -116,8 +116,7 @@ export default function NavLateral({
     modo === "auto" ? "block xl:hidden" : modo === "abierta" ? "hidden" : "block";
 
   async function salir() {
-    const supabase = crearClienteNavegador();
-    await supabase.auth.signOut();
+    await cerrarSesion();
     router.push("/login");
     router.refresh();
   }

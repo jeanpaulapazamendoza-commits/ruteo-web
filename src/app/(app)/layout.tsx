@@ -1,49 +1,66 @@
 import { redirect } from "next/navigation";
-import { crearClienteServidor } from "@/lib/supabase/server";
+import { auth } from "@/auth";
+import { unaFila } from "@/lib/db";
 import NavLateral from "@/components/NavLateral";
 import CuentaBloqueada from "@/components/CuentaBloqueada";
+
+type Perfil = {
+  nombre: string | null;
+  rol: "admin" | "planificador" | "conductor";
+  activo: boolean;
+  es_desarrollador: boolean;
+  empresa: string | null;
+  empresa_activa: boolean | null;
+};
 
 export default async function LayoutApp({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await crearClienteServidor();
+  const sesion = await auth();
+  if (!sesion?.user) redirect("/login");
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
+  // El perfil se relee en cada carga en vez de confiar en el token: si un
+  // administrador cambia un rol o desactiva a alguien, surte efecto en la
+  // siguiente página y no cuando caduque la sesión treinta días después.
+  //
   // El usuario siempre puede leer su propio perfil (política perfiles_select),
-  // aunque esté desactivado; así podemos mostrarle la pantalla de bloqueo.
-  const { data: perfil } = await supabase
-    .from("perfiles")
-    .select("nombre, rol, activo, es_desarrollador, organizaciones(nombre, activa)")
-    .eq("id", user.id)
-    .maybeSingle();
+  // aunque esté desactivado; así se le puede mostrar la pantalla de bloqueo.
+  const perfil = await unaFila<Perfil>(
+    sesion.user.id,
+    `select p.nombre, p.rol, p.activo, p.es_desarrollador,
+            o.nombre as empresa, o.activa as empresa_activa
+       from perfiles p
+       left join organizaciones o on o.id = p.org_id
+      where p.id = $1`,
+    [sesion.user.id],
+  );
 
   if (!perfil || perfil.activo === false) {
-    return <CuentaBloqueada email={user.email ?? ""} sinPerfil={!perfil} />;
+    return <CuentaBloqueada email={sesion.user.email ?? ""} sinPerfil={!perfil} />;
   }
 
   // Empresa suspendida: no es culpa del usuario y conviene decirlo distinto,
   // o el administrador del cliente perseguirá un problema que no existe.
-  const org = perfil.organizaciones as { nombre?: string; activa?: boolean } | null;
-  if (org?.activa === false) {
-    return <CuentaBloqueada email={user.email ?? ""} empresaSuspendida empresa={org.nombre ?? ""} />;
+  if (perfil.empresa_activa === false) {
+    return (
+      <CuentaBloqueada
+        email={sesion.user.email ?? ""}
+        empresaSuspendida
+        empresa={perfil.empresa ?? ""}
+      />
+    );
   }
 
   // El conductor no usa el escritorio: su sitio es la app de reparto.
   if (perfil.rol === "conductor") redirect("/conductor");
 
-  const empresa = org?.nombre ?? "Sin empresa";
-
   return (
     <div className="flex h-screen overflow-hidden">
       <NavLateral
-        nombre={perfil.nombre ?? user.email ?? "Usuario"}
-        empresa={empresa}
+        nombre={perfil.nombre ?? sesion.user.email ?? "Usuario"}
+        empresa={perfil.empresa ?? "Sin empresa"}
         rol={perfil.rol}
         esDesarrollador={perfil.es_desarrollador === true}
       />
