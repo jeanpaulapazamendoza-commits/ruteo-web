@@ -30,6 +30,24 @@ export async function entrar(correo: string, clave: string): Promise<Resultado> 
   }
 }
 
+/**
+ * Entra con Google.
+ *
+ * Aquí sí hay redirección de verdad: el navegador tiene que salir hacia
+ * Google y volver, así que esta acción no devuelve nada —`signIn` lanza la
+ * redirección— y el resultado lo recoge `/api/auth/callback/google`.
+ */
+export async function entrarConGoogle(volverA: string) {
+  // El destino se limita a una ruta del propio sitio: viene de la barra de
+  // direcciones y, sin esto, un enlace preparado podría devolver al usuario
+  // a otro dominio después de entrar.
+  const destino = volverA.startsWith("/") && !volverA.startsWith("//")
+    ? volverA
+    : "/planificador";
+
+  await signIn("google", { redirectTo: destino });
+}
+
 /** Alta de una empresa nueva con su primer administrador, y entra. */
 export async function registrar(
   empresa: string,

@@ -15,7 +15,10 @@ export const configAuth = {
   // necesita consultar la base para saber quién eres. Si la base tarda en
   // despertar, el usuario sigue dentro en vez de acabar en el login.
   session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 30 },
-  pages: { signIn: "/login" },
+  // `error` apunta también al login: sin esto, un rechazo al volver de
+  // Google acabaría en la página de error propia de Auth.js, en inglés y
+  // fuera del diseño. Así el aviso sale en el propio formulario.
+  pages: { signIn: "/login", error: "/login" },
   providers: [],
   callbacks: {
     /** Lo que se guarda dentro del token. */
