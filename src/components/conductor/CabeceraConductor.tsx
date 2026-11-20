@@ -101,6 +101,12 @@ export default function CabeceraConductor(
             <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong" />
             {!confirmar ? (
               <div className="flex flex-col gap-2">
+                <Link
+                  href="/cuenta"
+                  className="grid h-16 w-full place-items-center rounded-[12px] border-2 border-line-strong bg-surface text-[17px] font-bold text-ink active:bg-canvas"
+                >
+                  Mi cuenta y contraseña
+                </Link>
                 <button
                   onClick={() => setConfirmar(true)}
                   className="h-16 w-full rounded-[12px] border-2 border-line-strong bg-surface text-[17px] font-bold text-ink active:bg-canvas"

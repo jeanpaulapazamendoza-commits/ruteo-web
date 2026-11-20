@@ -192,7 +192,13 @@ export default function NavLateral({
           <span className={`${texto} truncate`}>Plegar menú</span>
         </button>
 
-        <div className="flex items-center gap-2.5 px-0.5 py-1 xl:px-1.5" title={`${nombre} · ${empresa}`}>
+        {/* La ficha de quien está dentro es también la entrada a su cuenta:
+            es donde se busca cambiar la contraseña. */}
+        <Link
+          href="/cuenta"
+          title={`${nombre} · ${empresa} — Mi cuenta`}
+          className="flex items-center gap-2.5 rounded-[9px] px-0.5 py-1 transition hover:bg-white/[0.06] xl:px-1.5"
+        >
           <div className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full border border-white/15 bg-navy-600 text-[11.5px] font-bold text-[#dce6f3]">
             {iniciales || "?"}
           </div>
@@ -202,7 +208,7 @@ export default function NavLateral({
             </div>
             <div className="truncate text-[11px] text-[#7e90a8]">{empresa}</div>
           </div>
-        </div>
+        </Link>
 
         <button
           onClick={salir}

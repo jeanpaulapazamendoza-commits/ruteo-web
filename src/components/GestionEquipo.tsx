@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { actualizarPerfil } from "@/app/acciones/datos";
+import { rpc } from "@/app/acciones/rpc";
 import { Tarjeta, Pastilla } from "@/components/ui";
 
 export type MiembroEquipo = {
@@ -31,6 +32,35 @@ export default function GestionEquipo({
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [abrirAlta, setAbrirAlta] = useState(false);
+  // La contraseña nueva se enseña una sola vez, para dictarla. No se guarda
+  // en ninguna parte legible: en la base solo queda su hash.
+  const [restablecida, setRestablecida] = useState<{
+    nombre: string;
+    email: string;
+    clave: string;
+  } | null>(null);
+
+  /**
+   * Restablece la contraseña de alguien del equipo.
+   *
+   * Genera una temporal en vez de pedirla escrita: así no hay que inventar
+   * una al vuelo ni enviarla por un canal antes de que exista. Quien la
+   * reciba la cambia desde Mi cuenta.
+   */
+  async function restablecer(m: MiembroEquipo) {
+    const clave = claveTemporal();
+    setOcupado(`${m.id}-clave`);
+    setError(null);
+    setRestablecida(null);
+    try {
+      await rpc("fijar_clave", { p_perfil: m.id, p_clave: clave });
+      setRestablecida({ nombre: m.nombre ?? m.email ?? "", email: m.email ?? "", clave });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setOcupado(null);
+    }
+  }
 
   async function actualizar(id: string, cambios: Partial<MiembroEquipo>, ctx: string) {
     setOcupado(ctx);
@@ -71,6 +101,29 @@ export default function GestionEquipo({
         <p className="mb-3 rounded-[10px] border border-bad/30 bg-bad-bg px-3 py-2 text-[12.5px] text-bad">
           {error}
         </p>
+      )}
+
+      {restablecida && (
+        <div className="mb-3 rounded-[12px] border border-ok/30 bg-ok-bg p-4">
+          <h4 className="text-[14px] font-bold text-ok">
+            ✓ Contraseña restablecida
+          </h4>
+          <p className="mt-1.5 text-[13px] text-ink-2">
+            Dictasela a <b>{restablecida.nombre}</b> y que la cambie desde
+            Mi cuenta. No vas a poder volver a verla: aquí solo se muestra
+            ahora.
+          </p>
+          <div className="mt-2.5 rounded-[9px] border border-line bg-surface px-3 py-2 text-[13px]">
+            <div>Correo: <b className="num">{restablecida.email}</b></div>
+            <div>Contraseña temporal: <b className="num">{restablecida.clave}</b></div>
+          </div>
+          <button
+            onClick={() => setRestablecida(null)}
+            className="mt-3 rounded-[9px] border border-line-strong bg-surface px-3.5 py-2 text-[13px] font-semibold transition hover:bg-canvas"
+          >
+            Listo
+          </button>
+        </div>
       )}
 
       <Tarjeta className="overflow-hidden">
@@ -117,21 +170,36 @@ export default function GestionEquipo({
                       </Pastilla>
                     </td>
                     <td className="border-b border-line px-3.5 py-2.5">
-                      {soyYo ? (
-                        <span className="text-[12px] text-ink-3">—</span>
-                      ) : (
-                        <button
-                          onClick={() => actualizar(m.id, { activo: !m.activo }, `${m.id}-act`)}
-                          disabled={cargando}
-                          className={`rounded-[8px] border px-2.5 py-1 text-[12px] font-semibold transition disabled:opacity-50 ${
-                            m.activo
-                              ? "border-line-strong text-bad hover:bg-bad-bg"
-                              : "border-ok/40 text-ok hover:bg-ok-bg"
-                          }`}
-                        >
-                          {cargando ? "…" : m.activo ? "Desactivar" : "Reactivar"}
-                        </button>
-                      )}
+                      <div className="flex flex-wrap gap-1.5">
+                        {/* La propia se cambia en Mi cuenta, que sí pide la
+                            anterior; restablecerse a uno mismo saltaría esa
+                            comprobación. */}
+                        {!soyYo && (
+                          <button
+                            onClick={() => restablecer(m)}
+                            disabled={cargando}
+                            className="rounded-[8px] border border-line-strong px-2.5 py-1 text-[12px] font-semibold transition hover:bg-canvas disabled:opacity-50"
+                            title="Genera una contraseña temporal para dictársela"
+                          >
+                            {ocupado === `${m.id}-clave` ? "…" : "Restablecer clave"}
+                          </button>
+                        )}
+                        {soyYo ? (
+                          <span className="text-[12px] text-ink-3">—</span>
+                        ) : (
+                          <button
+                            onClick={() => actualizar(m.id, { activo: !m.activo }, `${m.id}-act`)}
+                            disabled={cargando}
+                            className={`rounded-[8px] border px-2.5 py-1 text-[12px] font-semibold transition disabled:opacity-50 ${
+                              m.activo
+                                ? "border-line-strong text-bad hover:bg-bad-bg"
+                                : "border-ok/40 text-ok hover:bg-ok-bg"
+                            }`}
+                          >
+                            {cargando ? "…" : m.activo ? "Desactivar" : "Reactivar"}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

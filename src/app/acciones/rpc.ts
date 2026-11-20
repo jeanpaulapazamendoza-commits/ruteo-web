@@ -32,6 +32,8 @@ const PERMITIDAS = {
   detalle_organizacion: "escalar",
   cambiar_estado_organizacion: "escalar",
   fijar_clave: "escalar",
+  cambiar_mi_clave: "escalar",
+  tengo_clave: "escalar",
   // Devuelven filas.
   resumen_despachos: "conjunto",
   resumen_organizaciones: "conjunto",
