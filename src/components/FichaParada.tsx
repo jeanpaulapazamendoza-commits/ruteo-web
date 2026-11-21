@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
+  bloquearParada,
   borrarComentario,
   comentar,
   comentarios as traerComentarios,
@@ -10,6 +12,13 @@ import {
   type Item,
   type ParadaFicha,
 } from "@/app/acciones/datos";
+import {
+  borrarDocumento,
+  documentosDeParada,
+  guardarDocumento,
+  verDocumento,
+} from "@/app/acciones/documentos";
+import { pesa, TIPOS_DOCUMENTO, type Documento } from "@/lib/documentos";
 import { verFoto } from "@/app/acciones/fotos";
 import { fechaHora, hora } from "@/lib/horas";
 import { Pastilla, Tarjeta } from "@/components/ui";
@@ -38,19 +47,24 @@ export default function FichaParada({
   parada: p,
   historial,
   items,
+  rol,
 }: {
   parada: ParadaFicha;
   historial: Evento[];
   items: Item[];
+  /** Quién mira: desbloquear una orden es cosa de un administrador. */
+  rol: "admin" | "planificador" | "conductor";
 }) {
   const estado = ESTADO[p.estado_entrega] ?? { texto: p.estado_entrega, tono: "live" as const };
 
   return (
     <div className="grid grid-cols-1 gap-3 p-3 @3xl:grid-cols-[1fr_340px]">
       <div className="min-w-0 space-y-3">
+        <Bloqueo parada={p} rol={rol} />
         <Resumen parada={p} estado={estado} />
         {items.length > 0 && <Articulos items={items} />}
         <PruebaDeEntrega parada={p} />
+        <Documentos paradaId={p.id} />
         <Comentarios paradaId={p.id} />
       </div>
 
@@ -58,6 +72,90 @@ export default function FichaParada({
         {Object.keys(p.extra).length > 0 && <CamposDelCliente extra={p.extra} />}
         <Historial historial={historial} />
       </div>
+    </div>
+  );
+}
+
+/**
+ * La franja de orden bloqueada.
+ *
+ * Cuando el despacho se cierra, sus paradas quedan cerradas con él: lo que se
+ * entregó ayer no se reescribe sin que alguien lo decida, porque el avance de
+ * ese día ya se informó y el cliente ya vio ese número.
+ *
+ * Bloquear a mano solo se ofrece sobre una parada ya marcada —congelar un
+ * resultado en disputa antes de que cierre el despacho tiene sentido;
+ * congelar una parada que nadie ha visitado, ninguno—. Y solo un
+ * administrador desbloquea: es el permiso para reescribir un resultado, y
+ * quien reparte no debería poder dárselo a sí mismo.
+ */
+function Bloqueo({
+  parada: p,
+  rol,
+}: {
+  parada: ParadaFicha;
+  rol: "admin" | "planificador" | "conductor";
+}) {
+  const router = useRouter();
+  const [yendo, setYendo] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const puedeBloquear = rol !== "conductor";
+  const puedeAbrir = rol === "admin";
+
+  async function cambiar(bloquear: boolean) {
+    setYendo(true);
+    setError(null);
+    try {
+      await bloquearParada(p.id, bloquear);
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setYendo(false);
+    }
+  }
+
+  if (!p.bloqueada) {
+    // Ni franja ni botón sobre una parada pendiente: no hay nada que congelar.
+    if (!puedeBloquear || p.estado_entrega === "pendiente") return null;
+    return (
+      <div className="flex items-center justify-end gap-2">
+        {error && <span className="text-[11.5px] text-bad">{error}</span>}
+        <button
+          onClick={() => void cambiar(true)}
+          disabled={yendo}
+          className="rounded-[8px] border border-line-strong bg-surface px-2.5 py-1 text-[11.5px] font-semibold text-ink-2 transition hover:bg-canvas disabled:opacity-50"
+          title="Congela el resultado: nadie podrá volver a marcar esta parada"
+        >
+          {yendo ? "…" : "🔒 Bloquear orden"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-[10px] border border-warn bg-warn-bg px-3.5 py-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[13.5px] font-bold text-ink">🔒 Orden bloqueada</span>
+        <span className="text-[12.5px] text-ink-2">
+          No admite más marcas. Se cierra con el despacho.
+        </span>
+        {puedeAbrir ? (
+          <button
+            onClick={() => void cambiar(false)}
+            disabled={yendo}
+            className="ml-auto rounded-[8px] border border-line-strong bg-surface px-2.5 py-1 text-[12px] font-semibold transition hover:bg-canvas disabled:opacity-50"
+          >
+            {yendo ? "…" : "Desbloquear orden"}
+          </button>
+        ) : (
+          <span className="ml-auto text-[11.5px] text-ink-3">
+            Un administrador puede desbloquearla.
+          </span>
+        )}
+      </div>
+      {error && <p className="mt-1.5 text-[11.5px] text-bad">{error}</p>}
     </div>
   );
 }
@@ -370,6 +468,154 @@ function Historial({ historial }: { historial: Evento[] }) {
             );
           })}
         </ol>
+      )}
+    </Tarjeta>
+  );
+}
+
+/**
+ * Los documentos de la parada.
+ *
+ * La guía de remisión sellada, el acta firmada, la factura. Antes el único
+ * archivo que admitía un punto era la foto de la entrega, y con una foto no
+ * se le contesta al cliente que pide su guía.
+ *
+ * El archivo no se guarda aquí: va al almacén y de él queda una fila con su
+ * clave. Se abre con una URL firmada que caduca a los diez minutos, igual que
+ * la foto, porque un documento de un cliente no debe quedar colgando de un
+ * enlace eterno.
+ */
+function Documentos({ paradaId }: { paradaId: string }) {
+  const [lista, setLista] = useState<Documento[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [tipo, setTipo] = useState<string>(TIPOS_DOCUMENTO[0]);
+  const [subiendo, setSubiendo] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let vigente = true;
+    documentosDeParada(paradaId)
+      .then((d) => { if (vigente) setLista(d); })
+      .catch((e) => { if (vigente) setError(e instanceof Error ? e.message : String(e)); })
+      .finally(() => { if (vigente) setCargando(false); });
+    return () => { vigente = false; };
+  }, [paradaId]);
+
+  async function subir(archivo: File) {
+    setSubiendo(true);
+    setError(null);
+    try {
+      const datos = new FormData();
+      datos.append("paradaId", paradaId);
+      datos.append("tipo", tipo);
+      datos.append("archivo", archivo);
+      const nuevo = await guardarDocumento(datos);
+      setLista((l) => [nuevo, ...l]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubiendo(false);
+    }
+  }
+
+  async function abrir(id: number) {
+    setError(null);
+    try {
+      const url = await verDocumento(id);
+      // Pestaña nueva y sin referente: el enlace firmado no debe viajar en el
+      // encabezado de la siguiente página que abra el navegador.
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
+      else setError("Ese documento ya no está disponible.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function retirar(id: number) {
+    setError(null);
+    try {
+      await borrarDocumento(id);
+      setLista((l) => l.filter((d) => d.id !== id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  return (
+    <Tarjeta className="overflow-hidden">
+      <div className="flex items-center gap-2 border-b border-line px-3.5 py-2">
+        <h3 className="text-[13.5px] font-bold">Documentos</h3>
+        <span className="num text-[12px] text-ink-3">{lista.length}</span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 border-b border-line px-3.5 py-2.5">
+        <select
+          value={tipo}
+          onChange={(e) => setTipo(e.target.value)}
+          className="rounded-[8px] border border-line-strong bg-surface px-2 py-1 text-[12px] outline-none transition focus:border-amber-600"
+        >
+          {TIPOS_DOCUMENTO.map((t) => (
+            <option key={t} value={t}>{t}</option>
+          ))}
+        </select>
+
+        <label className="cursor-pointer rounded-[8px] border border-amber-600 bg-amber px-3 py-1 text-[12px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white">
+          {subiendo ? "Subiendo…" : "Subir documento"}
+          <input
+            type="file"
+            accept="application/pdf,image/jpeg,image/png,image/webp"
+            disabled={subiendo}
+            onChange={(e) => {
+              const archivo = e.target.files?.[0];
+              // Se limpia el campo para poder volver a elegir el mismo
+              // archivo si la subida falló.
+              e.target.value = "";
+              if (archivo) void subir(archivo);
+            }}
+            className="hidden"
+          />
+        </label>
+
+        <span className="text-[11px] text-ink-3">PDF o imagen, hasta 10 MB.</span>
+      </div>
+
+      {error && (
+        <p className="border-b border-line bg-bad-bg px-3.5 py-2 text-[12px] text-bad">{error}</p>
+      )}
+
+      {cargando ? (
+        <p className="px-3.5 py-3 text-[12.5px] text-ink-3">Cargando…</p>
+      ) : lista.length === 0 ? (
+        <p className="px-3.5 py-3 text-[12.5px] text-ink-2">
+          Todavía no se ha agregado ningún documento a esta orden.
+        </p>
+      ) : (
+        <ul className="divide-y divide-line">
+          {lista.map((d) => (
+            <li key={d.id} className="flex flex-wrap items-center gap-2 px-3.5 py-2">
+              <button
+                onClick={() => void abrir(d.id)}
+                className="min-w-0 text-left text-[12.5px] font-semibold text-ink underline decoration-line-strong underline-offset-2 transition hover:decoration-ink"
+              >
+                {d.nombre}
+              </button>
+              <Pastilla tono="plan">{d.tipo}</Pastilla>
+              <span className="num ml-auto whitespace-nowrap text-[11px] text-ink-3">
+                {pesa(d.peso)} · {fechaHora(d.creado_en)}
+                {d.autor ? ` · ${d.autor}` : ""}
+              </span>
+              {d.mio && (
+                <button
+                  onClick={() => void retirar(d.id)}
+                  title="Retirar el documento"
+                  className="rounded px-1 text-[12px] text-ink-3 transition hover:text-bad"
+                >
+                  ✕
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
     </Tarjeta>
   );

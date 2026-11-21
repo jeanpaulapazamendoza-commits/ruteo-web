@@ -427,6 +427,8 @@ export type ParadaFicha = {
   desvio_min: number | null;
   /** Las columnas del archivo del cliente que la aplicación no interpreta. */
   extra: Record<string, string>;
+  /** Cerrada: no admite más marcas hasta que un administrador la abra. */
+  bloqueada: boolean;
 };
 
 /** Todo lo que se sabe de una parada, para su ficha. */
@@ -438,7 +440,7 @@ export async function fichaParada(paradaId: string) {
             p.bultos_entregados, p.prioridad, p.eta, p.ventana_ini,
             p.ventana_fin, p.estado_entrega, p.subestado, p.hora_entrega, p.motivo,
             p.observaciones, p.recibe, p.foto_url, p.gps_lat, p.gps_lon,
-            p.orden, p.extra, p.ruta_id, r.indice as ruta_indice,
+            p.orden, p.extra, p.bloqueada, p.ruta_id, r.indice as ruta_indice,
             c.nombre as conductor, v.placa, r.salida_real,
             d.id as despacho_id, d.nombre as despacho, d.fecha,
             i.nombre_archivo as archivo, d.cd_lat, d.cd_lon,
@@ -530,6 +532,36 @@ export async function comentar(paradaId: string, texto: string) {
 export async function borrarComentario(id: number) {
   const yo = await idSesion();
   await comoUsuario(yo, "delete from comentarios where id = $1", [id]);
+}
+
+/**
+ * El rol de quien está mirando.
+ *
+ * Lo piden las pantallas que esconden un botón según el rol. Se lee de la
+ * base y no del token: si un administrador degrada a alguien, surte efecto en
+ * la siguiente carga y no cuando caduque su sesión treinta días después.
+ */
+export async function miRol() {
+  const yo = await idSesion();
+  const fila = await unaFila<{ rol: "admin" | "planificador" | "conductor" }>(
+    yo,
+    "select rol from perfiles where id = $1",
+    [yo],
+  );
+  return fila?.rol ?? "conductor";
+}
+
+/**
+ * Cierra o reabre una parada.
+ *
+ * Quién puede hacer qué lo decide la función de la base, no esta llamada:
+ * bloquear, cualquiera de la oficina; desbloquear, solo un administrador. El
+ * cambio queda en la bitácora con nombre y hora, porque desbloquear es dar
+ * permiso para reescribir un resultado que el cliente ya vio.
+ */
+export async function bloquearParada(paradaId: string, bloquear: boolean) {
+  const yo = await idSesion();
+  await comoUsuario(yo, "select bloquear_parada($1, $2)", [paradaId, bloquear]);
 }
 
 export type Cambio = {

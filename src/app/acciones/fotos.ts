@@ -1,29 +1,19 @@
 "use server";
 
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { auth } from "@/auth";
+import { BUCKET, s3 } from "@/lib/almacen";
 import { unaFila } from "@/lib/db";
 
 /**
  * Fotos de prueba de entrega.
  *
- * El almacén de Neon habla S3, y las claves se quedan en el servidor: el
- * conductor manda la foto a esta acción y nunca ve una credencial. Para
- * mirarla después se firma una URL temporal; el bucket es privado, así que
- * una foto de entrega no queda accesible a quien dé con su dirección.
+ * El conductor manda la foto a esta acción y nunca ve una credencial: el
+ * cliente del almacén vive en el servidor, en `@/lib/almacen`. Para mirarla
+ * después se firma una URL temporal; el bucket es privado, así que una foto
+ * de entrega no queda accesible a quien dé con su dirección.
  */
-const BUCKET = process.env.STORAGE_BUCKET!;
-
-const s3 = new S3Client({
-  region: process.env.STORAGE_REGION!,
-  endpoint: process.env.STORAGE_ENDPOINT!,
-  forcePathStyle: true,
-  credentials: {
-    accessKeyId: process.env.STORAGE_KEY_ID!,
-    secretAccessKey: process.env.STORAGE_SECRET!,
-  },
-});
 
 /**
  * Guarda la foto de una parada y devuelve su clave.
