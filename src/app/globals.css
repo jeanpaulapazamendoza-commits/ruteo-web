@@ -321,3 +321,17 @@ body {
   cursor: grab;
   pointer-events: auto;
 }
+
+/* ------------------------------------------------------------
+   Los mapas no se salen de su capa.
+
+   Leaflet numera sus paneles del 200 al 800. Sin esto, esos
+   números compiten con los de toda la página y el mapa acaba
+   pintado encima de una ventana modal, de un cajón de filtros o
+   del carril abierto. Aislado, sus capas solo se ordenan entre
+   sí.
+   ------------------------------------------------------------ */
+.leaflet-container {
+  isolation: isolate;
+  z-index: 0;
+}

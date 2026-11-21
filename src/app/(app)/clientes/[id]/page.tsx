@@ -1,9 +1,7 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { fichaCliente, historialCliente } from "@/app/acciones/clientes";
 import { miRol } from "@/app/acciones/datos";
-import { BarraSuperior } from "@/components/ui";
 import FichaCliente from "@/components/FichaCliente";
 
 export default async function PaginaCliente({
@@ -24,26 +22,9 @@ export default async function PaginaCliente({
 
   if (!cliente) notFound();
 
+  // Sin `BarraSuperior`: la ficha pinta su propia cabecera, con la flecha de
+  // vuelta, como en la referencia.
   return (
-    <>
-      <BarraSuperior
-        migaja={
-          <Link href="/clientes" className="transition hover:text-ink">
-            ← Clientes
-          </Link>
-        }
-        titulo={cliente.nombre}
-        acciones={
-          <span className="num text-[12px] text-ink-2">
-            {cliente.codigo}
-          </span>
-        }
-      />
-      <FichaCliente
-        cliente={cliente}
-        historial={historial}
-        editable={rol !== "conductor"}
-      />
-    </>
+    <FichaCliente cliente={cliente} historial={historial} editable={rol !== "conductor"} />
   );
 }

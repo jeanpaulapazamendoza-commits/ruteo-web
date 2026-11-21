@@ -429,6 +429,14 @@ export type ParadaFicha = {
   extra: Record<string, string>;
   /** Cerrada: no admite más marcas hasta que un administrador la abra. */
   bloqueada: boolean;
+  /** La ficha del cliente con ese código, si existe: de ahí salen el
+   *  teléfono y la dirección escrita, que la parada no guarda. */
+  cliente_id: string | null;
+  cliente_telefono: string | null;
+  cliente_direccion: string | null;
+  /** Cuándo se cargó el archivo que trajo esta orden, y quién lo cargó. */
+  ingresado_en: string;
+  ingresado_por: string | null;
 };
 
 /** Todo lo que se sabe de una parada, para su ficha. */
@@ -444,6 +452,9 @@ export async function fichaParada(paradaId: string) {
             c.nombre as conductor, v.placa, r.salida_real,
             d.id as despacho_id, d.nombre as despacho, d.fecha,
             i.nombre_archivo as archivo, d.cd_lat, d.cd_lon,
+            cl.id as cliente_id, cl.telefono as cliente_telefono,
+            cl.direccion as cliente_direccion,
+            d.creado_en as ingresado_en, cr.nombre as ingresado_por,
             (select count(*) from eventos e
               where e.parada_id = p.id
                 and e.tipo not in ('ruta_iniciada','ruta_terminada')) as intentos,
@@ -456,6 +467,8 @@ export async function fichaParada(paradaId: string) {
        left join perfiles c on c.id = r.conductor_id
        left join vehiculos v on v.id = r.vehiculo_id
        left join importaciones i on i.id = d.importacion_id
+       left join clientes cl on cl.org_id = p.org_id and cl.codigo = p.codigo
+       left join perfiles cr on cr.id = d.creado_por
       where p.id = $1`,
     [paradaId, ZONA],
   );

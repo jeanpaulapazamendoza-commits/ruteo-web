@@ -1,8 +1,6 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { fichaParada, historialParada, itemsDeParada, miRol } from "@/app/acciones/datos";
-import { BarraSuperior } from "@/components/ui";
 import FichaParada from "@/components/FichaParada";
 
 /**
@@ -32,28 +30,7 @@ export default async function PaginaParada({
 
   if (!parada) notFound();
 
-  return (
-    <>
-      <BarraSuperior
-        migaja={
-          <Link
-            href={`/torre?despacho=${parada.despacho_id}`}
-            className="transition hover:text-ink"
-          >
-            ← {parada.despacho ?? "Despacho"}
-          </Link>
-        }
-        titulo={parada.nombre ?? "Parada"}
-        acciones={
-          <Link
-            href={`/despachos/${parada.despacho_id}`}
-            className="rounded-full border border-line-strong bg-surface px-3 py-1.5 text-[12.5px] font-semibold transition hover:bg-canvas"
-          >
-            Ver planificación
-          </Link>
-        }
-      />
-      <FichaParada parada={parada} historial={historial} items={items} rol={rol} />
-    </>
-  );
+  // Sin `BarraSuperior`: la ficha lleva su propia cabecera —«Órdenes > #código»
+  // con las acciones a la derecha—, como en la referencia.
+  return <FichaParada parada={parada} historial={historial} items={items} rol={rol} />;
 }
