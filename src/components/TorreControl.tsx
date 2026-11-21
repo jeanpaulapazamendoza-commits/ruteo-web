@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
   lineaTiempoDespacho,
@@ -477,8 +478,13 @@ export default function TorreControl({
                 <tbody>
                   {incidencias.map((p) => (
                     <tr key={p.id}>
-                      <td className="border-b border-line px-3 py-2">
-                        <b className="text-ink">{p.nombre}</b>
+                      <td className="border-b border-line px-3 py-1.5">
+                        <Link
+                          href={`/paradas/${p.id}`}
+                          className="font-bold text-ink transition hover:underline"
+                        >
+                          {p.nombre}
+                        </Link>
                         <br />
                         <span className="text-[11.5px] text-ink-3">{p.distrito ?? "—"}</span>
                       </td>

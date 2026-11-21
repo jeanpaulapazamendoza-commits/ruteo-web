@@ -1,7 +1,7 @@
 "use server";
 
 import { auth } from "@/auth";
-import { comoUsuario } from "@/lib/db";
+import { comoUsuario, unaFila } from "@/lib/db";
 
 /**
  * Escrituras sueltas que antes hacían los componentes del navegador con
@@ -144,11 +144,17 @@ export async function estadoFlota(fecha?: string) {
               count(*) filter (where p.estado_entrega = 'entregado')   as entregadas,
               count(*) filter (where p.estado_entrega = 'fallido')     as fallidas,
               count(*)                                                 as asignadas,
+              -- El desvio se ancla al dia del despacho en vez de restar dos
+              -- relojes sueltos: asi una entrega pasada la medianoche sale
+              -- como «veinte minutos tarde» y no como «menos veintitres
+              -- horas».
               avg(extract(epoch from
-                    ((p.hora_entrega at time zone $2)::time - p.eta)) / 60)
+                    (p.hora_entrega - ((d2.fecha + p.eta) at time zone $2))) / 60)
                 filter (where p.hora_entrega is not null and p.eta is not null)
                 as desvio_min
          from paradas p
+         join rutas r2 on r2.id = p.ruta_id
+         join despachos d2 on d2.id = r2.despacho_id
         group by p.ruta_id),
      -- Lo último que se supo, en tres preguntas distintas. La más reciente
      -- sirve para medir el silencio, pero puede ser el arranque de la ruta,
@@ -223,9 +229,11 @@ export async function paradasDeRuta(rutaId: string) {
     `select p.id, p.orden, p.nombre, p.distrito, p.lat, p.lon, p.bultos,
             p.estado_entrega, p.eta, p.hora_entrega, p.motivo,
             round(extract(epoch from
-              ((p.hora_entrega at time zone $2)::time - p.eta)) / 60)::int
+              (p.hora_entrega - ((d.fecha + p.eta) at time zone $2))) / 60)::int
               as desvio_min
        from paradas p
+       join rutas r on r.id = p.ruta_id
+       join despachos d on d.id = r.despacho_id
       where p.ruta_id = $1
       order by p.orden`,
     [rutaId, ZONA],
@@ -276,6 +284,128 @@ export async function lineaTiempoDespacho(despachoId: string) {
       order by e.ocurrido_en, e.id`,
     [despachoId],
   );
+}
+
+export type ParadaFicha = {
+  id: string;
+  codigo: string | null;
+  nombre: string | null;
+  distrito: string | null;
+  lat: number;
+  lon: number;
+  bultos: number;
+  bultos_entregados: number | null;
+  prioridad: number;
+  eta: string | null;
+  ventana_ini: string | null;
+  ventana_fin: string | null;
+  estado_entrega: string;
+  hora_entrega: string | null;
+  motivo: string | null;
+  observaciones: string | null;
+  recibe: string | null;
+  foto_url: string | null;
+  gps_lat: number | null;
+  gps_lon: number | null;
+  orden: number;
+  ruta_id: string;
+  ruta_indice: number;
+  conductor: string | null;
+  placa: string | null;
+  salida_real: string | null;
+  despacho_id: string;
+  despacho: string | null;
+  fecha: string;
+  archivo: string | null;
+  cd_lat: number | null;
+  cd_lon: number | null;
+  /** Cuántas veces se marcó. Más de una es un reintento o una corrección. */
+  intentos: number;
+  /** Minutos entre la hora real y la estimada. Negativo es adelanto. */
+  desvio_min: number | null;
+};
+
+/** Todo lo que se sabe de una parada, para su ficha. */
+export async function fichaParada(paradaId: string) {
+  const yo = await idSesion();
+  return unaFila<ParadaFicha>(
+    yo,
+    `select p.id, p.codigo, p.nombre, p.distrito, p.lat, p.lon, p.bultos,
+            p.bultos_entregados, p.prioridad, p.eta, p.ventana_ini,
+            p.ventana_fin, p.estado_entrega, p.hora_entrega, p.motivo,
+            p.observaciones, p.recibe, p.foto_url, p.gps_lat, p.gps_lon,
+            p.orden, p.ruta_id, r.indice as ruta_indice,
+            c.nombre as conductor, v.placa, r.salida_real,
+            d.id as despacho_id, d.nombre as despacho, d.fecha,
+            i.nombre_archivo as archivo, d.cd_lat, d.cd_lon,
+            (select count(*) from eventos e
+              where e.parada_id = p.id
+                and e.tipo not in ('ruta_iniciada','ruta_terminada')) as intentos,
+            round(extract(epoch from
+              (p.hora_entrega - ((d.fecha + p.eta) at time zone $2))) / 60)::int
+              as desvio_min
+       from paradas p
+       join rutas r on r.id = p.ruta_id
+       join despachos d on d.id = r.despacho_id
+       left join perfiles c on c.id = r.conductor_id
+       left join vehiculos v on v.id = r.vehiculo_id
+       left join importaciones i on i.id = d.importacion_id
+      where p.id = $1`,
+    [paradaId, ZONA],
+  );
+}
+
+export type Comentario = {
+  id: number;
+  texto: string;
+  autor: string | null;
+  creado_en: string;
+  mio: boolean;
+};
+
+/**
+ * Las notas que el equipo deja sobre una parada.
+ *
+ * No hay distinción entre nota pública y privada, que es lo que hace el
+ * sistema de referencia: allí la pública la ve el destinatario en su portal
+ * de seguimiento. Aquí no hay tal portal, así que todas son internas y
+ * fingir la diferencia solo confundiría.
+ */
+export async function comentarios(paradaId: string) {
+  const yo = await idSesion();
+  return comoUsuario<Comentario>(
+    yo,
+    `select c.id, c.texto, a.nombre as autor, c.creado_en,
+            (c.autor = $2) as mio
+       from comentarios c
+       left join perfiles a on a.id = c.autor
+      where c.parada_id = $1
+      order by c.creado_en desc, c.id desc`,
+    [paradaId, yo],
+  );
+}
+
+export async function comentar(paradaId: string, texto: string) {
+  const yo = await idSesion();
+  const limpio = texto.trim();
+  if (!limpio) throw new Error("El comentario está vacío.");
+
+  // `org_id` sale de la propia parada y no del navegador; si el RLS no deja
+  // ver esa parada, el insert no encuentra nada que copiar y no escribe.
+  const filas = await comoUsuario<{ id: number }>(
+    yo,
+    `insert into comentarios (org_id, parada_id, texto, autor)
+     select p.org_id, p.id, $2, $3 from paradas p where p.id = $1
+     returning id`,
+    [paradaId, limpio.slice(0, 2000), yo],
+  );
+  if (!filas.length) throw new Error("Esa parada no es tuya.");
+}
+
+/** Solo quien lo escribió puede retirarlo. Lo impone también el RLS. */
+export async function borrarComentario(id: number) {
+  const yo = await idSesion();
+  await comoUsuario(yo, "delete from comentarios where id = $1", [id]);
 }
 
 export type Importacion = {

@@ -470,8 +470,13 @@ function DetalleConductor({
               {paradas.map((p) => (
                 <tr key={p.id} className={p.estado_entrega === "pendiente" ? "opacity-70" : ""}>
                   <td className="num border-b border-line px-3 py-1.5 text-ink-3">{p.orden}</td>
-                  <td className="border-b border-line px-3 py-2">
-                    <b className="text-ink">{p.nombre}</b>
+                  <td className="border-b border-line px-3 py-1.5">
+                    <Link
+                      href={`/paradas/${p.id}`}
+                      className="font-bold text-ink transition hover:underline"
+                    >
+                      {p.nombre}
+                    </Link>
                     {p.distrito && (
                       <span className="block text-[11.5px] text-ink-3">{p.distrito}</span>
                     )}
