@@ -25,6 +25,7 @@ const DIARIOS: Modulo[] = [
   { href: "/torre", texto: "Torre", icono: "◉" },
   { href: "/flota", texto: "Flota", icono: "▣" },
   { href: "/alertas", texto: "Alertas", icono: "△" },
+  { href: "/ordenes", texto: "Órdenes", icono: "▥" },
   { href: "/despachos", texto: "Despachos", icono: "▤" },
 ];
 

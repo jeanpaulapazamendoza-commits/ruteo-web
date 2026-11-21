@@ -286,6 +286,106 @@ export async function lineaTiempoDespacho(despachoId: string) {
   );
 }
 
+export type Orden = {
+  id: string;
+  codigo: string | null;
+  nombre: string | null;
+  distrito: string | null;
+  estado_entrega: string;
+  motivo: string | null;
+  bultos: number;
+  bultos_entregados: number | null;
+  eta: string | null;
+  hora_entrega: string | null;
+  desvio_min: number | null;
+  ruta_indice: number | null;
+  conductor: string | null;
+  placa: string | null;
+  despacho_id: string;
+  despacho: string | null;
+  fecha: string;
+  en_bandeja: boolean;
+  intentos: number;
+};
+
+export type FiltroOrdenes = {
+  desde?: string;
+  hasta?: string;
+  texto?: string;
+  estado?: string;
+  conductor?: string;
+};
+
+/**
+ * Las paradas de un rango de días, todas juntas y filtrables.
+ *
+ * Hasta ahora una parada solo existía dentro de su despacho: para encontrar
+ * un pedido había que acordarse de en qué archivo venía. Esta es la vista
+ * por la que se busca cuando llama un cliente y solo dice su dirección.
+ */
+export async function ordenes(f: FiltroOrdenes = {}, limite = 500) {
+  const yo = await idSesion();
+  return comoUsuario<Orden>(
+    yo,
+    `select p.id, p.codigo, p.nombre, p.distrito, p.estado_entrega, p.motivo,
+            p.bultos, p.bultos_entregados, p.eta, p.hora_entrega,
+            round(extract(epoch from
+              (p.hora_entrega - ((d.fecha + p.eta) at time zone $6))) / 60)::int
+              as desvio_min,
+            case when r.sin_asignar then null else r.indice end as ruta_indice,
+            c.nombre as conductor, v.placa,
+            d.id as despacho_id, d.nombre as despacho, d.fecha,
+            r.sin_asignar as en_bandeja,
+            (select count(*) from eventos e
+              where e.parada_id = p.id
+                and e.tipo not in ('ruta_iniciada','ruta_terminada')) as intentos
+       from paradas p
+       join rutas r on r.id = p.ruta_id
+       join despachos d on d.id = r.despacho_id
+       left join perfiles c on c.id = r.conductor_id
+       left join vehiculos v on v.id = r.vehiculo_id
+      where d.fecha >= coalesce($1::date, private.hoy() - 7)
+        and d.fecha <= coalesce($2::date, private.hoy())
+        and ($3::text is null or
+             p.codigo ilike '%' || $3 || '%' or
+             p.nombre ilike '%' || $3 || '%' or
+             p.distrito ilike '%' || $3 || '%' or
+             v.placa ilike '%' || $3 || '%' or
+             d.nombre ilike '%' || $3 || '%')
+        and ($4::text is null or p.estado_entrega = $4)
+        and ($5::text is null or c.nombre = $5)
+      order by d.fecha desc, r.indice, p.orden
+      limit $7`,
+    [
+      f.desde ?? null,
+      f.hasta ?? null,
+      f.texto?.trim() || null,
+      f.estado || null,
+      f.conductor || null,
+      ZONA,
+      limite,
+    ],
+  );
+}
+
+/** Los conductores que aparecen en el periodo, para el desplegable. */
+export async function conductoresConRuta(desde?: string, hasta?: string) {
+  const yo = await idSesion();
+  const filas = await comoUsuario<{ nombre: string }>(
+    yo,
+    `select distinct c.nombre
+       from rutas r
+       join despachos d on d.id = r.despacho_id
+       join perfiles c on c.id = r.conductor_id
+      where d.fecha >= coalesce($1::date, private.hoy() - 7)
+        and d.fecha <= coalesce($2::date, private.hoy())
+        and c.nombre is not null
+      order by 1`,
+    [desde ?? null, hasta ?? null],
+  );
+  return filas.map((f) => f.nombre);
+}
+
 export type ParadaFicha = {
   id: string;
   codigo: string | null;
