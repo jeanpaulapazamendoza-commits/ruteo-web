@@ -228,6 +228,7 @@ export default function RutaReparto({
       const entrega = {
         parada_id: parada.id,
         estado: datos.estado,
+        subestado: datos.subestado ?? null,
         motivo: datos.motivo,
         bultos_entregados: datos.bultosEntregados,
         observaciones: datos.observaciones,

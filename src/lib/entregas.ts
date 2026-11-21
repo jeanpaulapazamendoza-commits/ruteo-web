@@ -36,6 +36,8 @@ export type Entrega = {
    * que un reloj adelantado no puede grabar entregas en el futuro.
    */
   marcada_en?: string | null;
+  /** Motivo elegido de la lista que configura la empresa. */
+  subestado?: string | null;
   motivo?: string | null;
   bultos_entregados?: number | null;
   observaciones?: string | null;
@@ -132,6 +134,7 @@ export async function marcarParada(entrega: Entrega) {
       parada_id: entrega.parada_id,
       estado: entrega.estado,
       marcada_en: entrega.marcada_en ?? null,
+      subestado: entrega.subestado ?? null,
       motivo: entrega.motivo ?? null,
       bultos_entregados: entrega.bultos_entregados ?? null,
       observaciones: entrega.observaciones ?? null,

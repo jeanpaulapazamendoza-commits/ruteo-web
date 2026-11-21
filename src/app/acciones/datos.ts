@@ -292,6 +292,7 @@ export type Orden = {
   nombre: string | null;
   distrito: string | null;
   estado_entrega: string;
+  subestado: string | null;
   motivo: string | null;
   bultos: number;
   bultos_entregados: number | null;
@@ -400,6 +401,7 @@ export type ParadaFicha = {
   ventana_ini: string | null;
   ventana_fin: string | null;
   estado_entrega: string;
+  subestado: string | null;
   hora_entrega: string | null;
   motivo: string | null;
   observaciones: string | null;
@@ -434,7 +436,7 @@ export async function fichaParada(paradaId: string) {
     yo,
     `select p.id, p.codigo, p.nombre, p.distrito, p.lat, p.lon, p.bultos,
             p.bultos_entregados, p.prioridad, p.eta, p.ventana_ini,
-            p.ventana_fin, p.estado_entrega, p.hora_entrega, p.motivo,
+            p.ventana_fin, p.estado_entrega, p.subestado, p.hora_entrega, p.motivo,
             p.observaciones, p.recibe, p.foto_url, p.gps_lat, p.gps_lon,
             p.orden, p.extra, p.ruta_id, r.indice as ruta_indice,
             c.nombre as conductor, v.placa, r.salida_real,
@@ -528,6 +530,136 @@ export async function comentar(paradaId: string, texto: string) {
 export async function borrarComentario(id: number) {
   const yo = await idSesion();
   await comoUsuario(yo, "delete from comentarios where id = $1", [id]);
+}
+
+export type Cambio = {
+  id: number;
+  tabla: string;
+  registro_id: string;
+  campo: string;
+  antes: string | null;
+  despues: string | null;
+  autor: string | null;
+  cuando: string;
+  /** Para poder decir de qué parada o despacho se habla. */
+  etiqueta: string | null;
+};
+
+/**
+ * Qué se ha cambiado, campo por campo.
+ *
+ * Lo escribe un disparador de la base, no la aplicación: así queda
+ * registrado cualquier cambio, venga de una pantalla, de una funcion o de
+ * alguien conectado a la base a mano. Un registro que solo anota lo que la
+ * aplicación quiere anotar no sirve para auditar.
+ */
+export async function bitacora(filtro: { texto?: string; desde?: string } = {}, limite = 300) {
+  const yo = await idSesion();
+  return comoUsuario<Cambio>(
+    yo,
+    `select c.id, c.tabla, c.registro_id, c.campo, c.antes, c.despues,
+            a.nombre as autor, c.cuando,
+            coalesce(p.nombre, d.nombre, pe.nombre,
+                     case when c.tabla = 'rutas'
+                          then 'R-' || lpad((r.indice + 1)::text, 2, '0') end) as etiqueta
+       from cambios c
+       left join perfiles a  on a.id = c.autor
+       left join paradas p   on c.tabla = 'paradas'   and p.id = c.registro_id
+       left join despachos d on c.tabla = 'despachos' and d.id = c.registro_id
+       left join rutas r     on c.tabla = 'rutas'     and r.id = c.registro_id
+       left join perfiles pe on c.tabla = 'perfiles'  and pe.id = c.registro_id
+      where ($1::text is null or
+             p.codigo ilike '%' || $1 || '%' or
+             p.nombre ilike '%' || $1 || '%' or
+             d.nombre ilike '%' || $1 || '%' or
+             c.campo  ilike '%' || $1 || '%')
+        and ($2::date is null or c.cuando >= $2::date)
+      order by c.cuando desc, c.id desc
+      limit $3`,
+    [filtro.texto?.trim() || null, filtro.desde || null, limite],
+  );
+}
+
+/** Los cambios de un solo registro, para su ficha. */
+export async function cambiosDe(registroId: string) {
+  const yo = await idSesion();
+  return comoUsuario<Cambio>(
+    yo,
+    `select c.id, c.tabla, c.registro_id, c.campo, c.antes, c.despues,
+            a.nombre as autor, c.cuando, null::text as etiqueta
+       from cambios c
+       left join perfiles a on a.id = c.autor
+      where c.registro_id = $1
+      order by c.cuando desc, c.id desc
+      limit 100`,
+    [registroId],
+  );
+}
+
+export type Subestado = {
+  id: number;
+  estado: string;
+  texto: string;
+  orden: number;
+  activo: boolean;
+};
+
+/**
+ * Los motivos tipificados que configura cada empresa.
+ *
+ * El campo libre seguía existiendo y seguirá: hay cosas que no caben en una
+ * lista. Pero sin lista no se puede contar cuántas entregas fallaron por
+ * «local cerrado», porque cada conductor lo escribe distinto.
+ */
+export async function subestados(soloActivos = true) {
+  const yo = await idSesion();
+  return comoUsuario<Subestado>(
+    yo,
+    `select id, estado, texto, orden, activo
+       from subestados
+      where ($1::boolean is false or activo)
+      order by estado, orden, texto`,
+    [soloActivos],
+  );
+}
+
+export async function guardarSubestado(s: {
+  id?: number;
+  estado: string;
+  texto: string;
+  orden?: number;
+  activo?: boolean;
+}) {
+  const yo = await idSesion();
+  const texto = s.texto.trim();
+  if (!texto) throw new Error("Escribe el texto del motivo.");
+
+  if (s.id) {
+    await comoUsuario(
+      yo,
+      `update subestados set texto = $2, orden = coalesce($3, orden),
+              activo = coalesce($4, activo)
+        where id = $1`,
+      [s.id, texto, s.orden ?? null, s.activo ?? null],
+    );
+    return;
+  }
+
+  // `org_id` sale de la base y no del navegador.
+  await comoUsuario(
+    yo,
+    `insert into subestados (org_id, estado, texto, orden)
+     select private.mi_org(), $1, $2, coalesce($3, 0)
+     on conflict (org_id, estado, texto) do update set activo = true`,
+    [s.estado, texto, s.orden ?? null],
+  );
+}
+
+export async function borrarSubestado(id: number) {
+  const yo = await idSesion();
+  // No se borra: se desactiva. Las paradas ya marcadas con ese motivo
+  // seguirían nombrándolo, y un informe de hace un mes dejaría de cuadrar.
+  await comoUsuario(yo, "update subestados set activo = false where id = $1", [id]);
 }
 
 export type Importacion = {

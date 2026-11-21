@@ -9,9 +9,12 @@ import {
   type EstadoEntrega,
 } from "@/lib/entregas";
 import { resumenEntrega } from "@/lib/estadoParada";
+import { subestados } from "@/app/acciones/datos";
 
 export type DatosEntrega = {
   estado: EstadoEntrega;
+  /** Motivo elegido de la lista de la empresa, si se eligió uno. */
+  subestado?: string | null;
   motivo: string | null;
   bultosEntregados: number | null;
   observaciones: string | null;
@@ -61,6 +64,35 @@ export default function HojaResultado({
   onGuardar: (d: DatosEntrega) => void;
   guardando: boolean;
 }) {
+  /**
+   * Los motivos que ofrece la empresa, si configuró alguno.
+   *
+   * Se piden aquí y no por propiedad para no atravesar dos componentes con
+   * un dato que solo usa esta hoja. Mientras llegan —o si la empresa no ha
+   * configurado ninguno— se usan los de serie: el conductor nunca se queda
+   * delante de una lista vacía.
+   */
+  const [opciones, setOpciones] = useState<string[]>([...MOTIVOS_NO_ENTREGA]);
+
+  useEffect(() => {
+    let vigente = true;
+    subestados()
+      .then((todos) => {
+        if (!vigente) return;
+        const suyos = todos
+          .filter((x) => x.estado === "fallido")
+          .map((x) => x.texto);
+        // «Otros» va siempre al final: es la salida para lo que no cabe en
+        // ninguna lista, y sin ella un motivo raro se marca como el que más
+        // se le parezca.
+        if (suyos.length) setOpciones([...suyos, "Otros"]);
+      })
+      .catch(() => {
+        /* sin conexión: se quedan los de serie */
+      });
+    return () => { vigente = false; };
+  }, []);
+
   const corrigiendo = parada.estado_entrega !== "pendiente";
   const anterior = corrigiendo ? desglosarMotivo(parada.motivo) : { opcion: "", detalle: "" };
 
@@ -131,6 +163,9 @@ export default function HojaResultado({
     onGuardar({
       ...comun,
       estado: "fallido",
+      // El motivo tipificado se manda aparte del texto: con él se pueden
+      // contar las no entregas por causa, cosa que con texto libre no.
+      subestado: opcion === "Otros" ? null : opcion,
       motivo: opcion === "Otros" ? `Otros: ${texto.trim()}` : opcion,
       bultosEntregados: null,
       recibe: null,
@@ -285,7 +320,7 @@ export default function HojaResultado({
           ) : (
             <>
               <div className="flex flex-col gap-2">
-                {MOTIVOS_NO_ENTREGA.map((m) => (
+                {opciones.map((m) => (
                   <button
                     key={m}
                     onClick={() => setMotivo(m)}

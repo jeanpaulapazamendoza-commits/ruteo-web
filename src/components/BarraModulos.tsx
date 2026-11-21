@@ -37,6 +37,8 @@ const OCASIONALES: Modulo[] = [
 
 const DE_ADMIN: Modulo[] = [
   { href: "/equipo", texto: "Equipo", icono: "◐" },
+  { href: "/subestados", texto: "Motivos de entrega", icono: "✎" },
+  { href: "/bitacora", texto: "Bitácora", icono: "❑" },
   { href: "/tiendas", texto: "Tiendas guardadas", icono: "▦" },
 ];
 
