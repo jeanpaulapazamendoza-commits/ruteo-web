@@ -86,6 +86,69 @@ export async function guardarNotaEmpresa(orgId: string, nota: string | null) {
   ]);
 }
 
+/** Un paso de la historia de una ruta o de una de sus paradas. */
+export type Evento = {
+  id: number;
+  ruta_indice: number;
+  parada_id: string | null;
+  parada: string | null;
+  orden: number | null;
+  tipo:
+    | "ruta_iniciada"
+    | "ruta_terminada"
+    | "entregado"
+    | "parcial"
+    | "fallido"
+    | "reprogramado"
+    | "pendiente";
+  ocurrido_en: string;
+  autor: string | null;
+  datos: Record<string, unknown>;
+};
+
+/**
+ * Todo lo que ha pasado en un despacho, en orden.
+ *
+ * Es lo que alimenta la franja horaria de la torre: con solo la hora de
+ * entrega de cada parada se sabe cuánto se avanzó, pero no cuándo, y el
+ * cuándo es lo que delata dónde se atascó la ruta.
+ *
+ * La bandeja queda fuera, igual que en el resto de la torre: sus puntos no
+ * salieron a reparto.
+ */
+export async function lineaTiempoDespacho(despachoId: string) {
+  const yo = await idSesion();
+  return comoUsuario<Evento>(
+    yo,
+    `select e.id, r.indice as ruta_indice, e.parada_id, p.nombre as parada,
+            p.orden, e.tipo, e.ocurrido_en, a.nombre as autor, e.datos
+       from eventos e
+       join rutas r on r.id = e.ruta_id
+       left join paradas p on p.id = e.parada_id
+       left join perfiles a on a.id = e.autor
+      where r.despacho_id = $1 and not r.sin_asignar
+      order by e.ocurrido_en, e.id`,
+    [despachoId],
+  );
+}
+
+/** La historia de una sola parada, de lo más reciente a lo más antiguo. */
+export async function historialParada(paradaId: string) {
+  const yo = await idSesion();
+  return comoUsuario<Evento>(
+    yo,
+    `select e.id, r.indice as ruta_indice, e.parada_id, p.nombre as parada,
+            p.orden, e.tipo, e.ocurrido_en, a.nombre as autor, e.datos
+       from eventos e
+       join rutas r on r.id = e.ruta_id
+       left join paradas p on p.id = e.parada_id
+       left join perfiles a on a.id = e.autor
+      where e.parada_id = $1
+      order by e.ocurrido_en desc, e.id desc`,
+    [paradaId],
+  );
+}
+
 export type ParadaSeguimiento = {
   id: string;
   orden: number;

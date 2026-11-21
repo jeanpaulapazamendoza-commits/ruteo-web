@@ -2,8 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { paradasDeDespacho } from "@/app/acciones/datos";
+import {
+  lineaTiempoDespacho,
+  paradasDeDespacho,
+  type Evento,
+} from "@/app/acciones/datos";
 import { verFoto } from "@/app/acciones/fotos";
+import FranjaHoraria, { escalaDe, ReglaHoraria } from "@/components/FranjaHoraria";
 import { Pastilla, Tarjeta } from "@/components/ui";
 
 // Leaflet necesita `window`: solo en el navegador.
@@ -108,12 +113,34 @@ export default function TorreControl({
   cd?: { lat: number; lon: number } | null;
 }) {
   const [paradas, setParadas] = useState(inicial);
+  const [eventos, setEventos] = useState<Evento[]>([]);
   const [actualizado, setActualizado] = useState<Date>(new Date());
   const [auto, setAuto] = useState(true);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [abierta, setAbierta] = useState<number | null>(null);
+  const [compacto, setCompacto] = useState(false);
   const montado = useRef(true);
+
+  // La preferencia de densidad es de quien mira, no del despacho: se queda en
+  // su navegador. Si el almacenamiento está bloqueado, se sigue sin ella.
+  useEffect(() => {
+    try {
+      setCompacto(localStorage.getItem("torre:compacto") === "1");
+    } catch {
+      /* navegación privada o almacenamiento bloqueado */
+    }
+  }, []);
+
+  function cambiarDensidad(v: boolean) {
+    setCompacto(v);
+    if (v) setAbierta(null);
+    try {
+      localStorage.setItem("torre:compacto", v ? "1" : "0");
+    } catch {
+      /* no pasa nada: solo no se recuerda */
+    }
+  }
 
   const infoRuta = useMemo(
     () => new Map(rutas.map((r) => [r.indice, r])),
@@ -125,9 +152,16 @@ export default function TorreControl({
   const refrescar = useCallback(async () => {
     setCargando(true);
     try {
-      const datos = await paradasDeDespacho(despachoId);
+      // Las dos lecturas van juntas: si la franja horaria llegara un sondeo
+      // más tarde que las paradas, se vería un punto marcado sin su marca en
+      // la línea, que parece un fallo.
+      const [datos, historia] = await Promise.all([
+        paradasDeDespacho(despachoId),
+        lineaTiempoDespacho(despachoId),
+      ]);
       if (!montado.current) return;
       setParadas(datos as unknown as ParadaSeguimiento[]);
+      setEventos(historia);
       setActualizado(new Date());
       setError(null);
     } catch (e) {
@@ -136,6 +170,11 @@ export default function TorreControl({
       if (montado.current) setCargando(false);
     }
   }, [despachoId]);
+
+  // La primera carga trae las paradas desde el servidor, pero no la historia.
+  useEffect(() => {
+    void refrescar();
+  }, [refrescar]);
 
   // Sondeo periódico: el chofer marca desde su móvil y aquí se ve solo.
   useEffect(() => {
@@ -174,6 +213,18 @@ export default function TorreControl({
     return [...m.entries()].sort((a, b) => a[0] - b[0]);
   }, [paradas]);
 
+  /** La escala horaria es común a todas las rutas: solo así se comparan. */
+  const escala = useMemo(() => escalaDe(eventos), [eventos]);
+
+  const eventosPorRuta = useMemo(() => {
+    const m = new Map<number, Evento[]>();
+    eventos.forEach((e) => {
+      if (!m.has(e.ruta_indice)) m.set(e.ruta_indice, []);
+      m.get(e.ruta_indice)!.push(e);
+    });
+    return m;
+  }, [eventos]);
+
   const incidencias = useMemo(
     () =>
       paradas.filter(
@@ -185,13 +236,16 @@ export default function TorreControl({
     [paradas],
   );
 
+  /**
+   * Lo último que pasó, leído del registro y no de las paradas.
+   *
+   * Antes esto salía de `hora_entrega`, así que solo mostraba el estado final
+   * de cada punto: una corrección pisaba a la marca anterior y la salida del
+   * centro no aparecía nunca. El registro las conserva todas.
+   */
   const ultimas = useMemo(
-    () =>
-      paradas
-        .filter((p) => p.hora_entrega)
-        .sort((a, b) => (b.hora_entrega! > a.hora_entrega! ? 1 : -1))
-        .slice(0, 8),
-    [paradas],
+    () => [...eventos].reverse().slice(0, 12),
+    [eventos],
   );
 
   return (
@@ -258,9 +312,19 @@ export default function TorreControl({
           <div className="flex items-center gap-2 border-b border-line px-4 py-2.5">
             <h3 className="text-[13.5px] font-bold">Rutas</h3>
             <span className="num text-[12px] text-ink-3">{porRuta.length}</span>
-            <span className="ml-auto text-[11.5px] text-ink-3">
-              Toca una ruta para ver su mapa y sus entregas
-            </span>
+            <label className="ml-auto flex cursor-pointer items-center gap-1.5 text-[11.5px] text-ink-3">
+              <input
+                type="checkbox"
+                checked={compacto}
+                onChange={(e) => cambiarDensidad(e.target.checked)}
+              />
+              Modo comprimido
+            </label>
+            {!compacto && (
+              <span className="hidden text-[11.5px] text-ink-3 lg:block">
+                Toca una ruta para ver su mapa y sus entregas
+              </span>
+            )}
           </div>
           <div className="divide-y divide-line">
             {porRuta.map(([indice, ps]) => {
@@ -270,12 +334,25 @@ export default function TorreControl({
               const siguiente = ps.find((p) => p.estado_entrega === "pendiente");
               const info = infoRuta.get(indice);
               const desplegada = abierta === indice;
+              const suyos = eventosPorRuta.get(indice) ?? [];
+              // Sin iniciar / en progreso / finalizada, dicho en la fila en
+              // vez de deducirlo del porcentaje: una ruta al 0% porque nadie
+              // ha salido no es lo mismo que una al 0% con el chofer en calle.
+              const arranco = Boolean(info?.salida_real) ||
+                suyos.some((e) => e.tipo === "ruta_iniciada");
+              const estadoRuta = pct === 100
+                ? { texto: "Finalizada", tono: "ok" as const }
+                : arranco
+                  ? { texto: "En progreso", tono: "live" as const }
+                  : { texto: "Sin iniciar", tono: "plan" as const };
               return (
                 <div key={indice}>
                   <button
                     onClick={() => setAbierta(desplegada ? null : indice)}
                     aria-expanded={desplegada}
-                    className="flex w-full flex-wrap items-center gap-3 px-4 py-2.5 text-left transition hover:bg-canvas"
+                    className={`flex w-full flex-wrap items-center gap-3 px-4 text-left transition hover:bg-canvas ${
+                      compacto ? "py-1.5" : "py-2.5"
+                    }`}
                   >
                     <span className="w-3 shrink-0 text-[10px] text-ink-3">
                       {desplegada ? "▾" : "▸"}
@@ -309,8 +386,24 @@ export default function TorreControl({
                       </span>
                     )}
                     {fallidas > 0 && <Pastilla tono="bad">{fallidas} fallidas</Pastilla>}
-                    {pct === 100 && fallidas === 0 && <Pastilla tono="ok">Completada</Pastilla>}
+                    <Pastilla tono={estadoRuta.tono}>{estadoRuta.texto}</Pastilla>
                   </button>
+
+                  {/* La ruta a lo largo del día. Fuera del botón: cada punto
+                      tiene su propio aviso al pasar el ratón. */}
+                  {/* También para la ruta sin eventos: una pista vacía deja
+                      las filas alineadas y la comparación entre rutas es
+                      justamente de lo que trata esta franja. */}
+                  {escala && (
+                    <div className={`px-4 ${compacto ? "pb-1.5" : "pb-2.5"}`}>
+                      <FranjaHoraria
+                        eventos={suyos}
+                        escala={escala}
+                        color={color(indice)}
+                        compacta={compacto}
+                      />
+                    </div>
+                  )}
 
                   {desplegada && (
                     <DetalleRuta
@@ -326,6 +419,16 @@ export default function TorreControl({
               );
             })}
           </div>
+
+          {escala && (
+            <div className="border-t border-line px-4 pb-2 pt-2">
+              <ReglaHoraria escala={escala} />
+              <p className="mt-1 text-[11px] text-ink-3">
+                Cada punto es una parada cerrada, a la hora en que se marcó. La
+                barra de color es la salida del centro de distribución.
+              </p>
+            </div>
+          )}
         </Tarjeta>
 
         {/* Incidencias */}
@@ -401,38 +504,73 @@ export default function TorreControl({
           </p>
         ) : (
           <div className="flex flex-col">
-            {ultimas.map((p) => (
-              <div key={p.id} className="flex gap-2.5 border-b border-dashed border-line py-2 last:border-0">
-                <span className="num shrink-0 pt-0.5 text-[11px] text-ink-3">
-                  {horaDe(p.hora_entrega)}
-                </span>
-                <span
-                  className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md text-[10px]"
-                  style={{
-                    background:
-                      p.estado_entrega === "entregado" ? "var(--color-ok-bg)"
-                      : p.estado_entrega === "fallido" ? "var(--color-bad-bg)"
-                      : "var(--color-warn-bg)",
-                    color:
-                      p.estado_entrega === "entregado" ? "var(--color-ok)"
-                      : p.estado_entrega === "fallido" ? "var(--color-bad)"
-                      : "var(--color-warn)",
-                  }}
-                >
-                  {p.estado_entrega === "entregado" ? "✓" : p.estado_entrega === "fallido" ? "✕" : "!"}
-                </span>
-                <div className="min-w-0 text-[12px] text-ink-2">
-                  <b className="block text-[12.5px] text-ink">{p.nombre}</b>
-                  {p.estado_entrega === "entregado"
-                    ? `${p.bultos} bultos${p.recibe ? ` · recibe ${p.recibe}` : ""}`
-                    : queLePaso(p)}
-                  {p.foto_url && <FotoEntrega ruta={p.foto_url} />}
-                </div>
-              </div>
+            {ultimas.map((e) => (
+              <LineaActividad key={e.id} evento={e} />
             ))}
           </div>
         )}
       </aside>
+    </div>
+  );
+}
+
+/** Un paso del registro, contado en una línea. */
+function LineaActividad({ evento }: { evento: Evento }) {
+  const ruta = `R-${String(evento.ruta_indice + 1).padStart(2, "0")}`;
+  const d = evento.datos as {
+    desde?: string;
+    motivo?: string;
+    bultos_entregados?: number;
+    recibe?: string;
+    corregida?: boolean;
+    reconstruido?: boolean;
+  };
+
+  // «plan» no tiene color propio en el tema: es el gris del lienzo, así que
+  // aquí se escribe a mano en vez de componer un nombre de variable que no
+  // existe y dejar el cuadrito transparente.
+  const marca =
+    evento.tipo === "ruta_iniciada" ? { icono: "▶", fondo: "var(--color-live-bg)", tinta: "var(--color-live)" }
+    : evento.tipo === "ruta_terminada" ? { icono: "⏹", fondo: "var(--color-ok-bg)", tinta: "var(--color-ok)" }
+    : evento.tipo === "entregado" ? { icono: "✓", fondo: "var(--color-ok-bg)", tinta: "var(--color-ok)" }
+    : evento.tipo === "fallido" ? { icono: "✕", fondo: "var(--color-bad-bg)", tinta: "var(--color-bad)" }
+    : evento.tipo === "pendiente" ? { icono: "↺", fondo: "var(--color-canvas)", tinta: "var(--color-ink-2)" }
+    : { icono: "!", fondo: "var(--color-warn-bg)", tinta: "var(--color-warn)" };
+
+  const titulo =
+    evento.tipo === "ruta_iniciada" ? `${ruta} salió del CD`
+    : evento.tipo === "ruta_terminada" ? `${ruta} terminó su ruta`
+    : (evento.parada ?? "Parada");
+
+  const detalle: string[] = [];
+  if (evento.tipo === "entregado" && d.bultos_entregados != null) {
+    detalle.push(`${d.bultos_entregados} bultos`);
+  }
+  if (evento.tipo === "parcial" && d.bultos_entregados != null) {
+    detalle.push(`entregó ${d.bultos_entregados}`);
+  }
+  if (d.recibe) detalle.push(`recibe ${d.recibe}`);
+  if (d.motivo) detalle.push(d.motivo);
+  // Una marca que pisa a otra es información: alguien se equivocó y corrigió.
+  if (d.corregida && d.desde) detalle.push(`corregida desde «${ESTADO_TEXTO[d.desde] ?? d.desde}»`);
+  if (evento.autor) detalle.push(evento.autor);
+  if (d.reconstruido) detalle.push("reconstruido");
+
+  return (
+    <div className="flex gap-2.5 border-b border-dashed border-line py-2 last:border-0">
+      <span className="num shrink-0 pt-0.5 text-[11px] text-ink-3">
+        {horaDe(evento.ocurrido_en)}
+      </span>
+      <span
+        className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md text-[10px]"
+        style={{ background: marca.fondo, color: marca.tinta }}
+      >
+        {marca.icono}
+      </span>
+      <div className="min-w-0 text-[12px] text-ink-2">
+        <b className="block text-[12.5px] text-ink">{titulo}</b>
+        {detalle.length > 0 && detalle.join(" · ")}
+      </div>
     </div>
   );
 }
