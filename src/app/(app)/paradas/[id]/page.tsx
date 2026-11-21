@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { fichaParada, historialParada } from "@/app/acciones/datos";
+import { fichaParada, historialParada, itemsDeParada } from "@/app/acciones/datos";
 import { BarraSuperior } from "@/components/ui";
 import FichaParada from "@/components/FichaParada";
 
@@ -23,9 +23,10 @@ export default async function PaginaParada({
   const sesion = await auth();
   if (!sesion?.user) redirect("/login");
 
-  const [parada, historial] = await Promise.all([
+  const [parada, historial, items] = await Promise.all([
     fichaParada(id),
     historialParada(id),
+    itemsDeParada(id),
   ]);
 
   if (!parada) notFound();
@@ -51,7 +52,7 @@ export default async function PaginaParada({
           </Link>
         }
       />
-      <FichaParada parada={parada} historial={historial} />
+      <FichaParada parada={parada} historial={historial} items={items} />
     </>
   );
 }

@@ -7,6 +7,7 @@ import {
   comentarios as traerComentarios,
   type Comentario,
   type Evento,
+  type Item,
   type ParadaFicha,
 } from "@/app/acciones/datos";
 import { verFoto } from "@/app/acciones/fotos";
@@ -36,9 +37,11 @@ const corta = (t: string | null) => (t ? t.slice(0, 5) : "—");
 export default function FichaParada({
   parada: p,
   historial,
+  items,
 }: {
   parada: ParadaFicha;
   historial: Evento[];
+  items: Item[];
 }) {
   const estado = ESTADO[p.estado_entrega] ?? { texto: p.estado_entrega, tono: "live" as const };
 
@@ -46,11 +49,13 @@ export default function FichaParada({
     <div className="grid grid-cols-1 gap-3 p-3 @3xl:grid-cols-[1fr_340px]">
       <div className="min-w-0 space-y-3">
         <Resumen parada={p} estado={estado} />
+        {items.length > 0 && <Articulos items={items} />}
         <PruebaDeEntrega parada={p} />
         <Comentarios paradaId={p.id} />
       </div>
 
       <div className="min-w-0 space-y-3">
+        {Object.keys(p.extra).length > 0 && <CamposDelCliente extra={p.extra} />}
         <Historial historial={historial} />
       </div>
     </div>
@@ -211,6 +216,94 @@ function PruebaDeEntrega({ parada: p }: { parada: ParadaFicha }) {
           )}
         </div>
       )}
+    </Tarjeta>
+  );
+}
+
+/**
+ * Los artículos del pedido.
+ *
+ * Un número de bultos dice cuánto ocupa, no qué es. Cuando el cliente
+ * reclama por una cocina que no llegó, la conversación es sobre el artículo,
+ * no sobre «cuatro bultos».
+ */
+function Articulos({ items }: { items: Item[] }) {
+  const total = items.reduce((a, i) => a + Number(i.cantidad), 0);
+  const hechos = items.reduce(
+    (a, i) => a + Number(i.entregados ?? 0),
+    0,
+  );
+  const marcados = items.some((i) => i.entregados != null);
+  const valor = items.reduce(
+    (a, i) => a + Number(i.precio ?? 0) * Number(i.cantidad),
+    0,
+  );
+
+  return (
+    <Tarjeta className="overflow-hidden">
+      <div className="flex flex-wrap items-center gap-2 border-b border-line px-3.5 py-2">
+        <h3 className="text-[13.5px] font-bold">Artículos</h3>
+        <span className="num text-[12px] text-ink-3">{items.length}</span>
+        {marcados && (
+          <Pastilla tono={hechos === total ? "ok" : "warn"}>
+            {hechos} de {total} entregados
+          </Pastilla>
+        )}
+        {valor > 0 && (
+          <span className="num ml-auto text-[12px] text-ink-3">
+            S/ {valor.toFixed(2)}
+          </span>
+        )}
+      </div>
+      <table className="w-full border-collapse text-[12.5px]">
+        <tbody>
+          {items.map((i) => (
+            <tr key={i.id}>
+              <td className="border-b border-line px-3.5 py-1.5">
+                <span className="font-semibold text-ink">{i.nombre}</span>
+                {i.codigo && (
+                  <span className="num block text-[11px] text-ink-3">{i.codigo}</span>
+                )}
+              </td>
+              <td className="num border-b border-line px-3 py-1.5 text-right">
+                {i.entregados != null && Number(i.entregados) !== Number(i.cantidad)
+                  ? `${Number(i.entregados)}/${Number(i.cantidad)}`
+                  : Number(i.cantidad)}
+              </td>
+              <td className="num border-b border-line px-3 py-1.5 text-right text-ink-3">
+                {i.precio != null ? `S/ ${Number(i.precio).toFixed(2)}` : "—"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Tarjeta>
+  );
+}
+
+/**
+ * Las columnas que trae el archivo del cliente y la aplicación no interpreta.
+ *
+ * Número de pedido, canal de venta, guía de remisión: cada empresa manda las
+ * suyas. Antes se perdían al leer el archivo; ahora se guardan tal cual y se
+ * muestran sin que haga falta tocar el esquema por cada cliente nuevo.
+ */
+function CamposDelCliente({ extra }: { extra: Record<string, string> }) {
+  return (
+    <Tarjeta className="overflow-hidden">
+      <div className="border-b border-line px-3.5 py-2">
+        <h3 className="text-[13.5px] font-bold">Datos del archivo</h3>
+      </div>
+      <dl className="divide-y divide-line">
+        {Object.entries(extra).map(([k, v]) => (
+          <div key={k} className="px-3.5 py-1.5">
+            <dt className="text-[10px] font-bold uppercase tracking-[0.1em] text-ink-3">
+              {k}
+            </dt>
+            <dd className="break-words text-[12.5px] text-ink-2">{v}</dd>
+          </div>
+        ))}
+      </dl>
     </Tarjeta>
   );
 }

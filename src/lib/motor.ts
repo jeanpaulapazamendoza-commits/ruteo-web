@@ -18,6 +18,9 @@ export type TiendaMapa = {
   prioridad: number;
   ventana_ini: string | null;
   ventana_fin: string | null;
+  /** Artículos y columnas propias del cliente, si el archivo los traía. */
+  items?: { codigo: string | null; nombre: string; cantidad: number; precio: number | null }[];
+  extra?: Record<string, string>;
 };
 
 export type Grupo = {

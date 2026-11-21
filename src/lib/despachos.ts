@@ -116,6 +116,8 @@ export async function crearDespachoCargado({
         prioridad: p.prioridad,
         ventana_ini: p.ventana_ini,
         ventana_fin: p.ventana_fin,
+        items: p.items ?? [],
+        extra: p.extra ?? {},
       })),
     },
   });
@@ -180,6 +182,10 @@ export async function guardarDespacho({
           eta: hora(p.eta),
           ventana_ini: hora(origen?.ventana_ini),
           ventana_fin: hora(origen?.ventana_fin),
+          // Los artículos y las columnas del cliente los conoce el punto
+          // original: el motor solo devuelve geometría y orden.
+          items: origen?.items ?? [],
+          extra: origen?.extra ?? {},
         };
       }),
     };
@@ -212,6 +218,8 @@ export async function guardarDespacho({
         lon: p.lon,
         bultos: p.bultos,
         prioridad: p.prioridad,
+        items: p.items ?? [],
+        extra: p.extra ?? {},
         ventana_ini: hora(p.ventana_ini),
         ventana_fin: hora(p.ventana_fin),
       })),

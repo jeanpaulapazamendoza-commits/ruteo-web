@@ -11,6 +11,13 @@ import type { TiendaMapa } from "@/lib/motor";
 /** Un punto tal como lo maneja el planificador (venga de archivo o de la base). */
 export type PuntoPlan = TiendaMapa;
 
+export type ItemFila = {
+  codigo: string | null;
+  nombre: string;
+  cantidad: number;
+  precio: number | null;
+};
+
 export type FilaTienda = {
   codigo: string;
   nombre: string;
@@ -21,6 +28,17 @@ export type FilaTienda = {
   prioridad: number;
   ventana_ini: string | null;
   ventana_fin: string | null;
+  /** Los artículos que lleva el punto, si el archivo los trae. */
+  items: ItemFila[];
+  /**
+   * Las columnas que la aplicación no conoce, tal cual venían.
+   *
+   * Cada cliente manda las suyas —número de pedido, canal de venta, guía de
+   * remisión— y antes se perdían al leer el archivo. Guardarlas sin
+   * interpretarlas deja que se vean y se busquen sin que haga falta tocar el
+   * esquema cada vez que entra un cliente nuevo.
+   */
+  extra: Record<string, string>;
 };
 
 /**
@@ -46,8 +64,14 @@ export type ResultadoLectura = {
   totalLeidas: number;
 };
 
-/** Nombres aceptados para cada campo (el primero es el de la plantilla). */
-const ALIAS: Record<keyof FilaTienda, string[]> = {
+/**
+ * Nombres aceptados para cada campo del punto. `items` y `extra` no están
+ * aquí: no son una columna del archivo, se arman con lo que sobra.
+ */
+const ALIAS: Record<
+  Exclude<keyof FilaTienda, "items" | "extra">,
+  string[]
+> = {
   codigo: ["codigo_sucursal", "codigo", "code", "id", "sku"],
   nombre: ["name_sucursal", "nombre", "tienda", "name", "razon_social"],
   distrito: ["distrito", "zona", "district", "sector"],
@@ -58,6 +82,14 @@ const ALIAS: Record<keyof FilaTienda, string[]> = {
   ventana_ini: ["hora_inicio", "ventana_ini", "hora_ini", "desde", "apertura"],
   ventana_fin: ["hora_fin", "ventana_fin", "hasta", "cierre"],
 };
+
+/** Columnas de artículo. Si no están, el archivo es de un punto por fila. */
+const ALIAS_ITEM = {
+  codigo: ["item_codigo", "sku", "codigo_articulo", "codigo_producto", "cod_item"],
+  nombre: ["item_nombre", "articulo", "producto", "descripcion", "item"],
+  cantidad: ["item_cantidad", "cantidad", "unidades", "qty"],
+  precio: ["item_precio", "precio", "importe", "valor"],
+} as const;
 
 /** Quita tildes, espacios y signos para comparar encabezados. */
 function normalizar(texto: string) {
@@ -72,10 +104,10 @@ function normalizar(texto: string) {
 /** Empareja los encabezados del archivo con los campos conocidos. */
 export function mapearColumnas(encabezados: string[]) {
   const normalizados = encabezados.map(normalizar);
-  const mapa: Partial<Record<keyof FilaTienda, number>> = {};
+  const mapa: Partial<Record<keyof typeof ALIAS, number>> = {};
   const detectadas: Record<string, string> = {};
 
-  (Object.keys(ALIAS) as (keyof FilaTienda)[]).forEach((campo) => {
+  (Object.keys(ALIAS) as (keyof typeof ALIAS)[]).forEach((campo) => {
     for (const alias of ALIAS[campo]) {
       const i = normalizados.indexOf(normalizar(alias));
       if (i !== -1) {
@@ -86,7 +118,30 @@ export function mapearColumnas(encabezados: string[]) {
     }
   });
 
-  return { mapa, detectadas };
+  // Las columnas de artículo van en su propio mapa: comparten nombres con
+  // las del punto («cantidad» puede ser bultos o unidades del artículo) y
+  // mezclarlas haría que una tabla de pedidos se leyera al revés.
+  const mapaItem: Partial<Record<keyof typeof ALIAS_ITEM, number>> = {};
+  (Object.keys(ALIAS_ITEM) as (keyof typeof ALIAS_ITEM)[]).forEach((campo) => {
+    for (const alias of ALIAS_ITEM[campo]) {
+      const i = normalizados.indexOf(normalizar(alias));
+      if (i !== -1 && !Object.values(mapa).includes(i)) {
+        mapaItem[campo] = i;
+        return;
+      }
+    }
+  });
+
+  // Todo lo demás es del cliente y se guarda tal cual.
+  const usadas = new Set([
+    ...Object.values(mapa),
+    ...Object.values(mapaItem),
+  ]);
+  const extras = encabezados
+    .map((nombre, i) => ({ nombre: nombre.trim(), i }))
+    .filter((c) => c.nombre && !usadas.has(c.i));
+
+  return { mapa, mapaItem, extras, detectadas };
 }
 
 function aNumero(v: unknown): number | null {
@@ -271,7 +326,11 @@ export function interpretarFilas(matriz: unknown[][]): ResultadoLectura {
   }
 
   const encabezados = (matriz[0] ?? []).map((c) => String(c ?? ""));
-  const { mapa, detectadas } = mapearColumnas(encabezados);
+  const { mapa, mapaItem, extras, detectadas } = mapearColumnas(encabezados);
+  // Con columnas de artículo, varias filas con el mismo código son el mismo
+  // punto con varios artículos; sin ellas, un código repetido sigue siendo
+   // un error, que es lo que era antes.
+  const porArticulos = mapaItem.nombre !== undefined || mapaItem.codigo !== undefined;
 
   if (mapa.lat === undefined || mapa.lon === undefined) {
     return {
@@ -319,7 +378,33 @@ export function interpretarFilas(matriz: unknown[][]): ResultadoLectura {
       mapa.codigo !== undefined ? String(fila[mapa.codigo] ?? "").trim() : "";
     const codigo = codigoBruto || `T-${nFila - 1}`;
 
+    const leerItem = (): ItemFila | null => {
+      if (!porArticulos) return null;
+      const nombreItem =
+        mapaItem.nombre !== undefined ? String(fila[mapaItem.nombre] ?? "").trim() : "";
+      const codigoItem =
+        mapaItem.codigo !== undefined ? String(fila[mapaItem.codigo] ?? "").trim() : "";
+      if (!nombreItem && !codigoItem) return null;
+      const cant = mapaItem.cantidad !== undefined ? aNumero(fila[mapaItem.cantidad]) : null;
+      return {
+        codigo: codigoItem || null,
+        nombre: nombreItem || codigoItem,
+        cantidad: cant !== null && cant > 0 ? cant : 1,
+        precio: mapaItem.precio !== undefined ? aNumero(fila[mapaItem.precio]) : null,
+      };
+    };
+
     if (vistos.has(codigo)) {
+      if (porArticulos) {
+        // Otra línea del mismo pedido: suma su artículo y sus bultos.
+        const previa = filas.find((f) => f.codigo === codigo);
+        const item = leerItem();
+        if (previa && item) {
+          previa.items.push(item);
+          previa.bultos_default += Math.round(item.cantidad);
+        }
+        return;
+      }
       errores.push({ fila: nFila, motivo: `Código repetido: ${codigo}` });
       return;
     }
@@ -348,6 +433,8 @@ export function interpretarFilas(matriz: unknown[][]): ResultadoLectura {
       vFin = null;
     }
 
+    const primerItem = leerItem();
+
     filas.push({
       codigo,
       nombre: nombreBruto || `Tienda ${codigo}`,
@@ -357,11 +444,19 @@ export function interpretarFilas(matriz: unknown[][]): ResultadoLectura {
           : null,
       lat,
       lon,
-      bultos_default: bultos !== null && bultos >= 0 ? Math.round(bultos) : 1,
+      bultos_default: bultos !== null && bultos >= 0 ? Math.round(bultos) : primerItem
+        ? Math.round(primerItem.cantidad)
+        : 1,
       prioridad:
         prioridad !== null ? Math.min(9, Math.max(0, Math.round(prioridad))) : 0,
       ventana_ini: vIni,
       ventana_fin: vFin,
+      items: primerItem ? [primerItem] : [],
+      extra: Object.fromEntries(
+        extras
+          .map((c) => [c.nombre, String(fila[c.i] ?? "").trim()])
+          .filter(([, v]) => v !== ""),
+      ),
     });
   });
 
@@ -442,6 +537,8 @@ export function aPuntos(filas: FilaTienda[]): PuntoPlan[] {
     prioridad: f.prioridad,
     ventana_ini: f.ventana_ini,
     ventana_fin: f.ventana_fin,
+    items: f.items,
+    extra: f.extra,
   }));
 }
 

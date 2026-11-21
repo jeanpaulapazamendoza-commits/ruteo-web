@@ -423,6 +423,8 @@ export type ParadaFicha = {
   intentos: number;
   /** Minutos entre la hora real y la estimada. Negativo es adelanto. */
   desvio_min: number | null;
+  /** Las columnas del archivo del cliente que la aplicación no interpreta. */
+  extra: Record<string, string>;
 };
 
 /** Todo lo que se sabe de una parada, para su ficha. */
@@ -434,7 +436,7 @@ export async function fichaParada(paradaId: string) {
             p.bultos_entregados, p.prioridad, p.eta, p.ventana_ini,
             p.ventana_fin, p.estado_entrega, p.hora_entrega, p.motivo,
             p.observaciones, p.recibe, p.foto_url, p.gps_lat, p.gps_lon,
-            p.orden, p.ruta_id, r.indice as ruta_indice,
+            p.orden, p.extra, p.ruta_id, r.indice as ruta_indice,
             c.nombre as conductor, v.placa, r.salida_real,
             d.id as despacho_id, d.nombre as despacho, d.fecha,
             i.nombre_archivo as archivo, d.cd_lat, d.cd_lon,
@@ -452,6 +454,26 @@ export async function fichaParada(paradaId: string) {
        left join importaciones i on i.id = d.importacion_id
       where p.id = $1`,
     [paradaId, ZONA],
+  );
+}
+
+export type Item = {
+  id: number;
+  codigo: string | null;
+  nombre: string;
+  cantidad: number;
+  entregados: number | null;
+  precio: number | null;
+};
+
+/** Los artículos de una parada, con lo que se entregó de cada uno. */
+export async function itemsDeParada(paradaId: string) {
+  const yo = await idSesion();
+  return comoUsuario<Item>(
+    yo,
+    `select id, codigo, nombre, cantidad, entregados, precio
+       from items where parada_id = $1 order by id`,
+    [paradaId],
   );
 }
 
