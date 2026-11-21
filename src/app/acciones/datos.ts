@@ -193,7 +193,7 @@ export async function estadoFlota(fecha?: string) {
        left join ultimo u on u.ruta_id = r.id
        left join donde  w on w.ruta_id = r.id
        left join movil  t on t.ruta_id = r.id
-      where not r.sin_asignar and d.fecha = coalesce($1::date, current_date)
+      where not r.sin_asignar and d.fecha = coalesce($1::date, private.hoy())
       order by r.salida_real desc nulls last, d.creado_en desc, r.indice`,
     [fecha ?? null, ZONA],
   );
@@ -275,6 +275,77 @@ export async function lineaTiempoDespacho(despachoId: string) {
       where r.despacho_id = $1 and not r.sin_asignar
       order by e.ocurrido_en, e.id`,
     [despachoId],
+  );
+}
+
+export type Alerta = {
+  clave: string;
+  tipo: "retraso" | "silencio" | "sin_salir" | "jornada" | "bateria" | "fallida";
+  severidad: "alta" | "media";
+  ruta_id: string;
+  indice: number;
+  despacho_id: string;
+  despacho: string | null;
+  conductor: string | null;
+  placa: string | null;
+  parada_id: string | null;
+  parada: string | null;
+  detalle: string;
+  minutos: number | null;
+  desde: string | null;
+  atendida: boolean;
+  atendida_por: string | null;
+  atendida_en: string | null;
+};
+
+/**
+ * Lo que requiere una decisión ahora mismo.
+ *
+ * Las alertas no se guardan: se calculan de los eventos y las paradas cada
+ * vez que se preguntan. Una alerta guardada hay que generarla con un proceso
+ * aparte, y en cuanto ese proceso falla la pantalla miente en silencio. Así
+ * no puede desincronizarse de los datos, al precio de una consulta.
+ *
+ * Lo único que sí se guarda es que alguien la atendió.
+ */
+export async function alertas(fecha?: string) {
+  const yo = await idSesion();
+  return comoUsuario<Alerta>(
+    yo,
+    "select * from public.alertas($1::date)",
+    [fecha ?? null],
+  );
+}
+
+/**
+ * Da una alerta por atendida, o la devuelve a la lista.
+ *
+ * Atenderla la calla hasta que vuelva a pasar algo en esa ruta: si el
+ * conductor marca otra vez y la condición sigue, el aviso reaparece. Así
+ * «ya llamé al chofer» no entierra el problema para siempre.
+ */
+export async function atenderAlerta(
+  clave: string,
+  rutaId: string,
+  atender: boolean,
+  nota?: string,
+) {
+  const yo = await idSesion();
+
+  if (!atender) {
+    await comoUsuario(yo, "delete from alertas_atendidas where clave = $1", [clave]);
+    return;
+  }
+
+  // `org_id` sale de la base y no del navegador, igual que en las zonas.
+  await comoUsuario(
+    yo,
+    `insert into alertas_atendidas (org_id, ruta_id, clave, atendida_por, nota)
+     select private.mi_org(), $1, $2, $3, $4
+     on conflict (org_id, clave) do update
+       set atendida_en = now(), atendida_por = excluded.atendida_por,
+           nota = excluded.nota`,
+    [rutaId, clave, yo, nota ?? null],
   );
 }
 

@@ -12,15 +12,16 @@ const SECCIONES = [
     enlaces: [
       { href: "/planificador", icono: "◈", texto: "Planificador" },
       { href: "/torre", icono: "◉", texto: "Torre de control" },
+      // Flota y Alertas son de turno, no de datos maestros: el día se mira
+      // aquí arriba, no en la sección de configuración.
+      { href: "/flota", icono: "▣", texto: "Flota" },
+      { href: "/alertas", icono: "△", texto: "Alertas" },
       { href: "/despachos", icono: "▤", texto: "Despachos" },
     ],
   },
   {
     titulo: "Datos",
-    enlaces: [
-      { href: "/zonas", icono: "⬡", texto: "Zonas de reparto" },
-      { href: "/flota", icono: "▣", texto: "Flota" },
-    ],
+    enlaces: [{ href: "/zonas", icono: "⬡", texto: "Zonas de reparto" }],
   },
 ];
 
