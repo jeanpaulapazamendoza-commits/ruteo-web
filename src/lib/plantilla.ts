@@ -28,6 +28,18 @@ export type FilaTienda = {
   prioridad: number;
   ventana_ini: string | null;
   ventana_fin: string | null;
+  /**
+   * La ficha del cliente, si el archivo la trae.
+   *
+   * No hace falta para rutear —para eso bastan las coordenadas— pero sin
+   * teléfono no se puede llamar al que no abre, y es justo lo que se busca
+   * cuando el conductor está parado en la puerta. Va al cliente, no a la
+   * parada: sigue sirviendo cuando el despacho de hoy esté archivado.
+   */
+  direccion: string | null;
+  telefono: string | null;
+  email: string | null;
+  contacto: string | null;
   /** Los artículos que lleva el punto, si el archivo los trae. */
   items: ItemFila[];
   /**
@@ -81,6 +93,10 @@ const ALIAS: Record<
   prioridad: ["prioridad", "priority", "urgencia"],
   ventana_ini: ["hora_inicio", "ventana_ini", "hora_ini", "desde", "apertura"],
   ventana_fin: ["hora_fin", "ventana_fin", "hasta", "cierre"],
+  direccion: ["direccion", "address", "domicilio", "calle"],
+  telefono: ["telefono", "celular", "phone", "movil", "contacto_telefono"],
+  email: ["email", "correo", "correo_electronico", "mail"],
+  contacto: ["contacto", "persona_contacto", "receptor", "responsable"],
 };
 
 /** Columnas de artículo. Si no están, el archivo es de un punto por fila. */
@@ -435,6 +451,10 @@ export function interpretarFilas(matriz: unknown[][]): ResultadoLectura {
 
     const primerItem = leerItem();
 
+    /** Una columna de texto opcional: vacía es `null`, no cadena vacía. */
+    const texto = (i: number | undefined) =>
+      i !== undefined ? String(fila[i] ?? "").trim() || null : null;
+
     filas.push({
       codigo,
       nombre: nombreBruto || `Tienda ${codigo}`,
@@ -451,6 +471,10 @@ export function interpretarFilas(matriz: unknown[][]): ResultadoLectura {
         prioridad !== null ? Math.min(9, Math.max(0, Math.round(prioridad))) : 0,
       ventana_ini: vIni,
       ventana_fin: vFin,
+      direccion: texto(mapa.direccion),
+      telefono: texto(mapa.telefono),
+      email: texto(mapa.email),
+      contacto: texto(mapa.contacto),
       items: primerItem ? [primerItem] : [],
       extra: Object.fromEntries(
         extras
@@ -537,6 +561,10 @@ export function aPuntos(filas: FilaTienda[]): PuntoPlan[] {
     prioridad: f.prioridad,
     ventana_ini: f.ventana_ini,
     ventana_fin: f.ventana_fin,
+    direccion: f.direccion,
+    telefono: f.telefono,
+    email: f.email,
+    contacto: f.contacto,
     items: f.items,
     extra: f.extra,
   }));
