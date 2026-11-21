@@ -134,6 +134,47 @@ export function rutear(tiendas: TiendaMapa[], grupos: string[][], cfg: ConfigRut
   }>("/rutear", { tiendas, grupos, ...cfg });
 }
 
+export type ConfigPlanificar = Omit<ConfigRutear, "tiempo_tsp"> & {
+  flota: ConfigAgrupar["flota"];
+  /** Segundos que se le dan al solver para mejorar la solución. */
+  tiempo_s: number;
+};
+
+export type ResumenPlan = {
+  tiendas: number;
+  vehiculos_disponibles: number;
+  vehiculos_usados: number;
+  sin_asignar: number;
+  /** Con qué distancias se decidió el reparto: por calles o estimadas. */
+  matriz: "calles" | "recta";
+  /** Si el solver partió de la agrupación de siempre o construyó la suya. */
+  desde_agrupacion: boolean;
+};
+
+/**
+ * Reparte y ordena en un solo cálculo.
+ *
+ * `agrupar` y luego `rutear` deciden por separado: primero se reparte por
+ * cercanía sin mirar ninguna hora, y después se ordena cada grupo por su
+ * cuenta. Si un grupo no puede cumplir sus ventanas horarias ya es tarde,
+ * porque la tienda no puede cambiarse de vehículo. Aquí se decide todo a la
+ * vez, con capacidad, ventanas y jornada como límites, y lo que no cabe
+ * vuelve en `motivos` con la razón.
+ *
+ * Devuelve las mismas formas que las otras dos juntas, así que el resultado
+ * se guarda igual.
+ */
+export function planificar(tiendas: TiendaMapa[], cfg: ConfigPlanificar) {
+  return pedir<{
+    grupos: Grupo[];
+    rutas: Ruta[];
+    sin_asignar: string[];
+    motivos: Record<string, string>;
+    totales: { rutas: number; km: number; duracion_min: number; costo: number; paradas: number };
+    resumen: ResumenPlan;
+  }>("/planificar", { tiendas, ...cfg });
+}
+
 export function tiendasEnSector(tiendas: TiendaMapa[], poligono: number[][]) {
   return pedir<{ ids: string[] }>("/tiendas-en-sector", { tiendas, poligono });
 }

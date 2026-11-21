@@ -16,7 +16,9 @@ const MOTOR =
 // Optimizar rutas puede tardar; damos margen antes de cortar.
 export const maxDuration = 120;
 
-const RUTAS_PERMITIDAS = new Set(["agrupar", "rutear", "tiendas-en-sector", "salud"]);
+const RUTAS_PERMITIDAS = new Set([
+  "agrupar", "rutear", "planificar", "tiendas-en-sector", "salud",
+]);
 
 export async function POST(
   peticion: Request,

@@ -5,9 +5,10 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  agrupar, rutear, tiendasEnSector,
+  agrupar, planificar, rutear, tiendasEnSector,
   type ConfigAgrupar, type ConfigRutear,
   type Grupo, type Ruta, type TiendaMapa,
+  type ResumenPlan,
 } from "@/lib/motor";
 import {
   crearDespachoCargado, guardarDespacho, estado,
@@ -135,7 +136,15 @@ export default function Planificador({
 
   const [rutas, setRutas] = useState<Ruta[]>([]);
   const [totales, setTotales] = useState<{ km: number; duracion_min: number; costo: number; rutas: number } | null>(null);
-  const [cargando, setCargando] = useState<null | "agrupar" | "rutear" | "sector" | "guardar">(null);
+  const [cargando, setCargando] = useState<
+    null | "agrupar" | "rutear" | "planificar" | "sector" | "guardar"
+  >(null);
+  // Lo que dejó el planificador de un solo paso: por qué quedó fuera cada
+  // tienda y cómo le fue. Se borra en cuanto se agrupa o se rutea a mano,
+  // porque entonces ya no describe lo que hay en pantalla.
+  const [motivos, setMotivos] = useState<Record<string, string>>({});
+  const [resumenPlan, setResumenPlan] = useState<ResumenPlan | null>(null);
+  const [tiempoPlan, setTiempoPlan] = useState(20);
   const [error, setError] = useState<string | null>(null);
   const [resaltado, setResaltado] = useState<number | null>(null);
   const [guardado, setGuardado] = useState<ResumenGuardado | null>(null);
@@ -213,6 +222,8 @@ export default function Planificador({
     setPuntosDibujo([]);
     setDibujando(false);
     setError(null);
+    setMotivos({});
+    setResumenPlan(null);
   }, []);
 
   function cambiarModo(m: Modo) {
@@ -332,6 +343,8 @@ export default function Planificador({
       setRutas([]);
       setTotales(null);
       setResaltado(null);
+      setMotivos({});
+      setResumenPlan(null);
       if (r.sobrecupo)
         setError("Los bultos no encajaron exactamente; algún grupo quedó al límite.");
     } catch (e) {
@@ -384,6 +397,37 @@ export default function Planificador({
       });
       setGuardado(res);
       router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCargando(null);
+    }
+  }
+
+  /**
+   * Reparte y ordena de una vez, con la flota y los parámetros de ruta.
+   *
+   * Hace en un solo cálculo lo que «Agrupar» y «Calcular rutas» hacen en dos:
+   * así las ventanas horarias y la jornada cuentan a la hora de decidir qué
+   * vehículo lleva cada tienda, y no solo después, cuando ya no tiene arreglo.
+   */
+  async function hacerPlanificar() {
+    if (!tiendas.length) return;
+    setCargando("planificar");
+    setError(null);
+    setGuardado(null);
+    try {
+      const { tiempo_tsp: _sinUso, ...ruta } = cfgR;
+      void _sinUso;
+      const r = await planificar(tiendas, { ...ruta, flota: cfgA.flota, tiempo_s: tiempoPlan });
+      setGruposAuto(r.grupos);
+      setSinAsignarAuto(r.sin_asignar);
+      setRutas(r.rutas);
+      setTotales(r.totales);
+      setMotivos(r.motivos);
+      setResumenPlan(r.resumen);
+      setResaltado(null);
+      if (!r.rutas.length) setError("Ninguna tienda cupo en la flota. Mira los motivos abajo.");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -1066,6 +1110,49 @@ export default function Planificador({
               onChange={(v) => setCfgR({ ...cfgR, tiempo_tsp: v })} />
           </Campo>
 
+          {/* Planificar de una vez. Solo con flota definida: el solver
+              necesita saber cuántos vehículos hay y cuánto carga cada uno. */}
+          {!esManual && modo === "capacidad" && cfgA.criterio === "flota" && (
+            <div className="mt-1 rounded-[8px] border border-amber/40 bg-amber-050 p-2.5">
+              <div className="text-[12.5px] font-bold text-ink">Planificar todo de una vez</div>
+              <p className="mt-0.5 text-[11.5px] leading-snug text-ink-2">
+                Reparte y ordena en un solo cálculo: las ventanas horarias, la
+                capacidad y la jornada son límites, no avisos. Lo que no quepa
+                queda sin asignar, con su motivo.
+              </p>
+              <div className="mt-2">
+                <Campo etiqueta="Segundos de cálculo, como máximo">
+                  <Numero valor={tiempoPlan} min={5} max={60} onChange={setTiempoPlan} />
+                </Campo>
+                <button
+                  onClick={hacerPlanificar}
+                  disabled={cargando !== null || !tiendas.length}
+                  className="mt-2 w-full whitespace-nowrap rounded-full border border-navy-800 bg-navy-800 px-3 py-2 text-[13px] font-semibold text-white transition hover:bg-navy-700 disabled:opacity-50"
+                >
+                  {cargando === "planificar" ? "Planificando…" : "⚡ Planificar flota"}
+                </button>
+              </div>
+              {resumenPlan && (
+                <p className="mt-2 text-[11.5px] text-ink-2">
+                  Usó <b className="num">{resumenPlan.vehiculos_usados}</b> de{" "}
+                  <b className="num">{resumenPlan.vehiculos_disponibles}</b> vehículos
+                  {resumenPlan.sin_asignar > 0 && (
+                    <> · <b className="num text-warn">{resumenPlan.sin_asignar}</b> sin asignar</>
+                  )}
+                  {" · "}
+                  {resumenPlan.matriz === "calles"
+                    ? "reparto decidido por calles reales"
+                    : "reparto decidido con distancias estimadas"}
+                  {" · "}
+                  {resumenPlan.desde_agrupacion
+                    ? "partió de la agrupación habitual"
+                    : "construyó su propio reparto"}
+                  .
+                </p>
+              )}
+            </div>
+          )}
+
           <button
             onClick={hacerRutear}
             disabled={cargando !== null || !grupos.length}
@@ -1279,8 +1366,31 @@ export default function Planificador({
             <p className="mt-1.5 text-[12px] text-ink-2">
               {esManual
                 ? "Tiendas libres (grises en el mapa). Selecciónalas con un sector o haciendo clic."
-                : "No entraron en la flota. Sube las vueltas, agrega vehículos o reduce la carga."}
+                : Object.keys(motivos).length
+                  ? "El planificador las dejó fuera. Por qué:"
+                  : "No entraron en la flota. Sube las vueltas, agrega vehículos o reduce la carga."}
             </p>
+            {/* Agrupadas por motivo: con veinte tiendas fuera, veinte líneas
+                iguales no dicen más que una con el número delante. */}
+            {!esManual && Object.keys(motivos).length > 0 && (
+              <ul className="mt-1.5 space-y-1.5">
+                {Object.entries(
+                  sinAsignar.reduce<Record<string, string[]>>((acc, id) => {
+                    const m = motivos[id] ?? "Sin motivo registrado.";
+                    (acc[m] ??= []).push(porId.get(id)?.nombre || porId.get(id)?.codigo || id);
+                    return acc;
+                  }, {}),
+                ).map(([motivo, nombres]) => (
+                  <li key={motivo} className="text-[11.5px] leading-snug text-ink-2">
+                    <b className="num text-ink">{nombres.length}</b> · {motivo}
+                    <span className="block text-ink-3">
+                      {nombres.slice(0, 6).join(", ")}
+                      {nombres.length > 6 ? ` y ${nombres.length - 6} más` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
       </aside>
