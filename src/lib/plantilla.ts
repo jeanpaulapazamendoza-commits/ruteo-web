@@ -23,9 +23,25 @@ export type FilaTienda = {
   ventana_fin: string | null;
 };
 
+/**
+ * Una coordenada que el archivo da por buena pero que probablemente no lo es.
+ *
+ * No son errores: la fila entra igual. Son puntos que, de pasar sin mirar,
+ * mandan a un conductor al otro lado de la ciudad o al medio del Atlántico.
+ * Cuesta mucho menos revisarlos antes de rutear que descubrirlos a las once
+ * de la mañana con el camión parado.
+ */
+export type AvisoCoordenada = {
+  fila: number;
+  codigo: string;
+  tipo: "invertida" | "nula" | "lejos" | "repetida" | "redonda";
+  motivo: string;
+};
+
 export type ResultadoLectura = {
   filas: FilaTienda[];
   errores: { fila: number; motivo: string }[];
+  avisos: AvisoCoordenada[];
   columnasDetectadas: Record<string, string>;
   totalLeidas: number;
 };
@@ -118,6 +134,124 @@ export function aHora(v: unknown): string | null {
   return null;
 }
 
+/** Distancia en kilómetros entre dos coordenadas. */
+function km(aLat: number, aLon: number, bLat: number, bLon: number) {
+  const R = 6371;
+  const rad = Math.PI / 180;
+  const dLat = (bLat - aLat) * rad;
+  const dLon = (bLon - aLon) * rad;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(aLat * rad) * Math.cos(bLat * rad) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/** La mediana aguanta los puntos disparatados; el promedio no. */
+function mediana(xs: number[]) {
+  if (!xs.length) return 0;
+  const o = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(o.length / 2);
+  return o.length % 2 ? o[m] : (o[m - 1] + o[m]) / 2;
+}
+
+/** Cuántos decimales trae el número, mirando su texto. */
+function decimales(n: number) {
+  const s = String(n);
+  const i = s.indexOf(".");
+  return i === -1 ? 0 : s.length - i - 1;
+}
+
+/**
+ * Revisa las coordenadas ya leídas contra el conjunto, no una por una.
+ *
+ * Un punto en (-77, -12) es perfectamente válido para Postgres: cae en el
+ * Atlántico, frente a África. Solo se sabe que está mal porque las otras
+ * doscientas filas están en Lima. Por eso esto va al final y no dentro del
+ * bucle que lee cada fila.
+ */
+export function revisarCoordenadas(
+  filas: FilaTienda[],
+  numeroDeFila: (codigo: string) => number,
+): AvisoCoordenada[] {
+  const avisos: AvisoCoordenada[] = [];
+  if (!filas.length) return avisos;
+
+  const centroLat = mediana(filas.map((f) => f.lat));
+  const centroLon = mediana(filas.map((f) => f.lon));
+
+  // El umbral se saca del propio archivo: un reparto urbano y uno regional
+  // no tienen la misma idea de «lejos». Se toma diez veces la distancia
+  // típica al centro, con un suelo de 60 km para que un archivo muy
+  // compacto no marque media ciudad.
+  const distancias = filas.map((f) => km(centroLat, centroLon, f.lat, f.lon));
+  const limite = Math.max(60, mediana(distancias) * 10);
+
+  // Coordenadas repetidas al metro: casi siempre es el valor por defecto que
+  // alguien dejó en el maestro, no doscientas tiendas en el mismo portal.
+  const porPunto = new Map<string, number>();
+  filas.forEach((f) =>
+    porPunto.set(
+      `${f.lat.toFixed(5)},${f.lon.toFixed(5)}`,
+      (porPunto.get(`${f.lat.toFixed(5)},${f.lon.toFixed(5)}`) ?? 0) + 1,
+    ),
+  );
+
+  filas.forEach((f, i) => {
+    const fila = numeroDeFila(f.codigo);
+    const dist = distancias[i];
+
+    if (Math.abs(f.lat) < 0.5 && Math.abs(f.lon) < 0.5) {
+      avisos.push({
+        fila, codigo: f.codigo, tipo: "nula",
+        motivo: "Coordenada en (0, 0): el punto no llegó a geolocalizarse",
+      });
+      return;
+    }
+
+    // Invertir el par acerca el punto al resto: la causa más común de un
+    // punto perdido es que las columnas vinieran cambiadas.
+    if (dist > limite) {
+      const alReves = km(centroLat, centroLon, f.lon, f.lat);
+      if (
+        Math.abs(f.lon) <= 90 &&
+        alReves < dist / 10 &&
+        alReves <= limite
+      ) {
+        avisos.push({
+          fila, codigo: f.codigo, tipo: "invertida",
+          motivo: `Parece latitud y longitud cambiadas: al invertirlas cae a ${Math.round(alReves)} km del resto, en vez de ${Math.round(dist)}`,
+        });
+        return;
+      }
+      avisos.push({
+        fila, codigo: f.codigo, tipo: "lejos",
+        motivo: `A ${Math.round(dist)} km del resto de los puntos`,
+      });
+      return;
+    }
+
+    const repetidas = porPunto.get(`${f.lat.toFixed(5)},${f.lon.toFixed(5)}`) ?? 1;
+    if (repetidas >= 3) {
+      avisos.push({
+        fila, codigo: f.codigo, tipo: "repetida",
+        motivo: `${repetidas} puntos con exactamente la misma coordenada`,
+      });
+      return;
+    }
+
+    // Dos decimales son algo más de un kilómetro de error: sirve para pintar
+    // un mapa, no para mandar a alguien a una puerta.
+    if (decimales(f.lat) <= 2 && decimales(f.lon) <= 2) {
+      avisos.push({
+        fila, codigo: f.codigo, tipo: "redonda",
+        motivo: "Coordenada con muy pocos decimales: el punto puede estar a más de un kilómetro",
+      });
+    }
+  });
+
+  return avisos;
+}
+
 /**
  * Convierte las filas crudas del archivo en tiendas listas para guardar.
  * `matriz[0]` debe ser la fila de encabezados.
@@ -130,6 +264,7 @@ export function interpretarFilas(matriz: unknown[][]): ResultadoLectura {
     return {
       filas,
       errores: [{ fila: 0, motivo: "El archivo está vacío." }],
+      avisos: [],
       columnasDetectadas: {},
       totalLeidas: 0,
     };
@@ -148,6 +283,7 @@ export function interpretarFilas(matriz: unknown[][]): ResultadoLectura {
             "No encontré las columnas de latitud y longitud. Revisa que el archivo tenga encabezados como 'latitud' y 'longitud'.",
         },
       ],
+      avisos: [],
       columnasDetectadas: detectadas,
       totalLeidas: 0,
     };
@@ -155,6 +291,9 @@ export function interpretarFilas(matriz: unknown[][]): ResultadoLectura {
 
   const cuerpo = matriz.slice(1);
   const vistos = new Set<string>();
+  // Se guarda de qué fila del archivo salió cada código para que el aviso
+  // diga «fila 87» y no «el punto T-0412», que no se busca en Excel.
+  const filaDe = new Map<string, number>();
 
   cuerpo.forEach((fila, i) => {
     const nFila = i + 2; // +1 por encabezado, +1 porque Excel empieza en 1
@@ -185,6 +324,7 @@ export function interpretarFilas(matriz: unknown[][]): ResultadoLectura {
       return;
     }
     vistos.add(codigo);
+    filaDe.set(codigo, nFila);
 
     const nombreBruto =
       mapa.nombre !== undefined ? String(fila[mapa.nombre] ?? "").trim() : "";
@@ -228,6 +368,7 @@ export function interpretarFilas(matriz: unknown[][]): ResultadoLectura {
   return {
     filas,
     errores,
+    avisos: revisarCoordenadas(filas, (c) => filaDe.get(c) ?? 0),
     columnasDetectadas: detectadas,
     totalLeidas: cuerpo.length,
   };

@@ -278,6 +278,45 @@ export async function lineaTiempoDespacho(despachoId: string) {
   );
 }
 
+export type Importacion = {
+  id: string;
+  nombre_archivo: string;
+  filas: number | null;
+  creado_en: string;
+  autor: string | null;
+  /** Cuántos despachos salieron de este archivo. Cero es un archivo huérfano. */
+  despachos: number;
+  despacho_id: string | null;
+  despacho: string | null;
+  estado: string | null;
+};
+
+/**
+ * Qué se ha subido y en qué acabó.
+ *
+ * La tabla `importaciones` existía desde el principio y no había ninguna
+ * pantalla que la mirase: no se podía responder quién subió el archivo de
+ * ayer ni por qué un archivo cargado no llegó a rutearse nunca.
+ */
+export async function importaciones(limite = 60) {
+  const yo = await idSesion();
+  return comoUsuario<Importacion>(
+    yo,
+    `select i.id, i.nombre_archivo, i.filas, i.creado_en, a.nombre as autor,
+            (select count(*) from despachos d where d.importacion_id = i.id) as despachos,
+            u.id as despacho_id, u.nombre as despacho, u.estado
+       from importaciones i
+       left join perfiles a on a.id = i.creado_por
+       left join lateral (
+         select d.id, d.nombre, d.estado from despachos d
+          where d.importacion_id = i.id
+          order by d.creado_en desc limit 1) u on true
+      order by i.creado_en desc
+      limit $1`,
+    [limite],
+  );
+}
+
 export type Alerta = {
   clave: string;
   tipo: "retraso" | "silencio" | "sin_salir" | "jornada" | "bateria" | "fallida";

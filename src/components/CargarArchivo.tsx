@@ -44,12 +44,15 @@ export default function CargarArchivo({
   const [nombre, setNombre] = useState("");
   const [alias, setAlias] = useState("");
   const [fallo, setFallo] = useState<string | null>(null);
+  // Códigos que el usuario decidió dejar fuera tras ver los avisos.
+  const [excluidos, setExcluidos] = useState<Set<string>>(new Set());
 
   async function alElegirArchivo(e: React.ChangeEvent<HTMLInputElement>) {
     const archivo = e.target.files?.[0];
     if (!archivo) return;
     setFallo(null);
     setLectura(null);
+    setExcluidos(new Set());
     setNombre(archivo.name);
     // Un nombre por defecto que ya sirve: la fecha de hoy. Se puede cambiar,
     // pero nunca queda un ruteo sin forma de identificarlo.
@@ -66,11 +69,23 @@ export default function CargarArchivo({
 
   function usar(modo: "reemplazar" | "anadir") {
     if (!lectura?.filas.length) return;
-    onListo(aPuntos(lectura.filas), nombre || "archivo.csv", modo, alias.trim());
+    const quedan = lectura.filas.filter((f) => !excluidos.has(f.codigo));
+    if (!quedan.length) return;
+    onListo(aPuntos(quedan), nombre || "archivo.csv", modo, alias.trim());
     setLectura(null);
+    setExcluidos(new Set());
     setNombre("");
     setAlias("");
     if (inputArchivo.current) inputArchivo.current.value = "";
+  }
+
+  function alternarExcluido(codigo: string) {
+    setExcluidos((previos) => {
+      const s = new Set(previos);
+      if (s.has(codigo)) s.delete(codigo);
+      else s.add(codigo);
+      return s;
+    });
   }
 
   return (
@@ -146,6 +161,16 @@ export default function CargarArchivo({
                 <b className="num">{lectura.errores.length}</b> con problemas
               </span>
             )}
+            {lectura.avisos.length > 0 && (
+              <span className="text-bad">
+                <b className="num">{lectura.avisos.length}</b> con coordenada dudosa
+              </span>
+            )}
+            {excluidos.size > 0 && (
+              <span className="text-ink-3">
+                <b className="num">{excluidos.size}</b> excluidos
+              </span>
+            )}
           </div>
 
           {Object.keys(lectura.columnasDetectadas).length > 0 && (
@@ -175,6 +200,62 @@ export default function CargarArchivo({
             </details>
           )}
 
+          {/* Los avisos van abiertos y antes del nombre del ruteo: son filas
+              que el archivo da por buenas y que, de pasar sin mirar, mandan
+              a un conductor al otro lado de la ciudad. */}
+          {lectura.avisos.length > 0 && (
+            <div className="mt-3 rounded-[10px] border border-bad/30 bg-bad-bg p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <b className="text-[13px] text-bad">
+                  Revisa estas coordenadas antes de rutear
+                </b>
+                <button
+                  onClick={() =>
+                    setExcluidos((prev) =>
+                      prev.size === lectura.avisos.length
+                        ? new Set()
+                        : new Set(lectura.avisos.map((a) => a.codigo)),
+                    )
+                  }
+                  className="ml-auto rounded-[8px] border border-line-strong bg-surface px-2.5 py-1 text-[12px] font-semibold transition hover:bg-canvas"
+                >
+                  {excluidos.size === lectura.avisos.length
+                    ? "Volver a incluirlos"
+                    : "Excluirlos todos del día"}
+                </button>
+              </div>
+              <p className="mt-1 text-[12px] text-ink-2">
+                El archivo las da por válidas, pero no cuadran con el resto de
+                los puntos. Excluir una la deja fuera del ruteo de hoy; el
+                archivo no se toca.
+              </p>
+
+              <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-[12px]">
+                {lectura.avisos.slice(0, 80).map((a) => (
+                  <li key={a.codigo} className="flex items-start gap-2">
+                    <input
+                      type="checkbox"
+                      checked={excluidos.has(a.codigo)}
+                      onChange={() => alternarExcluido(a.codigo)}
+                      title="Dejar este punto fuera del ruteo de hoy"
+                      className="mt-0.5 shrink-0"
+                    />
+                    <span className={excluidos.has(a.codigo) ? "text-ink-3 line-through" : "text-ink-2"}>
+                      <span className="num font-semibold">Fila {a.fila}</span>
+                      {" · "}
+                      <span className="num">{a.codigo}</span>
+                      {" · "}
+                      {a.motivo}
+                    </span>
+                  </li>
+                ))}
+                {lectura.avisos.length > 80 && (
+                  <li className="text-ink-3">…y {lectura.avisos.length - 80} más</li>
+                )}
+              </ul>
+            </div>
+          )}
+
           {lectura.filas.length > 0 && (
             <label className="mt-3 block">
               <span className="mb-1 block text-[11.5px] font-semibold text-ink-2">
@@ -199,8 +280,8 @@ export default function CargarArchivo({
                 className="rounded-[9px] border border-amber-600 bg-amber px-4 py-2 text-[13px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white"
               >
                 {hayPuntos
-                  ? `Reemplazar por estos ${lectura.filas.length}`
-                  : `Planificar estos ${lectura.filas.length} puntos`}
+                  ? `Reemplazar por estos ${lectura.filas.length - excluidos.size}`
+                  : `Planificar estos ${lectura.filas.length - excluidos.size} puntos`}
               </button>
               {hayPuntos && (
                 <button

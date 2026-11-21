@@ -21,7 +21,10 @@ const SECCIONES = [
   },
   {
     titulo: "Datos",
-    enlaces: [{ href: "/zonas", icono: "⬡", texto: "Zonas de reparto" }],
+    enlaces: [
+      { href: "/zonas", icono: "⬡", texto: "Zonas de reparto" },
+      { href: "/importaciones", icono: "⤓", texto: "Archivos cargados" },
+    ],
   },
 ];
 
