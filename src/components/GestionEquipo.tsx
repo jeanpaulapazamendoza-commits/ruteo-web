@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { actualizarPerfil } from "@/app/acciones/datos";
 import { rpc } from "@/app/acciones/rpc";
-import { Tarjeta, Pastilla } from "@/components/ui";
+import { Celda, Pastilla, Tabla, Tarjeta } from "@/components/ui";
 
 export type MiembroEquipo = {
   id: string;
@@ -127,86 +127,73 @@ export default function GestionEquipo({
       )}
 
       <Tarjeta className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] border-collapse text-[13px]">
-            <thead>
-              <tr>
-                {["Persona", "Rol", "Estado", "Acciones"].map((h) => (
-                  <th key={h} className="border-b border-line bg-surface-2 px-3.5 py-2.5 text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-3">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {miembros.map((m) => {
-                const soyYo = m.id === miId;
-                const cargando = ocupado?.startsWith(m.id);
-                return (
-                  <tr key={m.id} className={m.activo ? "" : "opacity-60"}>
-                    <td className="border-b border-line px-3.5 py-2.5">
-                      <div className="font-semibold text-ink">
-                        {m.nombre ?? "—"}
-                        {soyYo && <span className="ml-2 text-[11px] font-normal text-ink-3">(tú)</span>}
-                      </div>
-                      <div className="text-[12px] text-ink-3">{m.email}</div>
-                    </td>
-                    <td className="border-b border-line px-3.5 py-2.5">
-                      <select
-                        value={m.rol}
-                        disabled={cargando || soyYo}
-                        onChange={(e) => actualizar(m.id, { rol: e.target.value as MiembroEquipo["rol"] }, `${m.id}-rol`)}
-                        className="rounded-[8px] border border-line-strong bg-surface px-2 py-1 text-[12.5px] disabled:opacity-60"
-                        title={soyYo ? "No puedes cambiar tu propio rol" : ""}
+        <Tabla cabeceras={["Persona", "Rol", "Estado", "Acciones"]} anchoMin={640}>
+          {miembros.map((m) => {
+            const soyYo = m.id === miId;
+            const cargando = ocupado?.startsWith(m.id);
+            return (
+              <tr key={m.id} className={m.activo ? "" : "opacity-60"}>
+                <Celda>
+                  <div className="font-semibold text-ink">
+                    {m.nombre ?? "—"}
+                    {soyYo && <span className="ml-2 text-[11px] font-normal text-ink-3">(tú)</span>}
+                  </div>
+                  <div className="text-[11.5px] text-ink-3">{m.email}</div>
+                </Celda>
+                <Celda>
+                  <select
+                    value={m.rol}
+                    disabled={cargando || soyYo}
+                    onChange={(e) => actualizar(m.id, { rol: e.target.value as MiembroEquipo["rol"] }, `${m.id}-rol`)}
+                    className="rounded-[8px] border border-line-strong bg-surface px-2 py-0.5 text-[12px] disabled:opacity-60"
+                    title={soyYo ? "No puedes cambiar tu propio rol" : ""}
+                  >
+                    <option value="admin">Administrador</option>
+                    <option value="planificador">Planificador</option>
+                    <option value="conductor">Conductor</option>
+                  </select>
+                </Celda>
+                <Celda>
+                  <Pastilla tono={m.activo ? "ok" : "plan"}>
+                    {m.activo ? "Activo" : "Desactivado"}
+                  </Pastilla>
+                </Celda>
+                <Celda>
+                  <div className="flex flex-wrap gap-1.5">
+                    {/* La propia se cambia en Mi cuenta, que sí pide la
+                        anterior; restablecerse a uno mismo saltaría esa
+                        comprobación. */}
+                    {!soyYo && (
+                      <button
+                        onClick={() => restablecer(m)}
+                        disabled={cargando}
+                        className="rounded-[8px] border border-line-strong px-2 py-0.5 text-[11.5px] font-semibold transition hover:bg-canvas disabled:opacity-50"
+                        title="Genera una contraseña temporal para dictársela"
                       >
-                        <option value="admin">Administrador</option>
-                        <option value="planificador">Planificador</option>
-                        <option value="conductor">Conductor</option>
-                      </select>
-                    </td>
-                    <td className="border-b border-line px-3.5 py-2.5">
-                      <Pastilla tono={m.activo ? "ok" : "plan"}>
-                        {m.activo ? "Activo" : "Desactivado"}
-                      </Pastilla>
-                    </td>
-                    <td className="border-b border-line px-3.5 py-2.5">
-                      <div className="flex flex-wrap gap-1.5">
-                        {/* La propia se cambia en Mi cuenta, que sí pide la
-                            anterior; restablecerse a uno mismo saltaría esa
-                            comprobación. */}
-                        {!soyYo && (
-                          <button
-                            onClick={() => restablecer(m)}
-                            disabled={cargando}
-                            className="rounded-[8px] border border-line-strong px-2.5 py-1 text-[12px] font-semibold transition hover:bg-canvas disabled:opacity-50"
-                            title="Genera una contraseña temporal para dictársela"
-                          >
-                            {ocupado === `${m.id}-clave` ? "…" : "Restablecer clave"}
-                          </button>
-                        )}
-                        {soyYo ? (
-                          <span className="text-[12px] text-ink-3">—</span>
-                        ) : (
-                          <button
-                            onClick={() => actualizar(m.id, { activo: !m.activo }, `${m.id}-act`)}
-                            disabled={cargando}
-                            className={`rounded-[8px] border px-2.5 py-1 text-[12px] font-semibold transition disabled:opacity-50 ${
-                              m.activo
-                                ? "border-line-strong text-bad hover:bg-bad-bg"
-                                : "border-ok/40 text-ok hover:bg-ok-bg"
-                            }`}
-                          >
-                            {cargando ? "…" : m.activo ? "Desactivar" : "Reactivar"}
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                        {ocupado === `${m.id}-clave` ? "…" : "Restablecer clave"}
+                      </button>
+                    )}
+                    {soyYo ? (
+                      <span className="text-[12px] text-ink-3">—</span>
+                    ) : (
+                      <button
+                        onClick={() => actualizar(m.id, { activo: !m.activo }, `${m.id}-act`)}
+                        disabled={cargando}
+                        className={`rounded-[8px] border px-2 py-0.5 text-[11.5px] font-semibold transition disabled:opacity-50 ${
+                          m.activo
+                            ? "border-line-strong text-bad hover:bg-bad-bg"
+                            : "border-ok/40 text-ok hover:bg-ok-bg"
+                        }`}
+                      >
+                        {cargando ? "…" : m.activo ? "Desactivar" : "Reactivar"}
+                      </button>
+                    )}
+                  </div>
+                </Celda>
+              </tr>
+            );
+          })}
+        </Tabla>
       </Tarjeta>
 
       <p className="mt-3 text-[11.5px] text-ink-3">

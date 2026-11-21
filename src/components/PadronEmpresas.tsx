@@ -90,14 +90,14 @@ export default function PadronEmpresas({ empresas }: { empresas: ResumenOrg[] })
 
       <Tarjeta className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px] border-collapse text-[13px]">
+          <table className="w-full min-w-[820px] border-collapse text-[12.5px]">
             <thead>
               <tr>
                 {["Empresa", "Estado", "Usuarios", "Choferes", "Ruteos", "Paradas 30 d", "Última actividad", ""].map(
                   (h, i) => (
                     <th
                       key={h + i}
-                      className={`border-b border-line bg-surface-2 px-3.5 py-2.5 text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-3 ${
+                      className={`border-b border-line bg-surface-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-ink-3 ${
                         i >= 2 && i <= 5 ? "text-right" : "text-left"
                       }`}
                     >
@@ -110,7 +110,7 @@ export default function PadronEmpresas({ empresas }: { empresas: ResumenOrg[] })
             <tbody>
               {empresas.map((o) => (
                 <tr key={o.id} className={o.activa ? "" : "opacity-60"}>
-                  <td className="border-b border-line px-3.5 py-2.5">
+                  <td className="border-b border-line px-3 py-1.5">
                     <Link href={`/organizaciones/${o.id}`} className="block group">
                       <div className="font-semibold text-ink group-hover:text-amber-600">
                         {o.nombre}
@@ -120,7 +120,7 @@ export default function PadronEmpresas({ empresas }: { empresas: ResumenOrg[] })
                       </div>
                     </Link>
                   </td>
-                  <td className="border-b border-line px-3.5 py-2.5">
+                  <td className="border-b border-line px-3 py-1.5">
                     <Pastilla tono={o.activa ? "ok" : "bad"}>
                       {o.activa ? "Activa" : "Suspendida"}
                     </Pastilla>
@@ -130,25 +130,25 @@ export default function PadronEmpresas({ empresas }: { empresas: ResumenOrg[] })
                       </div>
                     )}
                   </td>
-                  <td className="num border-b border-line px-3.5 py-2.5 text-right">
+                  <td className="num border-b border-line px-3 py-1.5 text-right">
                     {o.usuarios}
                     {o.admins === 0 && (
                       <span className="ml-1 text-[11px] text-warn">sin admin</span>
                     )}
                   </td>
-                  <td className="num border-b border-line px-3.5 py-2.5 text-right">
+                  <td className="num border-b border-line px-3 py-1.5 text-right">
                     {o.conductores}
                   </td>
-                  <td className="num border-b border-line px-3.5 py-2.5 text-right">
+                  <td className="num border-b border-line px-3 py-1.5 text-right">
                     {o.despachos}
                   </td>
-                  <td className="num border-b border-line px-3.5 py-2.5 text-right">
+                  <td className="num border-b border-line px-3 py-1.5 text-right">
                     {Number(o.paradas_30d).toLocaleString("es-PE")}
                   </td>
-                  <td className="num border-b border-line px-3.5 py-2.5 text-[12px] text-ink-2">
+                  <td className="num border-b border-line px-3 py-1.5 text-[12px] text-ink-2">
                     {fecha(o.ultima_actividad)}
                   </td>
-                  <td className="border-b border-line px-3.5 py-2.5 text-right">
+                  <td className="border-b border-line px-3 py-1.5 text-right">
                     <Link
                       href={`/organizaciones/${o.id}`}
                       className="mr-1.5 rounded-[8px] border border-line-strong bg-surface px-2.5 py-1 text-[12px] font-semibold text-ink-2 transition hover:bg-canvas"

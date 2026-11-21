@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { importaciones } from "@/app/acciones/datos";
-import { BarraSuperior, Pastilla, Tarjeta, EstadoVacio } from "@/components/ui";
+import { BarraSuperior, Celda, Pastilla, Tabla, Tarjeta, EstadoVacio } from "@/components/ui";
 import { estado as infoEstado } from "@/lib/despachos";
 import { fechaHora } from "@/lib/horas";
 
@@ -58,63 +58,42 @@ export default async function PaginaImportaciones() {
         ) : (
           <>
             <Tarjeta className="overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[620px] border-collapse text-[13px]">
-                  <thead>
-                    <tr>
-                      {["Archivo", "Filas", "Subido", "Por", "Acabó en"].map((h) => (
-                        <th
-                          key={h}
-                          className="border-b border-line bg-surface-2 px-3.5 py-2.5 text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-3"
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lista.map((i) => {
-                      const info = i.estado ? infoEstado(i.estado) : null;
-                      return (
-                        <tr key={i.id}>
-                          <td className="num border-b border-line px-3.5 py-2.5 font-semibold">
-                            📄 {i.nombre_archivo}
-                          </td>
-                          <td className="num border-b border-line px-3.5 py-2.5 text-ink-2">
-                            {i.filas?.toLocaleString("es-PE") ?? "—"}
-                          </td>
-                          <td className="num border-b border-line px-3.5 py-2.5 text-ink-2">
-                            {fechaHora(i.creado_en)}
-                          </td>
-                          <td className="border-b border-line px-3.5 py-2.5 text-ink-2">
-                            {i.autor ?? "—"}
-                          </td>
-                          <td className="border-b border-line px-3.5 py-2.5">
-                            {i.despacho_id && info ? (
-                              <Link
-                                href={`/despachos/${i.despacho_id}`}
-                                className="inline-flex items-center gap-2 transition hover:underline"
-                              >
-                                <Pastilla tono={info.tono}>{info.texto}</Pastilla>
-                                <span className="truncate">{i.despacho ?? "Despacho"}</span>
-                                {i.despachos > 1 && (
-                                  <span className="num text-[11.5px] text-ink-3">
-                                    +{i.despachos - 1}
-                                  </span>
-                                )}
-                              </Link>
-                            ) : (
-                              <span className="text-[12px] text-warn">
-                                Nunca se ruteó
+              <Tabla
+                cabeceras={["Archivo", "Filas", "Subido", "Por", "Acabó en"]}
+                anchoMin={620}
+              >
+                {lista.map((i) => {
+                  const info = i.estado ? infoEstado(i.estado) : null;
+                  return (
+                    <tr key={i.id}>
+                      <Celda className="num font-semibold">📄 {i.nombre_archivo}</Celda>
+                      <Celda className="num text-ink-2">
+                        {i.filas?.toLocaleString("es-PE") ?? "—"}
+                      </Celda>
+                      <Celda className="num text-ink-2">{fechaHora(i.creado_en)}</Celda>
+                      <Celda className="text-ink-2">{i.autor ?? "—"}</Celda>
+                      <Celda>
+                        {i.despacho_id && info ? (
+                          <Link
+                            href={`/despachos/${i.despacho_id}`}
+                            className="inline-flex items-center gap-2 transition hover:underline"
+                          >
+                            <Pastilla tono={info.tono}>{info.texto}</Pastilla>
+                            <span className="truncate">{i.despacho ?? "Despacho"}</span>
+                            {i.despachos > 1 && (
+                              <span className="num text-[11px] text-ink-3">
+                                +{i.despachos - 1}
                               </span>
                             )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                          </Link>
+                        ) : (
+                          <span className="text-[12px] text-warn">Nunca se ruteó</span>
+                        )}
+                      </Celda>
+                    </tr>
+                  );
+                })}
+              </Tabla>
             </Tarjeta>
 
             <p className="mt-3 text-[11.5px] text-ink-3">

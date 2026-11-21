@@ -220,7 +220,7 @@ export default function FichaEmpresa({ detalle }: { detalle: DetalleOrg }) {
 
         {/* Equipo de la empresa */}
         <Tarjeta className="overflow-hidden">
-          <div className="flex items-center gap-2 border-b border-line px-4 py-2.5">
+          <div className="flex items-center gap-2 border-b border-line px-3.5 py-2">
             <h3 className="text-[13.5px] font-bold">Su equipo</h3>
             <span className="text-[11.5px] text-ink-3">
               {porRol("admin")} admin · {porRol("planificador")} planif. · {porRol("conductor")} choferes

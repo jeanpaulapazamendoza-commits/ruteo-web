@@ -122,7 +122,7 @@ export default async function PaginaDespachos({
                   <Link
                     key={d.id}
                     href={`/despachos/${d.id}`}
-                    className={`flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2.5 transition hover:bg-canvas ${
+                    className={`flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-1.5 transition hover:bg-canvas ${
                       i > 0 ? "border-t border-line" : ""
                     }`}
                   >

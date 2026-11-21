@@ -237,7 +237,7 @@ export default function PanelFlota({
               <button
                 key={r.ruta_id}
                 onClick={() => setElegida(r.ruta_id)}
-                className={`flex w-full flex-col gap-1.5 px-4 py-2.5 text-left transition hover:bg-canvas ${
+                className={`flex w-full flex-col gap-1 px-3.5 py-2 text-left transition hover:bg-canvas ${
                   elegida === r.ruta_id ? "bg-canvas" : ""
                 }`}
               >
@@ -458,7 +458,7 @@ function DetalleConductor({
                 {["#", "Parada", "R", "E", "Desvío", "Estado"].map((h) => (
                   <th
                     key={h}
-                    className="border-b border-line bg-surface-2 px-3 py-2 text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-3"
+                    className="border-b border-line bg-surface-2 px-3 py-1.5 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ink-3"
                   >
                     {h}
                   </th>
@@ -468,7 +468,7 @@ function DetalleConductor({
             <tbody>
               {paradas.map((p) => (
                 <tr key={p.id} className={p.estado_entrega === "pendiente" ? "opacity-70" : ""}>
-                  <td className="num border-b border-line px-3 py-2 text-ink-3">{p.orden}</td>
+                  <td className="num border-b border-line px-3 py-1.5 text-ink-3">{p.orden}</td>
                   <td className="border-b border-line px-3 py-2">
                     <b className="text-ink">{p.nombre}</b>
                     {p.distrito && (
@@ -476,11 +476,11 @@ function DetalleConductor({
                     )}
                   </td>
                   <td className="num border-b border-line px-3 py-2">{hhmm(p.hora_entrega)}</td>
-                  <td className="num border-b border-line px-3 py-2 text-ink-3">{corta(p.eta)}</td>
+                  <td className="num border-b border-line px-3 py-1.5 text-ink-3">{corta(p.eta)}</td>
                   <td className="border-b border-line px-3 py-2">
                     <Desvio min={p.hora_entrega ? p.desvio_min : null} />
                   </td>
-                  <td className="border-b border-line px-3 py-2 text-[11.5px] text-ink-2">
+                  <td className="border-b border-line px-3 py-1.5 text-[11.5px] text-ink-2">
                     {p.estado_entrega === "pendiente" ? "pendiente" : (p.motivo ?? p.estado_entrega)}
                   </td>
                 </tr>

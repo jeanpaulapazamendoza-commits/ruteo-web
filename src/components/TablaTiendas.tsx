@@ -192,7 +192,7 @@ export default function TablaTiendas({
         <table className="w-full min-w-[760px] border-collapse text-[12.5px]">
           <thead>
             <tr>
-              <th className="w-9 border-b border-line bg-surface-2 px-3 py-2.5">
+              <th className="w-9 border-b border-line bg-surface-2 px-3 py-1.5">
                 <input
                   type="checkbox"
                   checked={todasVisiblesMarcadas}
@@ -203,7 +203,7 @@ export default function TablaTiendas({
               {["Código", "Tienda", "Distrito", "Bultos", "Ventana", "Coordenadas", "Estado"].map((h) => (
                 <th
                   key={h}
-                  className="whitespace-nowrap border-b border-line bg-surface-2 px-3 py-2.5 text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-3"
+                  className="whitespace-nowrap border-b border-line bg-surface-2 px-3 py-1.5 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ink-3"
                 >
                   {h}
                 </th>
@@ -215,7 +215,7 @@ export default function TablaTiendas({
               const marcada = seleccion.has(t.id);
               return (
                 <tr key={t.id} className={marcada ? "bg-amber-050" : "hover:bg-surface-2"}>
-                  <td className="border-b border-line px-3 py-2.5">
+                  <td className="border-b border-line px-3 py-1.5">
                     <input
                       type="checkbox"
                       checked={marcada}
@@ -223,22 +223,22 @@ export default function TablaTiendas({
                       aria-label={`Seleccionar ${t.nombre}`}
                     />
                   </td>
-                  <td className="num border-b border-line px-3 py-2.5 font-semibold">{t.codigo}</td>
-                  <td className="border-b border-line px-3 py-2.5 font-semibold text-ink">
+                  <td className="num border-b border-line px-3 py-1.5 font-semibold">{t.codigo}</td>
+                  <td className="border-b border-line px-3 py-1.5 font-semibold text-ink">
                     {t.nombre}
                     {t.prioridad > 0 && <span className="ml-2 text-amber-600">⭐ P{t.prioridad}</span>}
                   </td>
-                  <td className="border-b border-line px-3 py-2.5 text-ink-2">{t.distrito ?? "—"}</td>
-                  <td className="num border-b border-line px-3 py-2.5 text-ink-2">{t.bultos_default}</td>
-                  <td className="num border-b border-line px-3 py-2.5 text-ink-2">
+                  <td className="border-b border-line px-3 py-1.5 text-ink-2">{t.distrito ?? "—"}</td>
+                  <td className="num border-b border-line px-3 py-1.5 text-ink-2">{t.bultos_default}</td>
+                  <td className="num border-b border-line px-3 py-1.5 text-ink-2">
                     {hhmm(t.ventana_ini) && hhmm(t.ventana_fin)
                       ? `${hhmm(t.ventana_ini)}–${hhmm(t.ventana_fin)}`
                       : "—"}
                   </td>
-                  <td className="num border-b border-line px-3 py-2.5 text-ink-3">
+                  <td className="num border-b border-line px-3 py-1.5 text-ink-3">
                     {t.lat.toFixed(5)}, {t.lon.toFixed(5)}
                   </td>
-                  <td className="border-b border-line px-3 py-2.5">
+                  <td className="border-b border-line px-3 py-1.5">
                     <Pastilla tono={t.activo ? "ok" : "plan"}>
                       {t.activo ? "Activa" : "Inactiva"}
                     </Pastilla>

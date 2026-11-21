@@ -274,7 +274,7 @@ function Fila({
   const t = TIPOS[a.tipo];
   return (
     <div
-      className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2.5 ${
+      className={`flex flex-wrap items-center gap-x-3 gap-y-1 px-3.5 py-2 ${
         a.atendida ? "opacity-55" : ""
       }`}
     >

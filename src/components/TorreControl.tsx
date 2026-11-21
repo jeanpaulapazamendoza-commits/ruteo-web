@@ -307,7 +307,7 @@ export default function TorreControl({
 
         {/* Rutas activas */}
         <Tarjeta>
-          <div className="flex items-center gap-2 border-b border-line px-4 py-2.5">
+          <div className="flex items-center gap-2 border-b border-line px-3.5 py-2">
             <h3 className="text-[13.5px] font-bold">Rutas</h3>
             <span className="num text-[12px] text-ink-3">{porRuta.length}</span>
             <label className="ml-auto flex cursor-pointer items-center gap-1.5 text-[11.5px] text-ink-3">
@@ -431,7 +431,7 @@ export default function TorreControl({
 
         {/* Incidencias */}
         <Tarjeta>
-          <div className="flex items-center gap-2 border-b border-line px-4 py-2.5">
+          <div className="flex items-center gap-2 border-b border-line px-3.5 py-2">
             <h3 className="text-[13.5px] font-bold">Incidencias que requieren decisión</h3>
             {incidencias.length > 0 ? (
               <Pastilla tono="bad">{incidencias.length}</Pastilla>
@@ -453,7 +453,7 @@ export default function TorreControl({
                 <thead>
                   <tr>
                     {["Tienda", "Ruta", "Motivo", "Hora", "Estado"].map((h) => (
-                      <th key={h} className="border-b border-line bg-surface-2 px-3 py-2 text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-3">
+                      <th key={h} className="border-b border-line bg-surface-2 px-3 py-1.5 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ink-3">
                         {h}
                       </th>
                     ))}
@@ -470,10 +470,10 @@ export default function TorreControl({
                       <td className="num border-b border-line px-3 py-2">
                         R-{String((p.ruta_indice ?? 0) + 1).padStart(2, "0")}
                       </td>
-                      <td className="border-b border-line px-3 py-2 text-ink-2">
+                      <td className="border-b border-line px-3 py-1.5 text-ink-2">
                         {queLePaso(p)}
                       </td>
-                      <td className="num border-b border-line px-3 py-2 text-ink-2">
+                      <td className="num border-b border-line px-3 py-1.5 text-ink-2">
                         {horaDe(p.hora_entrega)}
                       </td>
                       <td className="border-b border-line px-3 py-2">
@@ -638,7 +638,7 @@ function DetalleRuta({
             return (
               <div
                 key={p.id}
-                className="flex gap-2.5 border-b border-line px-3 py-2 last:border-0"
+                className="flex gap-2.5 border-b border-line px-3 py-1.5 last:border-0"
               >
                 <span
                   className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-[10.5px] font-bold text-white"
