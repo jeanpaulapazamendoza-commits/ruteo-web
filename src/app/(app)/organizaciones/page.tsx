@@ -1,3 +1,4 @@
+import MarcoAjustes from "@/components/MarcoAjustes";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { comoUsuario } from "@/lib/db";
@@ -19,7 +20,7 @@ export default async function PaginaOrganizaciones() {
   const activas = empresas.filter((e) => e.activa).length;
 
   return (
-    <>
+    <MarcoAjustes>
       <BarraSuperior
         migaja="Desarrollador"
         titulo="Empresas"
@@ -33,6 +34,6 @@ export default async function PaginaOrganizaciones() {
       <div className="p-4">
         <PadronEmpresas empresas={empresas} />
       </div>
-    </>
+    </MarcoAjustes>
   );
 }

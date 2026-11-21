@@ -1,3 +1,4 @@
+import MarcoAjustes from "@/components/MarcoAjustes";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { subestados } from "@/app/acciones/datos";
@@ -13,10 +14,10 @@ export default async function PaginaSubestados() {
   const lista = await subestados(false);
 
   return (
-    <>
+    <MarcoAjustes>
       <BarraSuperior
         migaja="Administración"
-        titulo="Motivos de entrega"
+        titulo="Subestados"
         acciones={
           <span className="text-[12px] text-ink-2">
             <b className="num text-ink">{lista.filter((s) => s.activo).length}</b> activos
@@ -24,6 +25,6 @@ export default async function PaginaSubestados() {
         }
       />
       <GestionSubestados lista={lista} />
-    </>
+    </MarcoAjustes>
   );
 }

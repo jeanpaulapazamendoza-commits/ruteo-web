@@ -1,3 +1,4 @@
+import MarcoAjustes from "@/components/MarcoAjustes";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
@@ -58,7 +59,7 @@ export default async function PaginaTiendas() {
   const sueltas = totales?.sueltas ?? 0;
 
   return (
-    <>
+    <MarcoAjustes>
       <BarraSuperior
         migaja="Administración"
         titulo="Tiendas guardadas"
@@ -204,6 +205,6 @@ export default async function PaginaTiendas() {
           </Link>
         </p>
       </div>
-    </>
+    </MarcoAjustes>
   );
 }

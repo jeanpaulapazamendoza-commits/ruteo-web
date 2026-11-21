@@ -156,24 +156,21 @@ const PRINCIPALES: Modulo[] = [
   { href: "/importaciones", texto: "Importar", icono: I.importar },
 ];
 
-/** Lo que este sistema tiene además, debajo de la raya. */
+/**
+ * Lo que este sistema tiene además, debajo de la raya.
+ *
+ * Solo lo que es operación del día. La configuración —usuarios, subestados,
+ * zonas, bitácora— no va en el carril: se entra por el engranaje de la barra
+ * superior, como en la referencia, y tiene su propio menú.
+ */
 const PROPIOS: Modulo[] = [
   { href: "/planificador", texto: "Planificador", icono: I.zonas },
   { href: "/despachos", texto: "Despachos", icono: I.bitacora },
   { href: "/torre", texto: "Torre de control", icono: I.torre },
-  { href: "/zonas", texto: "Zonas de reparto", icono: I.zonas },
 ];
 
-const DE_ADMIN: Modulo[] = [
-  { href: "/equipo", texto: "Equipo", icono: I.equipo },
-  { href: "/subestados", texto: "Motivos de entrega", icono: I.motivos },
-  { href: "/bitacora", texto: "Bitácora", icono: I.bitacora },
-  { href: "/tiendas", texto: "Tiendas guardadas", icono: I.tiendas },
-];
-
-const DE_DESARROLLADOR: Modulo[] = [
-  { href: "/organizaciones", texto: "Empresas", icono: I.empresas },
-];
+/** Las rutas que son configuración: encienden el engranaje. */
+const AJUSTES = ["/equipo", "/subestados", "/zonas", "/bitacora", "/tiendas", "/organizaciones"];
 
 export default function BarraModulos({
   nombre,
@@ -194,11 +191,12 @@ export default function BarraModulos({
   const ruta = usePathname();
   const router = useRouter();
 
-  const propios = [
-    ...PROPIOS,
-    ...(rol === "admin" ? DE_ADMIN : []),
-    ...(esDesarrollador ? DE_DESARROLLADOR : []),
-  ];
+  const propios = PROPIOS;
+
+  // A dónde lleva el engranaje: a la primera pantalla de ajustes que el rol
+  // puede ver. Un planificador no entra en Usuarios, pero sí en Zonas.
+  const ajustes = rol === "admin" ? "/equipo" : "/zonas";
+  const enAjustes = AJUSTES.some((a) => ruta === a || ruta.startsWith(a + "/"));
 
   const activo = (href: string) => ruta === href || ruta.startsWith(href + "/");
 
@@ -228,6 +226,29 @@ export default function BarraModulos({
         </Link>
 
         <div className="ml-auto flex items-center">
+          <Link
+            href={ajustes}
+            title="Configuración"
+            aria-label="Configuración"
+            className={`grid h-[52px] w-9 place-items-center transition hover:bg-white/[0.07] hover:text-white ${
+              enAjustes ? "text-amber" : "text-white/80"
+            }`}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.9"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="3.2" />
+              <path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M5.5 18.5l1.8-1.8M16.7 7.3l1.8-1.8" />
+            </svg>
+          </Link>
           <Link
             href="/cuenta"
             title={`${nombre} · ${empresa} — Mi cuenta`}

@@ -1,3 +1,4 @@
+import MarcoAjustes from "@/components/MarcoAjustes";
 import { auth } from "@/auth";
 import { comoUsuario } from "@/lib/db";
 import { BarraSuperior } from "@/components/ui";
@@ -14,7 +15,7 @@ export default async function PaginaZonas() {
   );
 
   return (
-    <>
+    <MarcoAjustes>
       <BarraSuperior
         migaja="Datos"
         titulo="Zonas de reparto"
@@ -25,6 +26,6 @@ export default async function PaginaZonas() {
         }
       />
       <EditorZonas zonas={zonas} orgId={sesion!.user.orgId} miId={id} />
-    </>
+    </MarcoAjustes>
   );
 }

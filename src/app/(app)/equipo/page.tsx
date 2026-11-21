@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { comoUsuario } from "@/lib/db";
 import { BarraSuperior } from "@/components/ui";
+import MarcoAjustes from "@/components/MarcoAjustes";
 import GestionEquipo, { type MiembroEquipo } from "@/components/GestionEquipo";
 
 export default async function PaginaEquipo() {
@@ -22,22 +23,23 @@ export default async function PaginaEquipo() {
        from perfiles order by creado_en`,
   );
 
+  const activos = miembros.filter((m) => m.activo).length;
+
+  // «Equipo de {empresa}» pasa a la miga: el título es el de la referencia.
   return (
-    <>
+    <MarcoAjustes>
       <BarraSuperior
-        migaja="Administración"
-        titulo={`Equipo de ${empresa}`}
+        migaja=""
+        titulo="Usuarios"
         acciones={
-          <span className="text-[12px] text-ink-2">
-            <b className="num text-ink">{miembros.filter((m) => m.activo).length}</b> activos
-            {" · "}
-            <b className="num text-ink">{miembros.filter((m) => m.rol === "conductor").length}</b> conductores
+          <span className="mr-auto pl-3 text-[13px] text-ink-3">
+            {empresa} · Usuarios activos: <b className="num text-ink-2">{activos}</b>
+            {" · "}Usuarios bloqueados:{" "}
+            <b className="num text-ink-2">{miembros.length - activos}</b>
           </span>
         }
       />
-      <div className="p-4">
-        <GestionEquipo miembros={miembros} miId={sesion.user.id} />
-      </div>
-    </>
+      <GestionEquipo miembros={miembros} miId={sesion.user.id} />
+    </MarcoAjustes>
   );
 }

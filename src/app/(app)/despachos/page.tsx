@@ -2,9 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { comoUsuario } from "@/lib/db";
-import { BarraSuperior, Tarjeta, EstadoVacio, Pastilla } from "@/components/ui";
+import { BarraSuperior, Celda, EstadoVacio, Pastilla, Tabla } from "@/components/ui";
 import { estado as infoEstado, ESTADOS } from "@/lib/despachos";
-import { diaCorto } from "@/lib/horas";
 
 type Fila = {
   id: string;
@@ -28,7 +27,6 @@ type Fila = {
   bultos_bandeja: number;
 };
 
-const fechaCorta = diaCorto;
 
 export default async function PaginaDespachos({
   searchParams,
@@ -62,45 +60,51 @@ export default async function PaginaDespachos({
   return (
     <>
       <BarraSuperior
-        migaja="Operación"
+        migaja=""
         titulo="Despachos"
         acciones={
-          <Link
-            href="/planificador"
-            className="rounded-full border border-amber-600 bg-amber px-3.5 py-2 text-[13px] font-semibold text-white transition hover:bg-amber-600 hover:text-white"
-          >
-            ⇪ Subir archivo del día
-          </Link>
+          <>
+            <Link
+              href="/rutas"
+              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-line-strong bg-surface px-3 text-[14px] font-bold text-ink transition hover:bg-canvas"
+            >
+              Ver rutas
+            </Link>
+            <Link
+              href="/planificador"
+              className="inline-flex h-8 items-center gap-1.5 rounded-full bg-amber px-3 text-[14px] font-bold text-white transition hover:bg-amber-600"
+            >
+              + Nuevo despacho
+            </Link>
+          </>
         }
       />
 
-      <div className="p-4">
+      <div>
         {error && (
-          <div className="mb-4 rounded-[10px] border border-bad/30 bg-bad-bg px-4 py-3 text-[13.5px] text-bad">
+          <div className="mb-3 rounded-[8px] border border-bad/30 bg-bad-bg px-4 py-3 text-[13px] text-bad">
             No se pudo leer el histórico: {error}
           </div>
         )}
 
         {todos.length === 0 ? (
-          <Tarjeta>
-            <EstadoVacio
-              icono="📅"
-              titulo="Todavía no hay despachos"
-              descripcion="Sube el archivo del día en el planificador. Quedará aquí como «Cargado sin ruteo» y lo irás llevando por sus estados hasta el reparto."
-              accion={
-                <Link
-                  href="/planificador"
-                  className="inline-block rounded-full border border-amber-600 bg-amber px-4 py-2.5 text-[13.5px] font-semibold text-white transition hover:bg-amber-600 hover:text-white"
-                >
-                  Ir al planificador
-                </Link>
-              }
-            />
-          </Tarjeta>
+          <EstadoVacio
+            icono="📅"
+            titulo="Todavía no hay despachos"
+            descripcion="Sube el archivo del día en el planificador. Quedará aquí como «Cargado sin ruteo» y lo irás llevando por sus estados hasta el reparto."
+            accion={
+              <Link
+                href="/planificador"
+                className="inline-flex h-8 items-center rounded-full bg-amber px-4 text-[14px] font-bold text-white transition hover:bg-amber-600"
+              >
+                Ir al planificador
+              </Link>
+            }
+          />
         ) : (
           <>
-            {/* Filtro por estado: el ciclo de vida a la vista */}
-            <div className="mb-3 flex flex-wrap items-center gap-1.5">
+            {/* El ciclo de vida a la vista, en pestañas como las de Alertas */}
+            <div className="mb-3 flex overflow-x-auto rounded-[6px] border border-line">
               <Filtro href="/despachos" activo={!filtro} texto="Todos" n={todos.length} />
               {conteos.map((e) => (
                 <Filtro
@@ -113,85 +117,61 @@ export default async function PaginaDespachos({
               ))}
             </div>
 
-            <Tarjeta className="overflow-hidden">
-              {despachos.map((d, i) => {
+            <div className="pb-3 pt-1 text-[16px] text-ink-2">
+              <strong className="num font-bold">{despachos.length}</strong> despachos
+            </div>
+
+            <Tabla
+              cabeceras={["Despacho", "Estado", "Nombre de archivo", "Rutas", "Órdenes", "Km", "Avance", "Usuario", "Fecha"]}
+              anchoMin={980}
+            >
+              {despachos.map((d) => {
                 const info = infoEstado(d.estado);
                 const cerradas = d.entregadas + d.fallidas + d.reprogramadas;
                 const pct = d.paradas ? Math.round((cerradas / d.paradas) * 100) : 0;
                 return (
-                  <Link
-                    key={d.id}
-                    href={`/despachos/${d.id}`}
-                    className={`flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-1.5 transition hover:bg-canvas ${
-                      i > 0 ? "border-t border-line" : ""
-                    }`}
-                  >
-                    <span className="num w-[52px] shrink-0 text-[12px] font-semibold text-ink-3">
-                      {fechaCorta(d.fecha)}
-                    </span>
-
-                    <span className="min-w-[200px] flex-1 truncate text-[13.5px] font-semibold">
-                      {d.nombre ?? "Despacho"}
-                      {d.archivo && (
-                        <span className="num ml-2 text-[11.5px] font-normal text-ink-3">
-                          📄 {d.archivo}
-                        </span>
-                      )}
-                    </span>
-
-                    <span className="w-[132px] shrink-0">
+                  <tr key={d.id} className="hover:bg-surface-2">
+                    <Celda>
+                      <Link href={`/despachos/${d.id}`}>{d.nombre ?? "Despacho"}</Link>
+                    </Celda>
+                    <Celda>
                       <Pastilla tono={info.tono}>{info.texto}</Pastilla>
-                    </span>
-
+                    </Celda>
+                    <Celda>{d.archivo ?? "—"}</Celda>
                     {/* Un despacho sin rutear guarda sus puntos en una ruta
                         contenedora que no cuenta como ruta de reparto. */}
-                    <span className="num w-[56px] shrink-0 text-right text-[12.5px]">
-                      {d.estado === "cargado" ? (
-                        <span className="text-ink-3">—</span>
-                      ) : (
-                        <>
-                          {d.rutas}
-                          <span className="ml-1 text-[10.5px] text-ink-3">rut</span>
-                        </>
-                      )}
-                    </span>
+                    <Celda className="num text-right">{d.estado === "cargado" ? "—" : d.rutas}</Celda>
                     {/* El tamaño del documento sí incluye la bandeja: lo que
                         se subió está guardado aunque nadie lo reparta. */}
-                    <span className="num w-[76px] shrink-0 text-right text-[12.5px]">
+                    <Celda className="num text-right">
                       {(d.paradas + d.bandeja).toLocaleString("es-PE")}
-                      <span className="ml-1 text-[10.5px] text-ink-3">par</span>
-                    </span>
-                    <span className="num w-[76px] shrink-0 text-right text-[12.5px] text-ink-2">
-                      {d.km > 0 ? `${Number(d.km).toFixed(0)} km` : "—"}
-                    </span>
-
-                    <span className="w-[104px] shrink-0 text-right text-[11.5px]">
+                    </Celda>
+                    <Celda className="num text-right">
+                      {d.km > 0 ? Number(d.km).toFixed(0) : "—"}
+                    </Celda>
+                    <Celda>
                       {d.estado === "cargado" ? (
-                        <span className="text-ink-3">sin rutear</span>
+                        "Sin rutear"
                       ) : cerradas > 0 ? (
-                        <span className="num font-semibold">{pct}% entregado</span>
+                        <span className="num">{pct}% gestionado</span>
                       ) : d.sin_conductor > 0 && d.rutas > 0 ? (
-                        <span className="num text-warn">
-                          {d.sin_conductor} sin conductor
-                        </span>
+                        <span className="num text-warn">{d.sin_conductor} sin conductor</span>
                       ) : (
-                        <span className="text-ok">listo para salir</span>
+                        <span className="text-ok">Listo para salir</span>
                       )}
-                    </span>
-
-                    <span className="w-[104px] shrink-0 truncate text-right text-[11.5px] text-ink-3">
-                      {d.autor ?? ""}
-                    </span>
-                  </Link>
+                    </Celda>
+                    <Celda>{d.autor ?? "—"}</Celda>
+                    <Celda className="num">{d.fecha}</Celda>
+                  </tr>
                 );
               })}
+            </Tabla>
 
-              {despachos.length === 0 && (
-                <p className="px-4 py-6 text-center text-[13px] text-ink-3">
-                  Ningún despacho en ese estado.
-                </p>
-              )}
-            </Tarjeta>
+            {despachos.length === 0 && (
+              <p className="py-8 text-center text-[14px] text-ink-2">
+                Ningún despacho en ese estado.
+              </p>
+            )}
           </>
         )}
       </div>
@@ -213,10 +193,10 @@ function Filtro({
   return (
     <Link
       href={href}
-      className={`rounded-full border px-3 py-1 text-[12px] font-semibold transition ${
+      className={`flex h-[38px] min-w-[150px] flex-1 items-center justify-center gap-1.5 whitespace-nowrap border-r border-line px-3 text-[13px] transition last:border-r-0 ${
         activo
-          ? "border-ink bg-ink text-surface"
-          : "border-line-strong bg-surface text-ink-2 hover:bg-canvas"
+          ? "bg-surface font-bold text-ink shadow-[inset_0_-2px_0_var(--color-amber)]"
+          : "bg-surface-2 text-ink-3 hover:text-ink-2"
       }`}
     >
       {texto} <span className="num opacity-70">{n}</span>

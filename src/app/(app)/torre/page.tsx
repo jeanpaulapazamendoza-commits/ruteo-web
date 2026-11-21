@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { comoUsuario, unaFila } from "@/lib/db";
-import { BarraSuperior, Tarjeta, EstadoVacio, Pastilla } from "@/components/ui";
+import { BarraSuperior, Celda, Tabla, Tarjeta, EstadoVacio, Pastilla } from "@/components/ui";
 import { diaLargo } from "@/lib/horas";
 import TorreControl, {
   type ParadaSeguimiento,
@@ -97,100 +97,62 @@ export default async function PaginaTorre({
           }
         />
 
-        <div className="p-4">
-          <p className="mb-3 text-[12.5px] text-ink-2">
-            Elige un despacho para seguir sus rutas en vivo.
-          </p>
+        <div>
+          <div className="pb-3 pt-1 text-[16px] text-ink-2">
+            <strong className="num font-bold">{lista.length}</strong> despachos en la torre
+          </div>
 
-          <div className="flex flex-col gap-2">
+          <Tabla
+            cabeceras={["Despacho", "Estado", "Fecha", "Rutas", "Órdenes", "Bultos", "Cumplimiento", "Incidencias", "Usuario"]}
+            anchoMin={980}
+          >
             {lista.map((d) => {
               const cerradas = d.entregadas + d.fallidas + d.reprogramadas;
               const pct = d.paradas ? Math.round((cerradas / d.paradas) * 100) : 0;
               const terminado = d.paradas > 0 && cerradas === d.paradas;
               return (
-                <Link
-                  key={d.id}
-                  href={`/torre?despacho=${d.id}`}
-                  className="group flex flex-wrap items-center gap-x-5 gap-y-2.5 rounded-[14px] border border-line bg-surface px-4 py-3 transition hover:border-line-strong hover:bg-canvas"
-                >
-                  {/* Identidad: qué es, de cuándo, de quién y de qué archivo */}
-                  <div className="min-w-[220px] flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[14px] font-bold tracking-tight">
-                        {d.nombre ?? "Despacho"}
-                      </span>
-                      {cerradas === 0 ? (
-                        <Pastilla tono="plan">sin iniciar</Pastilla>
-                      ) : terminado ? (
-                        <Pastilla tono="ok">completado</Pastilla>
-                      ) : (
-                        <Pastilla tono="live">en ruta</Pastilla>
-                      )}
-                    </div>
-                    <div className="mt-0.5 text-[11.5px] text-ink-3">
-                      <span className="num">{fechaLarga(d.fecha)}</span>
-                      {d.autor && <> · {d.autor}</>}
-                      {d.archivo && <> · 📄 <span className="num">{d.archivo}</span></>}
-                    </div>
-                  </div>
-
-                  {/* Tamaño del despacho */}
-                  <div className="flex shrink-0 gap-5 text-[11px] uppercase tracking-wide text-ink-3">
-                    <div>
-                      <div className="num text-[16px] font-bold normal-case tracking-tight text-ink">
-                        {d.rutas}
+                <tr key={d.id} className="hover:bg-surface-2">
+                  <Celda>
+                    <Link href={`/torre?despacho=${d.id}`}>{d.nombre ?? "Despacho"}</Link>
+                    {d.archivo && <div className="num text-[12px] text-ink-3">{d.archivo}</div>}
+                  </Celda>
+                  <Celda>
+                    {cerradas === 0 ? (
+                      <Pastilla tono="plan">Ruta no iniciada</Pastilla>
+                    ) : terminado ? (
+                      <Pastilla tono="ok">Ruta finalizada</Pastilla>
+                    ) : (
+                      <Pastilla tono="live">En progreso</Pastilla>
+                    )}
+                  </Celda>
+                  <Celda className="num">{d.fecha}</Celda>
+                  <Celda className="num text-right">{d.rutas}</Celda>
+                  <Celda className="num text-right">{d.paradas.toLocaleString("es-PE")}</Celda>
+                  <Celda className="num text-right">{d.bultos.toLocaleString("es-PE")}</Celda>
+                  <Celda>
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-[10px] w-[94px] overflow-hidden rounded-full bg-[#d4d9dd]">
+                        <div className="h-full rounded-full bg-amber" style={{ width: `${pct}%` }} />
                       </div>
-                      rutas
-                    </div>
-                    <div>
-                      <div className="num text-[16px] font-bold normal-case tracking-tight text-ink">
-                        {d.paradas.toLocaleString("es-PE")}
-                      </div>
-                      paradas
-                    </div>
-                    <div>
-                      <div className="num text-[16px] font-bold normal-case tracking-tight text-ink">
-                        {d.bultos.toLocaleString("es-PE")}
-                      </div>
-                      bultos
-                    </div>
-                  </div>
-
-                  {/* Avance */}
-                  <div className="w-[168px] shrink-0">
-                    <div className="flex items-baseline justify-between text-[11.5px] text-ink-3">
-                      <span className="num font-bold text-ink">{pct}%</span>
-                      <span className="num">
-                        {cerradas}/{d.paradas} cerradas
+                      <span className="num">{pct}%</span>
+                      <span className="num text-[12px] text-ink-3">
+                        {cerradas}/{d.paradas}
                       </span>
                     </div>
-                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-canvas group-hover:bg-surface-2">
-                      <div
-                        className={`h-full rounded-full ${terminado ? "bg-ok" : "bg-live"}`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    {/* Los recuentos son de reparto: la bandeja no sale, así
-                        que se avisa aparte en vez de hundir el porcentaje. */}
-                    {d.bandeja > 0 && (
-                      <div className="num mt-1 text-[11px] text-warn">
-                        {d.bandeja} sin asignar
-                      </div>
-                    )}
-                    {d.fallidas > 0 && (
-                      <div className="num mt-1 text-[11px] font-semibold text-bad">
-                        {d.fallidas} fallidas
-                      </div>
-                    )}
-                  </div>
-
-                  <span className="shrink-0 text-[13px] text-ink-3 transition group-hover:text-ink">
-                    →
-                  </span>
-                </Link>
+                  </Celda>
+                  {/* Los recuentos son de reparto: la bandeja no sale, así
+                      que se avisa aparte en vez de hundir el porcentaje. */}
+                  <Celda>
+                    {d.fallidas > 0 && <span className="num text-bad">{d.fallidas} no entregadas</span>}
+                    {d.fallidas > 0 && d.bandeja > 0 && " · "}
+                    {d.bandeja > 0 && <span className="num text-warn">{d.bandeja} sin asignar</span>}
+                    {d.fallidas === 0 && d.bandeja === 0 && "—"}
+                  </Celda>
+                  <Celda>{d.autor ?? "—"}</Celda>
+                </tr>
               );
             })}
-          </div>
+          </Tabla>
         </div>
       </>
     );

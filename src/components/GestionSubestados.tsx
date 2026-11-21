@@ -1,40 +1,61 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   borrarSubestado,
   guardarSubestado,
   type Subestado,
 } from "@/app/acciones/datos";
-import { Pastilla, Tarjeta } from "@/components/ui";
+import {
+  AccionesPagina, BOTON_PRIMARIO, BOTON_SECUNDARIO, Paginacion, usePaginas,
+} from "@/components/Paginacion";
+import { Celda, Pastilla, Tabla } from "@/components/ui";
 
-/** Los estados que admiten motivo, y cómo se llaman de cara al conductor. */
+/**
+ * Los subestados: los motivos que el conductor elige de una lista.
+ *
+ * El campo libre sigue existiendo para lo que no quepa en ninguno, pero sin
+ * lista no se puede contar cuántas entregas fallaron por «local cerrado»:
+ * cada conductor lo escribe distinto y no hay forma de sumarlos.
+ *
+ * La pantalla sigue la de la referencia: una tabla con el nombre, el estado
+ * al que pertenece y su orden, y un botón para crear.
+ */
 const ESTADOS = [
-  { clave: "fallido", texto: "No entregado", tono: "bad" as const,
-    ayuda: "Por qué no se pudo entregar. Es el que más falta hace." },
-  { clave: "parcial", texto: "Entrega parcial", tono: "warn" as const,
-    ayuda: "Por qué faltó parte del pedido." },
-  { clave: "reprogramado", texto: "Reprogramado", tono: "warn" as const,
-    ayuda: "Por qué se mueve a otro día." },
-  { clave: "entregado", texto: "Entregado", tono: "ok" as const,
-    ayuda: "Matices de una entrega conforme, si los necesitas." },
+  { clave: "fallido", texto: "No entregado", tono: "bad" as const },
+  { clave: "parcial", texto: "Entrega parcial", tono: "warn" as const },
+  { clave: "reprogramado", texto: "Reprogramado", tono: "warn" as const },
+  { clave: "entregado", texto: "Entregado", tono: "ok" as const },
 ];
+
+const infoDe = (clave: string) =>
+  ESTADOS.find((e) => e.clave === clave) ?? { clave, texto: clave, tono: "plan" as const };
 
 export default function GestionSubestados({ lista }: { lista: Subestado[] }) {
   const router = useRouter();
-  const [nuevo, setNuevo] = useState<Record<string, string>>({});
+  const [busca, setBusca] = useState("");
+  const [soloEstado, setSoloEstado] = useState("");
+  const [creando, setCreando] = useState(false);
+  const [nuevoEstado, setNuevoEstado] = useState("fallido");
+  const [nuevoTexto, setNuevoTexto] = useState("");
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function agregar(estado: string) {
-    const texto = (nuevo[estado] ?? "").trim();
+  async function crear() {
+    const texto = nuevoTexto.trim();
     if (!texto) return;
-    setOcupado(`${estado}-nuevo`);
+    setOcupado("nuevo");
     setError(null);
     try {
-      await guardarSubestado({ estado, texto, orden: lista.filter((s) => s.estado === estado).length });
-      setNuevo((n) => ({ ...n, [estado]: "" }));
+      await guardarSubestado({
+        estado: nuevoEstado,
+        texto,
+        orden: lista.filter((s) => s.estado === nuevoEstado).length,
+      });
+      setNuevoTexto("");
+      setCreando(false);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -43,11 +64,12 @@ export default function GestionSubestados({ lista }: { lista: Subestado[] }) {
     }
   }
 
-  async function quitar(s: Subestado) {
+  async function alternar(s: Subestado) {
     setOcupado(String(s.id));
     setError(null);
     try {
-      await borrarSubestado(s.id);
+      if (s.activo) await borrarSubestado(s.id);
+      else await guardarSubestado({ id: s.id, estado: s.estado, texto: s.texto, activo: true });
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -56,97 +78,122 @@ export default function GestionSubestados({ lista }: { lista: Subestado[] }) {
     }
   }
 
-  async function reactivar(s: Subestado) {
-    setOcupado(String(s.id));
-    try {
-      await guardarSubestado({ id: s.id, estado: s.estado, texto: s.texto, activo: true });
-      router.refresh();
-    } finally {
-      setOcupado(null);
-    }
-  }
+  const q = busca.trim().toLowerCase();
+  const filtrados = lista.filter(
+    (s) => (!q || s.texto.toLowerCase().includes(q)) && (!soloEstado || s.estado === soloEstado),
+  );
+  const { pagina, setPagina, total, visibles } = usePaginas(filtrados, 15);
 
   return (
-    <div className="space-y-3 p-3">
-      <p className="text-[12.5px] text-ink-2">
-        Los motivos que el conductor elige de una lista en vez de escribirlos.
-        El campo libre sigue existiendo para lo que no quepa en ninguno, pero
-        sin lista no se puede contar cuántas entregas fallaron por{" "}
-        <i>local cerrado</i>: cada conductor lo escribe distinto y no hay forma
-        de sumarlos.
-      </p>
+    <div>
+      <AccionesPagina>
+        <Link href="/bitacora" className={BOTON_SECUNDARIO}>
+          Bitácora
+        </Link>
+        <button onClick={() => { setCreando((v) => !v); setError(null); }} className={BOTON_PRIMARIO}>
+          + Crear subestado
+        </button>
+      </AccionesPagina>
+
+      {creando && (
+        <form
+          onSubmit={(e) => { e.preventDefault(); void crear(); }}
+          className="mb-3 grid grid-cols-1 gap-2 rounded-[8px] border border-line p-3 @2xl:grid-cols-[220px_1fr_auto_auto]"
+        >
+          <select value={nuevoEstado} onChange={(e) => setNuevoEstado(e.target.value)} className="w-full outline-none">
+            {ESTADOS.map((e) => (
+              <option key={e.clave} value={e.clave}>{e.texto}</option>
+            ))}
+          </select>
+          <input
+            value={nuevoTexto}
+            onChange={(e) => setNuevoTexto(e.target.value)}
+            maxLength={80}
+            autoFocus
+            placeholder={nuevoEstado === "fallido" ? "Local cerrado, nadie atiende" : "Nombre del subestado"}
+            className="w-full outline-none"
+          />
+          <button
+            type="submit"
+            disabled={ocupado === "nuevo" || !nuevoTexto.trim()}
+            className={`${BOTON_PRIMARIO} h-10 justify-center`}
+          >
+            {ocupado === "nuevo" ? "Creando…" : "Crear"}
+          </button>
+          <button type="button" onClick={() => setCreando(false)} className={`${BOTON_SECUNDARIO} h-10 justify-center`}>
+            Cancelar
+          </button>
+        </form>
+      )}
+
+      {/* Filtros */}
+      <div className="grid grid-cols-1 gap-2 pb-3 @xl:grid-cols-[1fr_260px]">
+        <input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Nombre"
+          className="w-full outline-none"
+        />
+        <select value={soloEstado} onChange={(e) => setSoloEstado(e.target.value)} className="w-full outline-none">
+          <option value="">Estado</option>
+          {ESTADOS.map((e) => (
+            <option key={e.clave} value={e.clave}>{e.texto}</option>
+          ))}
+        </select>
+      </div>
 
       {error && (
-        <p className="rounded-[10px] border border-bad/30 bg-bad-bg px-3 py-2 text-[12.5px] text-bad">
+        <p className="mb-3 rounded-[8px] border border-bad/30 bg-bad-bg px-3 py-2 text-[13px] text-bad">
           {error}
         </p>
       )}
 
-      <div className="grid gap-3 @3xl:grid-cols-2">
-        {ESTADOS.map((e) => {
-          const suyos = lista.filter((s) => s.estado === e.clave);
-          return (
-            <Tarjeta key={e.clave} className="overflow-hidden">
-              <div className="flex items-center gap-2 border-b border-line px-3.5 py-2">
-                <Pastilla tono={e.tono}>{e.texto}</Pastilla>
-                <span className="num text-[12px] text-ink-3">
-                  {suyos.filter((s) => s.activo).length}
-                </span>
-              </div>
-              <p className="px-3.5 pt-2 text-[11.5px] text-ink-3">{e.ayuda}</p>
-
-              <ul className="mt-1 divide-y divide-line">
-                {suyos.map((s) => (
-                  <li
-                    key={s.id}
-                    className={`flex items-center gap-2 px-3.5 py-1.5 text-[12.5px] ${
-                      s.activo ? "" : "opacity-55"
+      <div className="overflow-hidden rounded-[8px] border border-line [&>div:first-child]:rounded-none [&>div:first-child]:border-0">
+        <Tabla cabeceras={["Nombre", "Estado", "Orden", "Tipo", "Vigencia", ""]} anchoMin={720}>
+          {visibles.map((s) => {
+            const info = infoDe(s.estado);
+            return (
+              <tr key={s.id} className={`hover:bg-surface-2 ${s.activo ? "" : "opacity-55"}`}>
+                <Celda>
+                  <span className={s.activo ? "text-[#0792e0]" : "line-through"}>{s.texto}</span>
+                </Celda>
+                <Celda>
+                  <Pastilla tono={info.tono}>{info.texto}</Pastilla>
+                </Celda>
+                <Celda className="num">{s.orden}</Celda>
+                <Celda>Móvil</Celda>
+                <Celda>{s.activo ? "Activo" : "Retirado"}</Celda>
+                <Celda className="text-right">
+                  <button
+                    onClick={() => void alternar(s)}
+                    disabled={ocupado === String(s.id)}
+                    className={`rounded-full border px-2.5 py-1 text-[12px] font-semibold transition disabled:opacity-50 ${
+                      s.activo
+                        ? "border-line-strong text-ink-2 hover:bg-canvas"
+                        : "border-ok text-ok hover:bg-ok-bg"
                     }`}
                   >
-                    <span className={s.activo ? "text-ink-2" : "text-ink-3 line-through"}>
-                      {s.texto}
-                    </span>
-                    <button
-                      onClick={() => (s.activo ? quitar(s) : reactivar(s))}
-                      disabled={ocupado === String(s.id)}
-                      className="ml-auto text-[11.5px] text-ink-3 transition hover:text-bad disabled:opacity-50"
-                    >
-                      {ocupado === String(s.id) ? "…" : s.activo ? "Retirar" : "Reactivar"}
-                    </button>
-                  </li>
-                ))}
-              </ul>
+                    {ocupado === String(s.id) ? "…" : s.activo ? "Retirar" : "Reactivar"}
+                  </button>
+                </Celda>
+              </tr>
+            );
+          })}
+        </Tabla>
 
-              <form
-                onSubmit={(ev) => { ev.preventDefault(); void agregar(e.clave); }}
-                className="flex gap-1.5 border-t border-line px-3.5 py-2"
-              >
-                <input
-                  value={nuevo[e.clave] ?? ""}
-                  onChange={(ev) => setNuevo((n) => ({ ...n, [e.clave]: ev.target.value }))}
-                  maxLength={80}
-                  placeholder={
-                    e.clave === "fallido"
-                      ? "Local cerrado, nadie atiende"
-                      : "Escribe un motivo"
-                  }
-                  className="min-w-0 flex-1 rounded-[8px] border border-line-strong bg-surface px-2.5 py-1 text-[12.5px]"
-                />
-                <button
-                  type="submit"
-                  disabled={ocupado === `${e.clave}-nuevo` || !(nuevo[e.clave] ?? "").trim()}
-                  className="rounded-full border border-amber-600 bg-amber px-2.5 py-1 text-[12px] font-semibold text-white transition hover:bg-amber-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Añadir
-                </button>
-              </form>
-            </Tarjeta>
-          );
-        })}
+        {filtrados.length === 0 ? (
+          <p className="py-10 text-center text-[14px] text-ink-2">
+            {lista.length === 0
+              ? "Todavía no hay subestados. Mientras tanto el conductor ve los de serie."
+              : "Ningún subestado coincide."}
+          </p>
+        ) : (
+          <Paginacion pagina={pagina} total={total} onCambio={setPagina} />
+        )}
       </div>
 
-      <p className="text-[11.5px] text-ink-3">
-        Retirar un motivo no lo borra: lo deja de ofrecer. Las paradas ya
+      <p className="mt-3 text-[12px] text-ink-3">
+        Retirar un subestado no lo borra: lo deja de ofrecer. Las paradas ya
         marcadas con él lo siguen nombrando, y un informe del mes pasado
         seguiría cuadrando.
       </p>

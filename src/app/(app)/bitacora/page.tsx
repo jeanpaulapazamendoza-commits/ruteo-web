@@ -1,3 +1,4 @@
+import MarcoAjustes from "@/components/MarcoAjustes";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { bitacora } from "@/app/acciones/datos";
@@ -18,7 +19,7 @@ export default async function PaginaBitacora() {
   const lista = await bitacora();
 
   return (
-    <>
+    <MarcoAjustes>
       <BarraSuperior
         migaja="Administración"
         titulo="Bitácora"
@@ -29,6 +30,6 @@ export default async function PaginaBitacora() {
         }
       />
       <PanelBitacora inicial={lista} />
-    </>
+    </MarcoAjustes>
   );
 }
