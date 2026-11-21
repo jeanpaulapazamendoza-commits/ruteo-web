@@ -42,6 +42,10 @@ export type PuntoMapa = {
   estado: string;
   hora: number | null;
   conductor: string | null;
+  /** Para los filtros del mapa: motivo, vehículo y clase de puntualidad. */
+  subestado: string | null;
+  placa: string | null;
+  puntual: "A tiempo" | "Adelantado" | "Atrasado" | "No definido";
 };
 
 export type InformeEnvios = {
@@ -174,7 +178,13 @@ export async function informeEnvios(desde: string, hasta: string) {
 
        (select coalesce(json_agg(json_build_object(
                  'id', id, 'nombre', nombre, 'lat', lat, 'lon', lon,
-                 'estado', estado_entrega, 'hora', h, 'conductor', conductor)), '[]'::json)
+                 'estado', estado_entrega, 'hora', h, 'conductor', conductor,
+                 'subestado', subestado, 'placa', placa,
+                 'puntual', case
+                    when desvio_min is null then 'No definido'
+                    when desvio_min < -${MARGEN_MIN} then 'Adelantado'
+                    when desvio_min >  ${MARGEN_MIN} then 'Atrasado'
+                    else 'A tiempo' end)), '[]'::json)
           from calc) as puntos`,
     [desde, hasta, ZONA],
   );

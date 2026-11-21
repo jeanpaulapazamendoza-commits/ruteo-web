@@ -72,6 +72,9 @@ export default function FichaCliente({
                   estado: "entregado",
                   hora: null,
                   conductor: null,
+                  subestado: null,
+                  placa: null,
+                  puntual: "No definido",
                 },
               ]}
               desde={0}

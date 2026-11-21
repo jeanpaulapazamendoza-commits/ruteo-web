@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { BarraSuperior } from "@/components/ui";
 import PanelEstadisticas from "@/components/PanelEstadisticas";
 
 /**
@@ -17,18 +16,7 @@ export default async function PaginaEstadisticas() {
   const sesion = await auth();
   if (!sesion?.user) redirect("/login");
 
-  return (
-    <>
-      <BarraSuperior
-        migaja="Análisis"
-        titulo="Estadísticas"
-        acciones={
-          <span className="text-[12px] text-ink-3">
-            Se calcula en el momento, sobre los datos de siempre.
-          </span>
-        }
-      />
-      <PanelEstadisticas />
-    </>
-  );
+  // Sin `BarraSuperior`: el panel pinta su propio título, porque debajo va
+  // la barra de pestañas y las dos piezas se miden juntas.
+  return <PanelEstadisticas />;
 }

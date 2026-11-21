@@ -273,3 +273,51 @@ body {
   align-items: center;
   gap: 6px;
 }
+
+/* ------------------------------------------------------------
+   Deslizador de dos tiradores.
+
+   Son dos `range` superpuestos sobre una misma pista. Al campo
+   se le quita el ratón y se le devuelve solo al tirador: si no,
+   el de encima taparía entero al de debajo y solo se podría
+   mover uno de los dos.
+   ------------------------------------------------------------ */
+.doble-rango input[type="range"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: transparent;
+  pointer-events: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.doble-rango input[type="range"]::-webkit-slider-runnable-track {
+  background: transparent;
+}
+.doble-rango input[type="range"]::-moz-range-track {
+  background: transparent;
+}
+.doble-rango input[type="range"]::-webkit-slider-thumb {
+  width: 18px;
+  height: 18px;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  background: #1ab394;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  cursor: grab;
+  pointer-events: auto;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.doble-rango input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  background: #1ab394;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  cursor: grab;
+  pointer-events: auto;
+}

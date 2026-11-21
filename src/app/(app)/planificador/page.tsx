@@ -215,7 +215,7 @@ export default async function PaginaPlanificador({
             (origenServidor ?? "Operación")
           )
         }
-        titulo={idDespacho ? (origenServidor ?? "Despacho") : "Nueva Actividad"}
+        titulo={idDespacho ? (origenServidor ?? "Despacho") : "Planificador"}
       />
 
       {/* La `key` ata el planificador a su origen: al cambiar de despacho (o al

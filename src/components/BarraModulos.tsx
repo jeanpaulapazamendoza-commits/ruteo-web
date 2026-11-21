@@ -146,7 +146,7 @@ const I = {
 /** Los módulos de la referencia, en su orden y con sus nombres. */
 const PRINCIPALES: Modulo[] = [
   { href: "/actividad", texto: "Actividad", icono: I.actividad },
-  { href: "/planificador", texto: "Nueva Actividad", icono: I.nueva },
+  { href: "/actividad-nueva", texto: "Nueva Actividad", icono: I.nueva },
   { href: "/rutas", texto: "Rutas", icono: I.rutas },
   { href: "/ordenes", texto: "Órdenes", icono: I.ordenes },
   { href: "/flota", texto: "Flota", icono: I.flota },
@@ -158,6 +158,7 @@ const PRINCIPALES: Modulo[] = [
 
 /** Lo que este sistema tiene además, debajo de la raya. */
 const PROPIOS: Modulo[] = [
+  { href: "/planificador", texto: "Planificador", icono: I.zonas },
   { href: "/despachos", texto: "Despachos", icono: I.bitacora },
   { href: "/torre", texto: "Torre de control", icono: I.torre },
   { href: "/zonas", texto: "Zonas de reparto", icono: I.zonas },
