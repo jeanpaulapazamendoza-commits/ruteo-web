@@ -11,6 +11,7 @@ import {
 } from "@/app/acciones/datos";
 import FranjaHoraria, { escalaDe, ReglaHoraria } from "@/components/FranjaHoraria";
 import { hora, hoy } from "@/lib/horas";
+import TiraIndicadores from "@/components/TiraIndicadores";
 import { Pastilla, Tarjeta } from "@/components/ui";
 
 const COLORES = [
@@ -36,8 +37,6 @@ const POR_DEFECTO: ClaveIndicador[] = [
   "en_ruta", "cumplimiento", "entregado", "fallido", "pendiente",
 ];
 
-const CLAVE_GUARDADA = "actividad:indicadores";
-
 type Orden = "placa" | "avance" | "desvio" | "silencio";
 
 export default function PanelActividad({
@@ -55,8 +54,6 @@ export default function PanelActividad({
   const [busca, setBusca] = useState("");
   const [orden, setOrden] = useState<Orden>("avance");
   const [compacto, setCompacto] = useState(false);
-  const [elegidos, setElegidos] = useState<ClaveIndicador[]>(POR_DEFECTO);
-  const [abrirIndicadores, setAbrirIndicadores] = useState(false);
   const [auto, setAuto] = useState(true);
   const [cargando, setCargando] = useState(false);
   const [actualizado, setActualizado] = useState<Date | null>(null);
@@ -70,11 +67,6 @@ export default function PanelActividad({
   // La elección de indicadores y la densidad son de quien mira, no del día.
   useEffect(() => {
     try {
-      const g = localStorage.getItem(CLAVE_GUARDADA);
-      if (g) {
-        const l = JSON.parse(g) as ClaveIndicador[];
-        if (Array.isArray(l) && l.length) setElegidos(l.filter((k) => k in INDICADORES));
-      }
       setCompacto(localStorage.getItem("actividad:compacto") === "1");
     } catch {
       /* almacenamiento bloqueado: se usa lo de por defecto */
@@ -83,14 +75,6 @@ export default function PanelActividad({
 
   function guardar(clave: string, valor: string) {
     try { localStorage.setItem(clave, valor); } catch { /* da igual */ }
-  }
-
-  function alternarIndicador(k: ClaveIndicador) {
-    setElegidos((prev) => {
-      const nuevo = prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k];
-      guardar(CLAVE_GUARDADA, JSON.stringify(nuevo));
-      return nuevo;
-    });
   }
 
   const refrescar = useCallback(async () => {
@@ -177,70 +161,19 @@ export default function PanelActividad({
 
   return (
     <>
-      {/* Tira de indicadores */}
-      <div className="sticky top-0 z-20 border-b border-line bg-surface">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5">
-          {elegidos.map((k) => {
-            const v = totales[k];
-            const pct = v.de ? Math.round((v.n / v.de) * 1000) / 10 : 0;
-            return (
-              <div key={k} title={INDICADORES[k].ayuda}>
-                <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-ink-3">
-                  {INDICADORES[k].texto}
-                </div>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="num text-[18px] font-extrabold leading-none tracking-tight">
-                    {v.n}
-                    <span className="text-[12px] font-bold text-ink-3">/{v.de}</span>
-                  </span>
-                  <span className="num text-[11.5px] font-semibold text-ink-2">{pct}%</span>
-                </div>
-              </div>
-            );
-          })}
-
-          <div className="relative ml-auto">
-            <button
-              onClick={() => setAbrirIndicadores((v) => !v)}
-              className="rounded-[8px] border border-line-strong bg-surface px-2.5 py-1 text-[11.5px] font-semibold text-ink-2 transition hover:bg-canvas"
-            >
-              Indicadores <span className="num">{elegidos.length}/6</span>
-            </button>
-            {abrirIndicadores && (
-              <>
-                <button
-                  aria-label="Cerrar"
-                  onClick={() => setAbrirIndicadores(false)}
-                  className="fixed inset-0 z-10 cursor-default"
-                />
-                <div className="absolute right-0 top-full z-20 mt-1 w-[230px] overflow-hidden rounded-[10px] border border-line bg-surface shadow-lg">
-                  {(Object.keys(INDICADORES) as ClaveIndicador[]).map((k) => (
-                    <label
-                      key={k}
-                      className="flex cursor-pointer items-start gap-2 px-3 py-2 text-[12.5px] transition hover:bg-canvas"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={elegidos.includes(k)}
-                        onChange={() => alternarIndicador(k)}
-                        className="mt-0.5"
-                      />
-                      <span>
-                        <b>{INDICADORES[k].texto}</b>
-                        <span className="block text-[11px] text-ink-3">
-                          {INDICADORES[k].ayuda}
-                        </span>
-                      </span>
-                    </label>
-                  ))}
-                  <p className="border-t border-line px-3 py-2 text-[11px] text-ink-3">
-                    Tu elección se recuerda en este navegador.
-                  </p>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+      <div className="sticky top-0 z-20 bg-surface">
+        <TiraIndicadores
+          items={(Object.keys(INDICADORES) as ClaveIndicador[]).map((k) => ({
+            clave: k,
+            texto: INDICADORES[k].texto,
+            ayuda: INDICADORES[k].ayuda,
+            n: totales[k].n,
+            de: totales[k].de,
+            tono: k === "fallido" && totales[k].n > 0 ? "bad" : undefined,
+          }))}
+          clave="actividad"
+          porDefecto={POR_DEFECTO}
+        />
 
         {/* Barra de herramientas */}
         <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-2 text-[11.5px] text-ink-3">

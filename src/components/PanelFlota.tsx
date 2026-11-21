@@ -10,6 +10,7 @@ import {
   type ParadaConDesvio,
   type RutaEnCalle,
 } from "@/app/acciones/datos";
+import TiraIndicadores from "@/components/TiraIndicadores";
 import { hora, hoy } from "@/lib/horas";
 import { Pastilla, Tarjeta } from "@/components/ui";
 
@@ -181,24 +182,23 @@ export default function PanelFlota({
   }
 
   return (
+    <>
+      <TiraIndicadores
+        items={[
+          { clave: "en_calle", texto: "En calle", ayuda: "Han salido y les queda trabajo",
+            n: totales.enCalle, de: totales.rutas },
+          { clave: "paradas", texto: "Paradas", ayuda: "Gestionadas sobre asignadas",
+            n: totales.gestionadas, de: totales.asignadas },
+          { clave: "calladas", texto: "Sin marcar", ayuda: `Llevan mas de ${SILENCIO_MIN} minutos sin dar senales`,
+            n: totales.calladas, tono: totales.calladas > 0 ? "bad" : undefined },
+          { clave: "sin_salir", texto: "Sin salir", ayuda: "Rutas asignadas que no han arrancado",
+            n: totales.sinIniciar, tono: totales.sinIniciar > 0 ? "warn" : undefined },
+        ]}
+      />
+
     <div className="grid min-h-0 flex-1 grid-cols-1 @3xl:grid-cols-[360px_1fr]">
       {/* Columna de conductores */}
       <div className="min-w-0 overflow-y-auto border-r border-line bg-surface">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-4 py-2.5 text-[11.5px] text-ink-3">
-          <span>
-            <b className="num text-[15px] text-ink">{totales.enCalle}</b> en calle
-          </span>
-          <span>
-            <b className="num text-ink">{totales.gestionadas}</b>/{totales.asignadas} paradas
-          </span>
-          {totales.calladas > 0 && (
-            <Pastilla tono="bad">{totales.calladas} sin marcar</Pastilla>
-          )}
-          {totales.sinIniciar > 0 && (
-            <Pastilla tono="plan">{totales.sinIniciar} sin salir</Pastilla>
-          )}
-        </div>
-
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2 text-[11.5px] text-ink-3">
           <input
             type="date"
@@ -302,6 +302,7 @@ export default function PanelFlota({
         )}
       </div>
     </div>
+    </>
   );
 }
 

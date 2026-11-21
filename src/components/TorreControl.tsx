@@ -9,6 +9,7 @@ import {
 } from "@/app/acciones/datos";
 import { verFoto } from "@/app/acciones/fotos";
 import FranjaHoraria, { escalaDe, ReglaHoraria } from "@/components/FranjaHoraria";
+import TiraIndicadores from "@/components/TiraIndicadores";
 import { hora } from "@/lib/horas";
 import { Pastilla, Tarjeta } from "@/components/ui";
 
@@ -246,61 +247,75 @@ export default function TorreControl({
     [eventos],
   );
 
+  const cerradas =
+    resumen.entregado + resumen.parcial + resumen.fallido + resumen.reprogramado;
+
   return (
+    <>
+      {/* La misma tira que encabeza Actividad y Flota, aquí referida a un
+          solo despacho: el planificador aprende a leerla una vez. */}
+      <TiraIndicadores
+        items={[
+          { clave: "cumplimiento", texto: "Cumplimiento", ayuda: "Paradas cerradas sobre el total",
+            n: cerradas, de: resumen.total },
+          { clave: "entregado", texto: "Entregado", ayuda: "Entregas conformes",
+            n: resumen.entregado, de: resumen.total, tono: "ok" },
+          { clave: "parcial", texto: "Parcial", ayuda: "Se entrego una parte de los bultos",
+            n: resumen.parcial, de: resumen.total,
+            tono: resumen.parcial > 0 ? "warn" : undefined },
+          { clave: "fallido", texto: "Fallido", ayuda: "No se pudo entregar",
+            n: resumen.fallido, de: resumen.total,
+            tono: resumen.fallido > 0 ? "bad" : undefined },
+          { clave: "pendiente", texto: "Pendiente", ayuda: "Siguen sin marcar",
+            n: resumen.pendiente, de: resumen.total },
+          { clave: "bultos", texto: "Bultos", ayuda: "Bultos entregados",
+            n: resumen.bultosEntregados },
+        ]}
+        clave="torre"
+        porDefecto={["cumplimiento", "entregado", "parcial", "fallido", "pendiente"]}
+        derecha={
+          <>
+            <span className="num">Actualizado {horaDe(actualizado.toISOString())}</span>
+            <label className="flex cursor-pointer items-center gap-1.5">
+              <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
+              cada 20 s
+            </label>
+            <button
+              onClick={refrescar}
+              disabled={cargando}
+              className="rounded-[8px] border border-line-strong px-2 py-1 font-semibold text-ink-2 transition hover:bg-canvas disabled:opacity-50"
+            >
+              {cargando ? "…" : "↻ Actualizar"}
+            </button>
+          </>
+        }
+      />
+
     <div className="grid min-h-0 flex-1 grid-cols-1 @3xl:grid-cols-[1fr_320px] @5xl:grid-cols-[1fr_340px]">
-      <div className="min-w-0 space-y-3.5 overflow-y-auto p-4">
+      <div className="min-w-0 space-y-3 overflow-y-auto p-3">
         {error && (
           <p className="rounded-[10px] border border-bad/30 bg-bad-bg px-3 py-2 text-[12.5px] text-bad">
             {error}
           </p>
         )}
 
-        {/* Avance general */}
-        <Tarjeta className="p-4">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="num text-[40px] font-extrabold leading-none tracking-tight">
-              {resumen.avance}
-              <span className="text-[20px]">%</span>
-            </div>
-            <div className="pb-1 text-[12.5px] text-ink-2">
-              del despacho completado
-              <br />
-              <span className="num">
-                {resumen.entregado + resumen.parcial + resumen.fallido + resumen.reprogramado}
-              </span>{" "}
-              de <span className="num">{resumen.total}</span> paradas cerradas
-            </div>
-            <div className="ml-auto flex flex-wrap gap-3.5 pb-1 text-[11.5px] font-semibold text-ink-2">
-              <Leyenda color="var(--color-ok)" texto={`Entregado ${resumen.entregado}`} />
-              <Leyenda color="var(--color-live)" texto={`Pendiente ${resumen.pendiente}`} />
-              <Leyenda color="var(--color-warn)" texto={`Parcial ${resumen.parcial}`} />
-              <Leyenda color="var(--color-warn)" texto={`Reprogramado ${resumen.reprogramado}`} />
-              <Leyenda color="var(--color-bad)" texto={`Fallido ${resumen.fallido}`} />
-            </div>
-          </div>
-
-          <div className="mt-3 flex h-3 overflow-hidden rounded-full border border-line bg-canvas">
+        {/* El reparto de la jornada, de un vistazo */}
+        <Tarjeta className="p-3">
+          <div className="flex h-3 overflow-hidden rounded-full border border-line bg-canvas">
             <span style={{ width: `${resumen.pct(resumen.entregado)}%`, background: "var(--color-ok)" }} />
             <span style={{ width: `${resumen.pct(resumen.parcial + resumen.reprogramado)}%`, background: "var(--color-warn)" }} />
             <span style={{ width: `${resumen.pct(resumen.fallido)}%`, background: "var(--color-bad)" }} />
             <span style={{ width: `${resumen.pct(resumen.pendiente)}%`, background: "var(--color-live)" }} />
           </div>
 
-          <div className="mt-2.5 flex flex-wrap items-center gap-3 text-[11.5px] text-ink-3">
-            <span className="num">{resumen.bultosEntregados} bultos entregados</span>
-            <span className="ml-auto flex items-center gap-2">
-              Actualizado <span className="num">{horaDe(actualizado.toISOString())}</span>
-              <label className="flex cursor-pointer items-center gap-1.5">
-                <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
-                cada 20 s
-              </label>
-              <button
-                onClick={refrescar}
-                disabled={cargando}
-                className="rounded-[8px] border border-line-strong px-2 py-1 font-semibold text-ink-2 transition hover:bg-canvas disabled:opacity-50"
-              >
-                {cargando ? "…" : "↻ Actualizar"}
-              </button>
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] font-semibold text-ink-2">
+            <Leyenda color="var(--color-ok)" texto={`Entregado ${resumen.entregado}`} />
+            <Leyenda color="var(--color-warn)" texto={`Parcial ${resumen.parcial}`} />
+            <Leyenda color="var(--color-warn)" texto={`Reprogramado ${resumen.reprogramado}`} />
+            <Leyenda color="var(--color-bad)" texto={`Fallido ${resumen.fallido}`} />
+            <Leyenda color="var(--color-live)" texto={`Pendiente ${resumen.pendiente}`} />
+            <span className="num ml-auto text-ink-3">
+              {resumen.bultosEntregados} bultos entregados
             </span>
           </div>
         </Tarjeta>
@@ -509,6 +524,7 @@ export default function TorreControl({
         )}
       </aside>
     </div>
+    </>
   );
 }
 
