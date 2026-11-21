@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import type { Evento } from "@/app/acciones/datos";
+import { hora } from "@/lib/horas";
 
 /**
  * La ruta a lo largo del día, en una línea.
@@ -49,14 +50,7 @@ export function escalaDe(eventos: Evento[]): Escala | null {
   return { desde, hasta: hasta > desde ? hasta : desde + hora };
 }
 
-// Reloj de 24 horas: «14:00» ocupa la mitad que «02:00 p. m.» y en una regla
-// de marcas pegadas eso es la diferencia entre leerla y no leerla.
-const hhmm = (t: number) =>
-  new Date(t).toLocaleTimeString("es-PE", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+const hhmm = (t: number) => hora(new Date(t));
 
 /**
  * Las horas de referencia, una sola vez para todas las franjas.

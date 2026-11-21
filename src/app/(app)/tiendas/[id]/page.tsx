@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { fechaLarga, hora } from "@/lib/horas";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { comoUsuario, unaFila } from "@/lib/db";
@@ -36,12 +37,10 @@ export default async function DetalleCarga({
       [id],
     );
     if (!imp) notFound();
-    const d = new Date(imp.creado_en);
     titulo = imp.nombre_archivo;
     const autor = imp.autor;
     subtitulo =
-      `${d.toLocaleDateString("es-PE", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}` +
-      ` · ${d.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}` +
+      `${fechaLarga(imp.creado_en)} · ${hora(imp.creado_en)}` +
       (autor ? ` · ${autor}` : "");
   }
 

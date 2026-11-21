@@ -3,15 +3,10 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { comoUsuario, unaFila } from "@/lib/db";
 import { BarraSuperior, Tarjeta, EstadoVacio, Pastilla } from "@/components/ui";
+import { fecha as fechaLima, hora as horaLima } from "@/lib/horas";
 
 function fechaHora(iso: string) {
-  const d = new Date(iso);
-  return {
-    fecha: d.toLocaleDateString("es-PE", {
-      weekday: "short", day: "2-digit", month: "short", year: "numeric",
-    }),
-    hora: d.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }),
-  };
+  return { fecha: fechaLima(iso), hora: horaLima(iso) };
 }
 
 export default async function PaginaTiendas() {

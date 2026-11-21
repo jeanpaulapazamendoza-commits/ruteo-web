@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { fecha as fechaLima } from "@/lib/horas";
 import { useRouter } from "next/navigation";
 import { guardarNotaEmpresa } from "@/app/acciones/datos";
 import { rpc } from "@/app/acciones/rpc";
@@ -40,10 +41,7 @@ const ROL_TEXTO: Record<string, string> = {
   conductor: "Conductor",
 };
 
-const fecha = (iso: string | null) =>
-  iso
-    ? new Date(iso).toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" })
-    : "—";
+const fecha = fechaLima;
 
 const mesLargo = (m: string) => {
   const [a, mm] = m.split("-").map(Number);

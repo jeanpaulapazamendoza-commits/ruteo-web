@@ -14,6 +14,7 @@ import {
   type ResumenGuardado,
 } from "@/lib/despachos";
 import { fusionarPuntos } from "@/lib/plantilla";
+import { diaCorto } from "@/lib/horas";
 import { repartirPorZonas, type Zona } from "@/lib/zonas";
 import CargarArchivo from "@/components/CargarArchivo";
 import { Pastilla } from "@/components/ui";
@@ -58,10 +59,7 @@ type Pendiente = {
 
 /** «Reparto Norte — 54 puntos · Melissa · 01-ago» y no «Despacho» a secas. */
 function etiquetaPendiente(d: Pendiente) {
-  const fecha = new Date(d.fecha + "T00:00:00").toLocaleDateString("es-PE", {
-    day: "2-digit",
-    month: "short",
-  });
+  const fecha = diaCorto(d.fecha);
   return (
     (d.nombre ?? "Ruteo sin nombre") +
     (d.autor ? ` · ${d.autor}` : "") +

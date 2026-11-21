@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { comoUsuario } from "@/lib/db";
 import { BarraSuperior, Tarjeta, EstadoVacio, Pastilla } from "@/components/ui";
 import { estado as infoEstado, ESTADOS } from "@/lib/despachos";
+import { diaCorto } from "@/lib/horas";
 
 type Fila = {
   id: string;
@@ -27,13 +28,7 @@ type Fila = {
   bultos_bandeja: number;
 };
 
-function fechaCorta(f: string) {
-  const [a, m, d] = f.split("-").map(Number);
-  return new Date(a, m - 1, d).toLocaleDateString("es-PE", {
-    day: "2-digit",
-    month: "short",
-  });
-}
+const fechaCorta = diaCorto;
 
 export default async function PaginaDespachos({
   searchParams,

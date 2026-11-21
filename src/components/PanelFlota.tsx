@@ -10,6 +10,7 @@ import {
   type ParadaConDesvio,
   type RutaEnCalle,
 } from "@/app/acciones/datos";
+import { hora, hoy } from "@/lib/horas";
 import { Pastilla, Tarjeta } from "@/components/ui";
 
 const MapaSeguimiento = dynamic(() => import("@/components/MapaSeguimiento"), {
@@ -25,24 +26,10 @@ const COLORES = [
 ];
 const color = (i: number) => COLORES[i % COLORES.length];
 
-const hhmm = (iso: string | null) =>
-  iso
-    ? new Date(iso).toLocaleTimeString("es-PE", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      })
-    : "—";
+const hhmm = hora;
 
 /** Una hora planificada llega como «08:22:00»: sobra el resto. */
 const corta = (t: string | null) => (t ? t.slice(0, 5) : "—");
-
-/** Hoy en el calendario de quien mira, que es el que ve en el selector. */
-function hoy() {
-  const d = new Date();
-  const dosCifras = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${dosCifras(d.getMonth() + 1)}-${dosCifras(d.getDate())}`;
-}
 
 /** «2 h 15 min» a partir de milisegundos. Lo que se lee de un vistazo. */
 function duracion(ms: number) {

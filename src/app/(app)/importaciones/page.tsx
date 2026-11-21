@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { importaciones } from "@/app/acciones/datos";
 import { BarraSuperior, Pastilla, Tarjeta, EstadoVacio } from "@/components/ui";
 import { estado as infoEstado } from "@/lib/despachos";
+import { fechaHora } from "@/lib/horas";
 
 /**
  * Qué archivos se han subido y en qué acabaron.
@@ -12,16 +13,6 @@ import { estado as infoEstado } from "@/lib/despachos";
  * esto no se puede responder quién subió el archivo de ayer, ni por qué uno
  * cargado no llegó a rutearse nunca.
  */
-function cuando(iso: string) {
-  return new Date(iso).toLocaleString("es-PE", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-}
-
 export default async function PaginaImportaciones() {
   const sesion = await auth();
   if (!sesion?.user) redirect("/login");
@@ -93,7 +84,7 @@ export default async function PaginaImportaciones() {
                             {i.filas?.toLocaleString("es-PE") ?? "—"}
                           </td>
                           <td className="num border-b border-line px-3.5 py-2.5 text-ink-2">
-                            {cuando(i.creado_en)}
+                            {fechaHora(i.creado_en)}
                           </td>
                           <td className="border-b border-line px-3.5 py-2.5 text-ink-2">
                             {i.autor ?? "—"}

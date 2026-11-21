@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { hora } from "@/lib/horas";
 import { useRouter } from "next/navigation";
 import { useCola } from "@/hooks/useCola";
 import CabeceraConductor from "@/components/conductor/CabeceraConductor";
@@ -107,10 +108,7 @@ export default function ListaRutas({
                         <span className="text-ink-2">
                           Salió{" "}
                           <b className="num">
-                            {new Date(r.salidaReal).toLocaleTimeString("es-PE", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
+{hora(r.salidaReal)}
                           </b>{" "}
                           · <span className="num">{r.cerradas}</span> de{" "}
                           <span className="num">{r.total}</span> hechas

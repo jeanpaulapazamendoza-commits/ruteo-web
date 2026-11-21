@@ -5,6 +5,7 @@ import FondoMapa from "@/components/FondoMapa";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useMemo } from "react";
+import { hora as horaLima } from "@/lib/horas";
 
 export type ParadaSeguida = {
   id: string;
@@ -59,7 +60,7 @@ const iconoCD = L.divIcon({
 
 const hora = (iso: string | null) =>
   iso
-    ? new Date(iso).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })
+    ? horaLima(iso)
     : null;
 
 /**

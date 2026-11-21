@@ -1,4 +1,5 @@
 import type { EstadoEntrega } from "@/lib/entregas";
+import { hora } from "@/lib/horas";
 
 /**
  * Cómo se ve cada estado de parada en la app del conductor.
@@ -44,12 +45,10 @@ export function resumenEntrega(p: {
   bultos_entregados: number | null;
   recibe: string | null;
 }): string | null {
-  const hora = p.hora_entrega
-    ? new Date(p.hora_entrega).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })
-    : null;
+  const cuando = p.hora_entrega ? hora(p.hora_entrega) : null;
 
   if (p.estado_entrega === "entregado") {
-    return ["Entregado", hora, p.recibe ? `recibió ${p.recibe}` : null].filter(Boolean).join(" · ");
+    return ["Entregado", cuando, p.recibe ? `recibió ${p.recibe}` : null].filter(Boolean).join(" · ");
   }
   if (p.estado_entrega === "parcial") {
     const n = p.bultos_entregados;

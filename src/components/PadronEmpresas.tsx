@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { fecha as fechaLima } from "@/lib/horas";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { rpc } from "@/app/acciones/rpc";
@@ -21,8 +22,7 @@ export type ResumenOrg = {
   ultima_actividad: string | null;
 };
 
-const fecha = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+const fecha = fechaLima;
 
 /**
  * Padrón de empresas clientes.

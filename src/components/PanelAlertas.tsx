@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { alertas as traerAlertas, atenderAlerta, type Alerta } from "@/app/acciones/datos";
+import { hora, hoy } from "@/lib/horas";
 import { Pastilla, Tarjeta } from "@/components/ui";
 
 /**
@@ -48,24 +49,11 @@ const TIPOS: Record<
   },
 };
 
-const hhmm = (iso: string | null) =>
-  iso
-    ? new Date(iso).toLocaleTimeString("es-PE", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      })
-    : "—";
+const hhmm = hora;
 
 function duracion(min: number) {
   const h = Math.floor(min / 60);
   return h > 0 ? `${h} h ${min % 60} min` : `${min} min`;
-}
-
-function hoy() {
-  const d = new Date();
-  const dd = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${dd(d.getMonth() + 1)}-${dd(d.getDate())}`;
 }
 
 export default function PanelAlertas({

@@ -9,6 +9,7 @@ import {
 } from "@/app/acciones/datos";
 import { verFoto } from "@/app/acciones/fotos";
 import FranjaHoraria, { escalaDe, ReglaHoraria } from "@/components/FranjaHoraria";
+import { hora } from "@/lib/horas";
 import { Pastilla, Tarjeta } from "@/components/ui";
 
 // Leaflet necesita `window`: solo en el navegador.
@@ -96,10 +97,7 @@ function queLePaso(p: ParadaSeguimiento): string {
   return partes.join(" · ");
 }
 
-const horaDe = (iso: string | null) =>
-  iso
-    ? new Date(iso).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })
-    : "—";
+const horaDe = hora;
 
 export default function TorreControl({
   despachoId,

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { comoUsuario, unaFila } from "@/lib/db";
 import { BarraSuperior, Tarjeta, EstadoVacio, Pastilla } from "@/components/ui";
+import { diaLargo } from "@/lib/horas";
 import TorreControl, {
   type ParadaSeguimiento,
   type RutaSeguida,
@@ -28,20 +29,7 @@ type ResumenDespacho = {
   bultos_bandeja: number;
 };
 
-/**
- * `fecha` es un día sin hora («2026-11-19»). Se parte a mano en vez de pasarlo
- * a `new Date(...)`: esa forma lo interpreta como medianoche UTC y, en Lima
- * (UTC-5), lo pintaría como el día anterior.
- */
-function fechaLarga(dia: string) {
-  const [a, m, d] = dia.split("-").map(Number);
-  return new Date(a, m - 1, d).toLocaleDateString("es-PE", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
+const fechaLarga = diaLargo;
 
 export default async function PaginaTorre({
   searchParams,

@@ -9,6 +9,7 @@ import {
   type ResultadoLectura,
   type PuntoPlan,
 } from "@/lib/plantilla";
+import { diaCorto, hoy } from "@/lib/horas";
 
 function descargar(nombre: string, contenido: string, tipo: string) {
   const blob = new Blob([contenido], { type: tipo });
@@ -56,7 +57,7 @@ export default function CargarArchivo({
     setNombre(archivo.name);
     // Un nombre por defecto que ya sirve: la fecha de hoy. Se puede cambiar,
     // pero nunca queda un ruteo sin forma de identificarlo.
-    setAlias((a) => a || `Reparto ${new Date().toLocaleDateString("es-PE")}`);
+    setAlias((a) => a || `Reparto ${diaCorto(hoy())}`);
     setAnalizando(true);
     try {
       setLectura(await leerArchivo(archivo));
