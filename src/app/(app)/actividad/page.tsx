@@ -1,0 +1,46 @@
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
+import { estadoFlota, eventosDelDia } from "@/app/acciones/datos";
+import { BarraSuperior } from "@/components/ui";
+import PanelActividad from "@/components/PanelActividad";
+
+/**
+ * El turno entero en una pantalla.
+ *
+ * La torre sigue un despacho y Flota un conductor; esta mira todas las rutas
+ * del día a la vez, que es como se trabaja cuando hay cuatro archivos
+ * distintos en la calle. Una tarjeta por vehículo, con sus números y su día
+ * dibujado en una franja horaria común a todas, para poder compararlas.
+ */
+export default async function PaginaActividad({
+  searchParams,
+}: {
+  searchParams: Promise<{ fecha?: string }>;
+}) {
+  const sesion = await auth();
+  if (!sesion?.user) redirect("/login");
+
+  const { fecha } = await searchParams;
+  // Lo que llega de la barra de direcciones acaba en un `::date` de Postgres.
+  const dia = fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : null;
+
+  const [rutas, eventos] = await Promise.all([
+    estadoFlota(dia ?? undefined),
+    eventosDelDia(dia ?? undefined),
+  ]);
+
+  return (
+    <>
+      <BarraSuperior
+        migaja="Operación"
+        titulo="Actividad"
+        acciones={
+          <span className="text-[12px] text-ink-2">
+            <b className="num text-ink">{rutas.length}</b> vehículos
+          </span>
+        }
+      />
+      <PanelActividad rutas={rutas} eventos={eventos} dia={dia} />
+    </>
+  );
+}

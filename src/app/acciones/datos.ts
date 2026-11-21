@@ -388,6 +388,31 @@ export async function atenderAlerta(
   );
 }
 
+/**
+ * Todo lo que ha pasado en un día, de todas las rutas a la vez.
+ *
+ * Es lo que alimenta la pantalla de Actividad: la torre mira un despacho y
+ * esto mira el turno entero, que es como se trabaja por la mañana cuando hay
+ * cuatro archivos distintos en la calle.
+ */
+export async function eventosDelDia(fecha?: string) {
+  const yo = await idSesion();
+  return comoUsuario<Evento & { ruta_id: string }>(
+    yo,
+    `select e.id, e.ruta_id, r.indice as ruta_indice, e.parada_id,
+            p.nombre as parada, p.orden, e.tipo, e.ocurrido_en,
+            a.nombre as autor, e.datos
+       from eventos e
+       join rutas r on r.id = e.ruta_id
+       join despachos d on d.id = r.despacho_id
+       left join paradas p on p.id = e.parada_id
+       left join perfiles a on a.id = e.autor
+      where not r.sin_asignar and d.fecha = coalesce($1::date, private.hoy())
+      order by e.ocurrido_en, e.id`,
+    [fecha ?? null],
+  );
+}
+
 /** La historia de una sola parada, de lo más reciente a lo más antiguo. */
 export async function historialParada(paradaId: string) {
   const yo = await idSesion();

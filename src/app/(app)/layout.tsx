@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { unaFila } from "@/lib/db";
-import NavLateral from "@/components/NavLateral";
+import { alertas } from "@/app/acciones/datos";
+import BarraModulos from "@/components/BarraModulos";
 import CuentaBloqueada from "@/components/CuentaBloqueada";
 
 type Perfil = {
@@ -56,19 +57,27 @@ export default async function LayoutApp({
   // El conductor no usa el escritorio: su sitio es la app de reparto.
   if (perfil.rol === "conductor") redirect("/conductor");
 
+  // El número sobre «Alertas» tiene que estar en cualquier pantalla: es el
+  // aviso que hace volver. Si la consulta falla, la barra sale sin el punto
+  // en vez de tumbar toda la aplicación por un contador.
+  let avisos = 0;
+  try {
+    avisos = (await alertas()).filter((a) => !a.atendida).length;
+  } catch {
+    /* sin contador */
+  }
+
   return (
-    <div className="flex h-screen overflow-hidden">
-      <NavLateral
+    <div className="flex h-screen flex-col overflow-hidden">
+      <BarraModulos
         nombre={perfil.nombre ?? sesion.user.email ?? "Usuario"}
         empresa={perfil.empresa ?? "Sin empresa"}
         rol={perfil.rol}
         esDesarrollador={perfil.es_desarrollador === true}
+        avisos={avisos}
       />
       {/* `@container` para que las pantallas midan el sitio que de verdad
-          tienen. Con puntos de corte por ventana, el planificador pedía 1280
-          px para abrir sus tres columnas sin descontar los 232 de esta barra:
-          en un portátil de 1280 el mapa se quedaba en 388 px, y por debajo
-          colapsaba a una sola columna con el mapa espachurrado. */}
+          tienen, y no el de la ventana. */}
       <div className="@container flex min-w-0 flex-1 flex-col overflow-y-auto bg-surface-2">
         {children}
       </div>
