@@ -41,7 +41,7 @@ export default function BorrarDespacho({
     return (
       <button
         onClick={() => setAbierto(true)}
-        className="rounded-[9px] border border-line-strong bg-surface px-3 py-1.5 text-[12.5px] font-semibold text-bad transition hover:bg-bad-bg"
+        className="rounded-full border border-line-strong bg-surface px-3 py-1.5 text-[12.5px] font-semibold text-bad transition hover:bg-bad-bg"
       >
         Borrar ruteo
       </button>
@@ -70,7 +70,7 @@ export default function BorrarDespacho({
         </button>
         <button
           onClick={() => { setAbierto(false); setTexto(""); setError(null); }}
-          className="rounded-[9px] border border-line-strong bg-surface px-3 py-1.5 text-[12.5px] font-semibold transition hover:bg-canvas"
+          className="rounded-full border border-line-strong bg-surface px-3 py-1.5 text-[12.5px] font-semibold transition hover:bg-canvas"
         >
           Cancelar
         </button>

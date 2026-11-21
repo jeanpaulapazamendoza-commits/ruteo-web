@@ -128,7 +128,7 @@ export default function PanelBitacora({ inicial }: { inicial: Cambio[] }) {
           <button
             onClick={exportar}
             disabled={!lista.length}
-            className="rounded-[8px] border border-line-strong bg-surface px-2.5 py-1 font-semibold text-ink-2 transition hover:bg-canvas disabled:opacity-50"
+            className="rounded-full border border-line-strong bg-surface px-2.5 py-1 font-semibold text-ink-2 transition hover:bg-canvas disabled:opacity-50"
           >
             ⤓ Exportar a Excel
           </button>

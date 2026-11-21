@@ -659,7 +659,7 @@ function FilaParada({
         <span
           className={`num grid h-9 w-9 shrink-0 place-items-center rounded-full text-[17px] font-bold ${
             activa
-              ? "bg-amber text-navy-900"
+              ? "bg-amber text-white"
               : cerrada
                 ? "border border-line-strong bg-surface text-ink-2"
                 : "bg-canvas text-ink"

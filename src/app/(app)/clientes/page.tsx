@@ -19,15 +19,7 @@ export default async function PaginaClientes() {
 
   return (
     <>
-      <BarraSuperior
-        migaja="Cartera"
-        titulo="Clientes"
-        acciones={
-          <span className="text-[12px] text-ink-2">
-            <b className="num text-ink">{lista.length}</b> clientes
-          </span>
-        }
-      />
+      <BarraSuperior migaja="" titulo="Clientes" />
       <PanelClientes clientes={lista} />
     </>
   );

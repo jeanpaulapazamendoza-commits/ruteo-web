@@ -116,7 +116,7 @@ export default function TiraIndicadores({
           <div className="relative">
             <button
               onClick={() => setAbierto((v) => !v)}
-              className="rounded-[8px] border border-line-strong bg-surface px-2.5 py-1 font-semibold text-ink-2 transition hover:bg-canvas"
+              className="rounded-full border border-line-strong bg-surface px-2.5 py-1 font-semibold text-ink-2 transition hover:bg-canvas"
             >
               Indicadores{" "}
               <span className="num">

@@ -140,7 +140,7 @@ export default function CabeceraConductor(
                   {pendientes > 0 && (
                     <button
                       onClick={() => props.cola.subir()}
-                      className="h-16 w-full rounded-[12px] border border-amber-600 bg-amber text-[17px] font-extrabold text-navy-900 active:bg-amber-600"
+                      className="h-16 w-full rounded-[12px] border border-amber-600 bg-amber text-[17px] font-extrabold text-white active:bg-amber-600"
                     >
                       Subir ahora
                     </button>

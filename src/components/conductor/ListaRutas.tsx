@@ -140,7 +140,7 @@ export default function ListaRutas({
             ) : ruta ? (
               <button
                 onClick={() => router.push(`/conductor/${ruta.id}`)}
-                className="h-[72px] w-full rounded-[10px] border border-amber-600 bg-amber text-[17px] font-extrabold text-navy-900 active:bg-amber-600"
+                className="h-[72px] w-full rounded-[10px] border border-amber-600 bg-amber text-[17px] font-extrabold text-white active:bg-amber-600"
               >
                 Abrir {ruta.etiqueta} ▶
               </button>

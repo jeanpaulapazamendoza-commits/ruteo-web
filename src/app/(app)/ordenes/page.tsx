@@ -37,15 +37,7 @@ export default async function PaginaOrdenes({
 
   return (
     <>
-      <BarraSuperior
-        migaja="Operación"
-        titulo="Órdenes"
-        acciones={
-          <span className="text-[12px] text-ink-2">
-            últimos <b className="num text-ink">8</b> días por defecto
-          </span>
-        }
-      />
+      <BarraSuperior migaja="" titulo="Órdenes" />
       <PanelOrdenes inicial={lista} conductores={conductores} filtro={filtro} />
     </>
   );

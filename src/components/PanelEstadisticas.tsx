@@ -107,7 +107,7 @@ export default function PanelEstadisticas() {
       {/* La barra de pestañas y el rango. El rango manda sobre los cuatro
           informes: cambiarlo en uno y que otro siga en otra fecha es la
           forma más rápida de sacar una conclusión equivocada. */}
-      <div className="flex flex-wrap items-center gap-1 border-b border-line bg-surface px-3">
+      <div className="raya flex flex-wrap items-center gap-1 border-b border-line bg-surface">
         {PESTANAS.map((p) => (
           <button
             key={p.id}
@@ -131,7 +131,7 @@ export default function PanelEstadisticas() {
             value={desde}
             max={hasta}
             onChange={(e) => setDesde(e.target.value)}
-            className="num rounded-[8px] border border-line-strong bg-surface px-2 py-1 text-[12px] outline-none transition focus:border-amber-600"
+            className="num rounded-[4px] border border-line-strong bg-surface px-2 py-1 text-[12px] outline-none transition focus:border-amber-600"
           />
           <span className="text-[11px] text-ink-3">a</span>
           <input
@@ -139,7 +139,7 @@ export default function PanelEstadisticas() {
             value={hasta}
             min={desde}
             onChange={(e) => setHasta(e.target.value)}
-            className="num rounded-[8px] border border-line-strong bg-surface px-2 py-1 text-[12px] outline-none transition focus:border-amber-600"
+            className="num rounded-[4px] border border-line-strong bg-surface px-2 py-1 text-[12px] outline-none transition focus:border-amber-600"
           />
         </div>
       </div>
@@ -169,7 +169,7 @@ function Atajo({ texto, onClic }: { texto: string; onClic: () => void }) {
   return (
     <button
       onClick={onClic}
-      className="rounded-[8px] border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-ink-2 transition hover:bg-canvas"
+      className="rounded-full border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-ink-2 transition hover:bg-canvas"
     >
       {texto}
     </button>
@@ -199,7 +199,7 @@ function Encabezado({
       {onExportar && (
         <button
           onClick={onExportar}
-          className="ml-auto rounded-[8px] border border-line-strong bg-surface px-2.5 py-1 text-[11.5px] font-semibold transition hover:bg-canvas"
+          className="ml-auto rounded-full border border-line-strong bg-surface px-2.5 py-1 text-[11.5px] font-semibold transition hover:bg-canvas"
         >
           ⤓ Exportar
         </button>
@@ -272,7 +272,7 @@ function VistaMapa({ envios, rango }: { envios: InformeEnvios | null; rango: str
         />
         <button
           onClick={() => { setDesde(0); setHasta(24); }}
-          className="rounded-[8px] border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold transition hover:bg-canvas"
+          className="rounded-full border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold transition hover:bg-canvas"
         >
           Todo el día
         </button>

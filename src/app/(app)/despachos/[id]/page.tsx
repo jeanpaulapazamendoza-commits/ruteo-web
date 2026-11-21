@@ -177,7 +177,7 @@ export default async function PaginaDespacho({
             {editable(despacho.estado) && (
               <Link
                 href={`/planificador?despacho=${despacho.id}`}
-                className="rounded-[9px] border border-amber-600 bg-amber px-3 py-1.5 text-[12.5px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white"
+                className="rounded-full border border-amber-600 bg-amber px-3 py-1.5 text-[12.5px] font-semibold text-white transition hover:bg-amber-600 hover:text-white"
               >
                 {sinRutear ? "◈ Rutear" : "◈ Añadir puntos o recalcular"}
               </Link>
@@ -191,7 +191,7 @@ export default async function PaginaDespacho({
             {!sinRutear && (
               <Link
                 href={`/torre?despacho=${despacho.id}`}
-                className="rounded-[9px] border border-line-strong bg-surface px-3 py-1.5 text-[12.5px] font-semibold transition hover:bg-canvas"
+                className="rounded-full border border-line-strong bg-surface px-3 py-1.5 text-[12.5px] font-semibold transition hover:bg-canvas"
               >
                 ◉ Seguir en vivo
               </Link>
@@ -249,7 +249,7 @@ export default async function PaginaDespacho({
             </p>
             <Link
               href={`/planificador?despacho=${despacho.id}`}
-              className="mt-3 inline-block rounded-[9px] border border-amber-600 bg-amber px-4 py-2 text-[13px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white"
+              className="mt-3 inline-block rounded-full border border-amber-600 bg-amber px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-amber-600 hover:text-white"
             >
               ◈ Rutear este despacho
             </Link>

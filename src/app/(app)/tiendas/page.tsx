@@ -133,21 +133,21 @@ export default async function PaginaTiendas() {
                   <div className="mt-2.5 flex gap-1.5">
                     <Link
                       href={`/tiendas/${a.id}`}
-                      className="flex-1 rounded-[9px] border border-line-strong bg-surface px-2 py-1.5 text-center text-[12px] font-semibold text-ink-2 transition hover:bg-canvas"
+                      className="flex-1 rounded-full border border-line-strong bg-surface px-2 py-1.5 text-center text-[12px] font-semibold text-ink-2 transition hover:bg-canvas"
                     >
                       Ver tiendas
                     </Link>
                     {ruteada ? (
                       <Link
                         href={`/despachos/${desp[0].id}`}
-                        className="flex-1 rounded-[9px] border border-line-strong bg-surface px-2 py-1.5 text-center text-[12px] font-semibold text-ink-2 transition hover:bg-canvas"
+                        className="flex-1 rounded-full border border-line-strong bg-surface px-2 py-1.5 text-center text-[12px] font-semibold text-ink-2 transition hover:bg-canvas"
                       >
                         Ver despacho
                       </Link>
                     ) : (
                       <Link
                         href={`/planificador?carga=${a.id}`}
-                        className="flex-1 rounded-[9px] border border-amber-600 bg-amber px-2 py-1.5 text-center text-[12px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white"
+                        className="flex-1 rounded-full border border-amber-600 bg-amber px-2 py-1.5 text-center text-[12px] font-semibold text-white transition hover:bg-amber-600 hover:text-white"
                       >
                         Rutear
                       </Link>
@@ -181,13 +181,13 @@ export default async function PaginaTiendas() {
                 <div className="mt-2.5 flex gap-1.5">
                   <Link
                     href="/tiendas/sin-archivo"
-                    className="flex-1 rounded-[9px] border border-line-strong bg-surface px-2 py-1.5 text-center text-[12px] font-semibold text-ink-2 transition hover:bg-canvas"
+                    className="flex-1 rounded-full border border-line-strong bg-surface px-2 py-1.5 text-center text-[12px] font-semibold text-ink-2 transition hover:bg-canvas"
                   >
                     Ver tiendas
                   </Link>
                   <Link
                     href="/planificador?carga=sin-archivo"
-                    className="flex-1 rounded-[9px] border border-line-strong bg-surface px-2 py-1.5 text-center text-[12px] font-semibold text-ink-2 transition hover:bg-canvas"
+                    className="flex-1 rounded-full border border-line-strong bg-surface px-2 py-1.5 text-center text-[12px] font-semibold text-ink-2 transition hover:bg-canvas"
                   >
                     Rutear
                   </Link>

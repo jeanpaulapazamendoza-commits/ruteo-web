@@ -136,7 +136,7 @@ export default function EditorZonas({
           <>
             <button
               onClick={empezar}
-              className="w-full rounded-[9px] border border-amber-600 bg-amber px-3.5 py-2.5 text-[13.5px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white"
+              className="w-full rounded-full border border-amber-600 bg-amber px-3.5 py-2.5 text-[13.5px] font-semibold text-white transition hover:bg-amber-600 hover:text-white"
             >
               ✏️ Dibujar una zona nueva
             </button>
@@ -208,19 +208,19 @@ export default function EditorZonas({
               <button
                 onClick={guardar}
                 disabled={ocupado || vertices.length < 3}
-                className="rounded-[9px] border border-amber-600 bg-amber px-3.5 py-1.5 text-[12.5px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white disabled:opacity-50"
+                className="rounded-full border border-amber-600 bg-amber px-3.5 py-1.5 text-[12.5px] font-semibold text-white transition hover:bg-amber-600 hover:text-white disabled:opacity-50"
               >
                 {ocupado ? "Guardando…" : "Guardar zona"}
               </button>
               <button
                 onClick={() => setVertices([])}
-                className="rounded-[9px] border border-line-strong bg-surface px-3 py-1.5 text-[12.5px] font-semibold text-ink-2 transition hover:bg-canvas"
+                className="rounded-full border border-line-strong bg-surface px-3 py-1.5 text-[12.5px] font-semibold text-ink-2 transition hover:bg-canvas"
               >
                 Reiniciar trazo
               </button>
               <button
                 onClick={cancelar}
-                className="rounded-[9px] border border-line-strong bg-surface px-3 py-1.5 text-[12.5px] font-semibold text-ink-2 transition hover:bg-canvas"
+                className="rounded-full border border-line-strong bg-surface px-3 py-1.5 text-[12.5px] font-semibold text-ink-2 transition hover:bg-canvas"
               >
                 Cancelar
               </button>

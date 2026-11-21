@@ -28,18 +28,7 @@ export default async function PaginaAlertas({
 
   return (
     <>
-      <BarraSuperior
-        migaja="Operación"
-        titulo="Alertas"
-        acciones={
-          <span className="text-[12px] text-ink-2">
-            <b className={`num ${pendientes > 0 ? "text-bad" : "text-ink"}`}>
-              {pendientes}
-            </b>{" "}
-            sin atender
-          </span>
-        }
-      />
+      <BarraSuperior migaja="" titulo="Alertas" />
       <PanelAlertas inicial={lista} dia={dia} />
     </>
   );

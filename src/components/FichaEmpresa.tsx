@@ -138,7 +138,7 @@ export default function FichaEmpresa({ detalle }: { detalle: DetalleOrg }) {
           <button
             onClick={cambiarEstado}
             disabled={ocupado}
-            className={`ml-auto rounded-[9px] border px-3.5 py-2 text-[13px] font-semibold transition disabled:opacity-50 ${
+            className={`ml-auto rounded-full border px-3.5 py-2 text-[13px] font-semibold transition disabled:opacity-50 ${
               empresa.activa
                 ? "border-line-strong text-bad hover:bg-bad-bg"
                 : "border-ok/40 text-ok hover:bg-ok-bg"
@@ -163,13 +163,13 @@ export default function FichaEmpresa({ detalle }: { detalle: DetalleOrg }) {
               <button
                 onClick={guardarNota}
                 disabled={ocupado}
-                className="rounded-[9px] border border-amber-600 bg-amber px-3 py-1.5 text-[12.5px] font-semibold text-navy-900 disabled:opacity-50"
+                className="rounded-full border border-amber-600 bg-amber px-3 py-1.5 text-[12.5px] font-semibold text-white disabled:opacity-50"
               >
                 Guardar
               </button>
               <button
                 onClick={() => { setEditandoNota(false); setNota(empresa.nota ?? ""); }}
-                className="rounded-[9px] border border-line-strong bg-surface px-3 py-1.5 text-[12.5px] font-semibold"
+                className="rounded-full border border-line-strong bg-surface px-3 py-1.5 text-[12.5px] font-semibold"
               >
                 Cancelar
               </button>

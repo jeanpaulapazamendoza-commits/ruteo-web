@@ -121,14 +121,14 @@ export default function AsignarRutas({
         </p>
         <button
           onClick={repartir}
-          className="ml-auto rounded-[8px] border border-line-strong bg-surface px-2.5 py-1 text-[12px] font-semibold text-ink-2 transition hover:bg-canvas"
+          className="ml-auto rounded-full border border-line-strong bg-surface px-2.5 py-1 text-[12px] font-semibold text-ink-2 transition hover:bg-canvas"
         >
           Repartir disponibles
         </button>
         <button
           onClick={guardar}
           disabled={guardando}
-          className="rounded-[9px] border border-amber-600 bg-amber px-3.5 py-1.5 text-[12.5px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white disabled:opacity-60"
+          className="rounded-full border border-amber-600 bg-amber px-3.5 py-1.5 text-[12.5px] font-semibold text-white transition hover:bg-amber-600 hover:text-white disabled:opacity-60"
         >
           {guardando ? "Guardando…" : "Guardar asignación"}
         </button>

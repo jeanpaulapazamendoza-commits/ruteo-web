@@ -54,7 +54,7 @@ export default function CuentaBloqueada({
         <p className="num mt-3 text-[12px] text-ink-3">{email}</p>
         <button
           onClick={salir}
-          className="mt-5 w-full rounded-[10px] border border-line-strong bg-surface px-4 py-2.5 text-[14px] font-semibold transition hover:bg-canvas"
+          className="mt-5 w-full rounded-full border border-line-strong bg-surface px-4 py-2.5 text-[14px] font-semibold transition hover:bg-canvas"
         >
           Cerrar sesión
         </button>

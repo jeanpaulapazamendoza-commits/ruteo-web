@@ -74,7 +74,7 @@ export default function PadronEmpresas({ empresas }: { empresas: ResumenOrg[] })
         </p>
         <button
           onClick={() => { setCreando((v) => !v); setError(null); }}
-          className="ml-auto rounded-[9px] border border-amber-600 bg-amber px-3.5 py-2 text-[13px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white"
+          className="ml-auto rounded-full border border-amber-600 bg-amber px-3.5 py-2 text-[13px] font-semibold text-white transition hover:bg-amber-600 hover:text-white"
         >
           + Dar de alta una empresa
         </button>
@@ -151,14 +151,14 @@ export default function PadronEmpresas({ empresas }: { empresas: ResumenOrg[] })
                   <td className="border-b border-line px-3 py-1.5 text-right">
                     <Link
                       href={`/organizaciones/${o.id}`}
-                      className="mr-1.5 rounded-[8px] border border-line-strong bg-surface px-2.5 py-1 text-[12px] font-semibold text-ink-2 transition hover:bg-canvas"
+                      className="mr-1.5 rounded-full border border-line-strong bg-surface px-2.5 py-1 text-[12px] font-semibold text-ink-2 transition hover:bg-canvas"
                     >
                       Ver ficha
                     </Link>
                     <button
                       onClick={() => cambiar(o)}
                       disabled={ocupado === o.id}
-                      className={`rounded-[8px] border px-2.5 py-1 text-[12px] font-semibold transition disabled:opacity-50 ${
+                      className={`rounded-full border px-2.5 py-1 text-[12px] font-semibold transition disabled:opacity-50 ${
                         o.activa
                           ? "border-line-strong text-bad hover:bg-bad-bg"
                           : "border-ok/40 text-ok hover:bg-ok-bg"
@@ -227,7 +227,7 @@ function FormularioAlta({ onCerrar, onListo }: { onCerrar: () => void; onListo: 
         </div>
         <button
           onClick={onCerrar}
-          className="mt-3 rounded-[9px] border border-line-strong bg-surface px-3.5 py-2 text-[13px] font-semibold transition hover:bg-canvas"
+          className="mt-3 rounded-full border border-line-strong bg-surface px-3.5 py-2 text-[13px] font-semibold transition hover:bg-canvas"
         >
           Listo
         </button>
@@ -281,11 +281,11 @@ function FormularioAlta({ onCerrar, onListo }: { onCerrar: () => void; onListo: 
 
       <div className="mt-3 flex gap-2">
         <button type="submit" disabled={enviando}
-          className="rounded-[9px] border border-amber-600 bg-amber px-4 py-2 text-[13px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white disabled:opacity-50">
+          className="rounded-full border border-amber-600 bg-amber px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-amber-600 hover:text-white disabled:opacity-50">
           {enviando ? "Creando…" : "Crear empresa"}
         </button>
         <button type="button" onClick={onCerrar}
-          className="rounded-[9px] border border-line-strong bg-surface px-4 py-2 text-[13px] font-semibold transition hover:bg-canvas">
+          className="rounded-full border border-line-strong bg-surface px-4 py-2 text-[13px] font-semibold transition hover:bg-canvas">
           Cancelar
         </button>
       </div>

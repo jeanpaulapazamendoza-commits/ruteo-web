@@ -3,6 +3,9 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { ClienteFila } from "@/app/acciones/clientes";
+import {
+  AccionesPagina, BOTON_SECUNDARIO, Contador, Paginacion, usePaginas,
+} from "@/components/Paginacion";
 import SelectorColumnas, { useColumnas, type Columna } from "@/components/SelectorColumnas";
 import { Celda, EstadoVacio, Pastilla, Tabla } from "@/components/ui";
 import { aCSV, descargar } from "@/lib/exportar";
@@ -166,16 +169,27 @@ export default function PanelClientes({ clientes }: { clientes: ClienteFila[] })
     );
   }
 
+  const { pagina, setPagina, total, visibles: filas } = usePaginas(filtrados, 15);
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface px-3 py-2">
+    <div>
+      <AccionesPagina>
+        <button onClick={exportar} disabled={!filtrados.length} className={BOTON_SECUNDARIO}>
+          ⤓ Exportar
+        </button>
+        <Link href="/planificador" className={BOTON_SECUNDARIO}>
+          ⤒ Importar
+        </Link>
+      </AccionesPagina>
+
+      {/* Filtros */}
+      <div className="flex flex-wrap items-center gap-2 pb-3">
         <input
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar por nombre, código, distrito o teléfono…"
-          className="min-w-[240px] flex-1 rounded-[8px] border border-line-strong bg-surface px-2.5 py-1 text-[12.5px] outline-none transition focus:border-amber-600"
+          placeholder="Nombre, ID de cliente, teléfono, distrito o dirección"
+          className="min-w-[260px] flex-1 outline-none"
         />
-
         <Interruptor
           activo={soloConFallos}
           onClic={() => setSoloConFallos((v) => !v)}
@@ -186,42 +200,32 @@ export default function PanelClientes({ clientes }: { clientes: ClienteFila[] })
           onClic={() => setSoloRecurrentes((v) => !v)}
           texto="Solo fijos"
         />
+      </div>
 
-        <span className="num text-[12px] text-ink-3">
-          {filtrados.length} de {clientes.length}
-        </span>
-
+      <Contador n={filtrados.length} texto="clientes">
         <SelectorColumnas
           columnas={columnas}
           elegidas={elegidas}
           alternar={alternar}
           fijas={fijas}
         />
+      </Contador>
 
-        <button
-          onClick={exportar}
-          disabled={!filtrados.length}
-          className="rounded-[8px] border border-line-strong bg-surface px-2.5 py-1 text-[11.5px] font-semibold transition hover:bg-canvas disabled:opacity-50"
-        >
-          ⤓ Exportar
-        </button>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-auto">
-        {filtrados.length === 0 ? (
-          <EstadoVacio
-            icono="◐"
-            titulo={clientes.length ? "Nada coincide" : "Todavía no hay clientes"}
-            descripcion={
-              clientes.length
-                ? "Prueba con otro texto o quita los filtros."
-                : "Los clientes se crean solos al cargar un archivo: cada código del archivo pasa a ser uno, con el teléfono y la dirección si el archivo los trae."
-            }
-          />
-        ) : (
+      {filtrados.length === 0 ? (
+        <EstadoVacio
+          icono="◐"
+          titulo={clientes.length ? "Nada coincide" : "Todavía no hay clientes"}
+          descripcion={
+            clientes.length
+              ? "Prueba con otro texto o quita los filtros."
+              : "Los clientes se crean solos al cargar un archivo: cada código del archivo pasa a ser uno, con el teléfono y la dirección si el archivo los trae."
+          }
+        />
+      ) : (
+        <div className="overflow-hidden rounded-[8px] border border-line [&>div:first-child]:rounded-none [&>div:first-child]:border-0">
           <Tabla cabeceras={visibles.map((c) => c.texto)} anchoMin={760}>
-            {filtrados.map((c) => (
-              <tr key={c.id} className="hover:bg-canvas">
+            {filas.map((c) => (
+              <tr key={c.id} className="hover:bg-surface-2">
                 {visibles.map((col) => (
                   <Celda
                     key={col.clave}
@@ -233,8 +237,9 @@ export default function PanelClientes({ clientes }: { clientes: ClienteFila[] })
               </tr>
             ))}
           </Tabla>
-        )}
-      </div>
+          <Paginacion pagina={pagina} total={total} onCambio={setPagina} />
+        </div>
+      )}
     </div>
   );
 }
@@ -252,7 +257,7 @@ function Interruptor({
     <button
       onClick={onClic}
       aria-pressed={activo}
-      className={`rounded-[8px] border px-2.5 py-1 text-[11.5px] font-semibold transition ${
+      className={`rounded-full border px-2.5 py-1 text-[11.5px] font-semibold transition ${
         activo
           ? "border-amber-600 bg-amber-050 text-ink"
           : "border-line-strong bg-surface text-ink-2 hover:bg-canvas"

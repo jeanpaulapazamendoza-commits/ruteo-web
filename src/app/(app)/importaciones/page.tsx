@@ -22,23 +22,31 @@ export default async function PaginaImportaciones() {
 
   return (
     <>
+      {/* Cabecera de la referencia: «Últimas Importaciones», con la plantilla
+          y el botón de importar a la derecha. */}
       <BarraSuperior
-        migaja="Datos"
-        titulo="Archivos cargados"
+        migaja=""
+        titulo="Últimas Importaciones"
         acciones={
-          <span className="text-[12px] text-ink-2">
-            <b className="num text-ink">{lista.length}</b> archivos
-            {huerfanas > 0 && (
-              <>
-                {" · "}
-                <b className="num text-warn">{huerfanas}</b> sin rutear
-              </>
-            )}
-          </span>
+          <>
+            <a
+              href="/plantilla.csv"
+              download
+              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-line-strong bg-surface px-3 text-[14px] font-bold text-ink transition hover:bg-canvas"
+            >
+              ⤓ Descargar plantilla
+            </a>
+            <Link
+              href="/planificador"
+              className="inline-flex h-8 items-center gap-1.5 rounded-full bg-amber px-3 text-[14px] font-bold text-white transition hover:bg-amber-600"
+            >
+              Importar
+            </Link>
+          </>
         }
       />
 
-      <div className="p-4">
+      <div>
         {lista.length === 0 ? (
           <Tarjeta>
             <EstadoVacio
@@ -48,7 +56,7 @@ export default async function PaginaImportaciones() {
               accion={
                 <Link
                   href="/planificador"
-                  className="inline-block rounded-[9px] border border-amber-600 bg-amber px-4 py-2.5 text-[13.5px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white"
+                  className="inline-block rounded-full border border-amber-600 bg-amber px-4 py-2.5 text-[13.5px] font-semibold text-white transition hover:bg-amber-600 hover:text-white"
                 >
                   Ir al planificador
                 </Link>
@@ -57,47 +65,51 @@ export default async function PaginaImportaciones() {
           </Tarjeta>
         ) : (
           <>
-            <Tarjeta className="overflow-hidden">
+            <div>
               <Tabla
-                cabeceras={["Archivo", "Filas", "Subido", "Por", "Acabó en"]}
-                anchoMin={620}
+                cabeceras={["Identificador", "Estado", "Nombre de archivo", "Filas", "Usuario", "Fecha de carga"]}
+                anchoMin={760}
               >
                 {lista.map((i) => {
                   const info = i.estado ? infoEstado(i.estado) : null;
                   return (
-                    <tr key={i.id}>
-                      <Celda className="num font-semibold">📄 {i.nombre_archivo}</Celda>
-                      <Celda className="num text-ink-2">
-                        {i.filas?.toLocaleString("es-PE") ?? "—"}
+                    <tr key={i.id} className="hover:bg-surface-2">
+                      <Celda className="num">
+                        {i.despacho_id ? (
+                          <Link href={`/despachos/${i.despacho_id}`}>
+                            {String(i.id).slice(0, 8)}
+                          </Link>
+                        ) : (
+                          String(i.id).slice(0, 8)
+                        )}
                       </Celda>
-                      <Celda className="num text-ink-2">{fechaHora(i.creado_en)}</Celda>
-                      <Celda className="text-ink-2">{i.autor ?? "—"}</Celda>
                       <Celda>
                         {i.despacho_id && info ? (
-                          <Link
-                            href={`/despachos/${i.despacho_id}`}
-                            className="inline-flex items-center gap-2 transition hover:underline"
-                          >
+                          <span className="inline-flex items-center gap-2">
+                            <Pastilla tono="ok">Importado</Pastilla>
                             <Pastilla tono={info.tono}>{info.texto}</Pastilla>
-                            <span className="truncate">{i.despacho ?? "Despacho"}</span>
                             {i.despachos > 1 && (
                               <span className="num text-[11px] text-ink-3">
                                 +{i.despachos - 1}
                               </span>
                             )}
-                          </Link>
+                          </span>
                         ) : (
-                          <span className="text-[12px] text-warn">Nunca se ruteó</span>
+                          <Pastilla tono="warn">Importado sin rutear</Pastilla>
                         )}
                       </Celda>
+                      <Celda>{i.nombre_archivo}</Celda>
+                      <Celda className="num">{i.filas?.toLocaleString("es-PE") ?? "—"}</Celda>
+                      <Celda>{i.autor ?? "—"}</Celda>
+                      <Celda className="num">{fechaHora(i.creado_en)}</Celda>
                     </tr>
                   );
                 })}
               </Tabla>
-            </Tarjeta>
+            </div>
 
             <p className="mt-3 text-[11.5px] text-ink-3">
-              «Nunca se ruteó» es un archivo que se subió al planificador y se
+              «Importado sin rutear» es un archivo que se subió al planificador y se
               abandonó sin guardar el despacho. No pasa nada por dejarlo, pero
               si se repite suele ser señal de que el archivo traía algo raro.
             </p>

@@ -47,7 +47,7 @@ export default async function PaginaParada({
         acciones={
           <Link
             href={`/despachos/${parada.despacho_id}`}
-            className="rounded-[9px] border border-line-strong bg-surface px-3 py-1.5 text-[12.5px] font-semibold transition hover:bg-canvas"
+            className="rounded-full border border-line-strong bg-surface px-3 py-1.5 text-[12.5px] font-semibold transition hover:bg-canvas"
           >
             Ver planificación
           </Link>

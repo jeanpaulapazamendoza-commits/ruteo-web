@@ -61,7 +61,7 @@ export default async function PaginaTorre({
               accion={
                 <Link
                   href="/planificador"
-                  className="inline-block rounded-[9px] border border-amber-600 bg-amber px-4 py-2.5 text-[13.5px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white"
+                  className="inline-block rounded-full border border-amber-600 bg-amber px-4 py-2.5 text-[13.5px] font-semibold text-white transition hover:bg-amber-600 hover:text-white"
                 >
                   Ir al planificador
                 </Link>
@@ -246,7 +246,7 @@ export default async function PaginaTorre({
             </span>
             <Link
               href={`/despachos/${activo.id}`}
-              className="rounded-[9px] border border-line-strong bg-surface px-3 py-1.5 text-[12.5px] font-semibold transition hover:bg-canvas"
+              className="rounded-full border border-line-strong bg-surface px-3 py-1.5 text-[12.5px] font-semibold transition hover:bg-canvas"
             >
               Ver planificación
             </Link>

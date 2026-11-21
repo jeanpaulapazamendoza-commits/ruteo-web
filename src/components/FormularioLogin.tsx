@@ -139,7 +139,7 @@ export default function FormularioLogin({ hayGoogle = false }: { hayGoogle?: boo
                   setCargando(true);
                   void entrarConGoogle(volverA);
                 }}
-                className="mt-7 flex w-full items-center justify-center gap-2.5 rounded-[10px] border border-line-strong bg-surface px-4 py-2.5 text-[14px] font-semibold transition hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-7 flex w-full items-center justify-center gap-2.5 rounded-full border border-line-strong bg-surface px-4 py-2.5 text-[14px] font-semibold transition hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <IconoGoogle />
                 Entrar con Google
@@ -205,7 +205,7 @@ export default function FormularioLogin({ hayGoogle = false }: { hayGoogle?: boo
             <button
               type="submit"
               disabled={cargando}
-              className="w-full rounded-[10px] border border-amber-600 bg-amber px-4 py-2.5 text-[14px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-full border border-amber-600 bg-amber px-4 py-2.5 text-[14px] font-semibold text-white transition hover:bg-amber-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
             >
               {cargando
                 ? "Un momento…"
@@ -261,7 +261,7 @@ function Campo({
         required={requerido}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-[10px] border border-line-strong bg-surface px-3 py-2.5 text-[14px] text-ink outline-none transition placeholder:text-ink-3/70 focus:border-amber"
+        className="w-full rounded-[4px] border border-line-strong bg-surface px-3 py-2.5 text-[14px] text-ink outline-none transition placeholder:text-ink-3/70 focus:border-amber"
       />
     </label>
   );

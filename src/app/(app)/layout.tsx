@@ -68,19 +68,14 @@ export default async function LayoutApp({
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
-      <BarraModulos
-        nombre={perfil.nombre ?? sesion.user.email ?? "Usuario"}
-        empresa={perfil.empresa ?? "Sin empresa"}
-        rol={perfil.rol}
-        esDesarrollador={perfil.es_desarrollador === true}
-        avisos={avisos}
-      />
-      {/* `@container` para que las pantallas midan el sitio que de verdad
-          tienen, y no el de la ventana. */}
-      <div className="@container flex min-w-0 flex-1 flex-col overflow-y-auto bg-surface-2">
-        {children}
-      </div>
-    </div>
+    <BarraModulos
+      nombre={perfil.nombre ?? sesion.user.email ?? "Usuario"}
+      empresa={perfil.empresa ?? "Sin empresa"}
+      rol={perfil.rol}
+      esDesarrollador={perfil.es_desarrollador === true}
+      avisos={avisos}
+    >
+      {children}
+    </BarraModulos>
   );
 }

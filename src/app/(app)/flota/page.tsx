@@ -30,15 +30,7 @@ export default async function PaginaFlota({
 
   return (
     <>
-      <BarraSuperior
-        migaja="Operación"
-        titulo="Flota"
-        acciones={
-          <span className="text-[12px] text-ink-2">
-            <b className="num text-ink">{rutas.length}</b> rutas
-          </span>
-        }
-      />
+      <BarraSuperior migaja="" titulo="Flota" />
       <PanelFlota inicial={rutas} dia={dia} />
     </>
   );

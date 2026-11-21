@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ordenes as traerOrdenes, type FiltroOrdenes, type Orden } from "@/app/acciones/datos";
+import {
+  AccionesPagina, BOTON_PRIMARIO, BOTON_SECUNDARIO, Contador, Paginacion, usePaginas,
+} from "@/components/Paginacion";
 import SelectorColumnas, { useColumnas, type Columna } from "@/components/SelectorColumnas";
 import { aCSV, descargar, nombreArchivo } from "@/lib/exportar";
 import { hora, hoy } from "@/lib/horas";
@@ -222,21 +225,36 @@ export default function PanelOrdenes({
     descargar(nombreArchivo("ordenes", filtro.hasta ?? hoy()), csv);
   }
 
+  const { pagina, setPagina, total, visibles: filas } = usePaginas(lista, 15);
+
   return (
-    <>
-      <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface px-4 py-2 text-[11.5px] text-ink-3">
+    <div>
+      <AccionesPagina>
+        <Link href="/bitacora" className={BOTON_SECUNDARIO}>
+          Bitácora
+        </Link>
+        <button onClick={exportar} disabled={!lista.length} className={BOTON_SECUNDARIO}>
+          ⤓ Exportar a excel
+        </button>
+        <Link href="/planificador" className={BOTON_PRIMARIO}>
+          + Nueva orden
+        </Link>
+      </AccionesPagina>
+
+      {/* Filtros */}
+      <div className="grid grid-cols-1 gap-2 pb-3 @xl:grid-cols-2 @4xl:grid-cols-[1.4fr_1fr_1fr_1fr_1fr]">
         <input
           value={filtro.texto ?? ""}
           onChange={(e) => setFiltro((f) => ({ ...f, texto: e.target.value }))}
-          placeholder="Código, destino, distrito, placa o despacho"
-          className="w-[260px] rounded-[8px] border border-line-strong bg-surface px-2.5 py-1 text-[12px]"
+          placeholder="Código de orden, cliente o dirección"
+          className="w-full outline-none"
         />
         <select
           value={filtro.estado ?? ""}
           onChange={(e) => setFiltro((f) => ({ ...f, estado: e.target.value || undefined }))}
-          className="rounded-[8px] border border-line-strong bg-surface px-2 py-1 text-[11.5px]"
+          className="w-full outline-none"
         >
-          <option value="">Cualquier estado</option>
+          <option value="">Estado</option>
           {Object.entries(ESTADO).map(([k, v]) => (
             <option key={k} value={k}>{v.texto}</option>
           ))}
@@ -244,108 +262,93 @@ export default function PanelOrdenes({
         <select
           value={filtro.conductor ?? ""}
           onChange={(e) => setFiltro((f) => ({ ...f, conductor: e.target.value || undefined }))}
-          className="rounded-[8px] border border-line-strong bg-surface px-2 py-1 text-[11.5px]"
+          className="w-full outline-none"
         >
-          <option value="">Cualquier conductor</option>
+          <option value="">Usuario móvil</option>
           {conductores.map((c) => (
             <option key={c} value={c}>{c}</option>
           ))}
         </select>
-        <label className="flex items-center gap-1">
-          Del
-          <input
-            type="date"
-            value={filtro.desde ?? ""}
-            onChange={(e) => setFiltro((f) => ({ ...f, desde: e.target.value || undefined }))}
-            className="num rounded-[8px] border border-line-strong bg-surface px-2 py-1 text-[11.5px]"
-          />
-          al
-          <input
-            type="date"
-            value={filtro.hasta ?? ""}
-            onChange={(e) => setFiltro((f) => ({ ...f, hasta: e.target.value || undefined }))}
-            className="num rounded-[8px] border border-line-strong bg-surface px-2 py-1 text-[11.5px]"
-          />
-        </label>
-
-        <span className="ml-auto flex items-center gap-2">
-          <span className="num">
-            {cargando ? "buscando…" : `${lista.length} órdenes`}
-          </span>
-          <SelectorColumnas
-            columnas={columnas}
-            elegidas={elegidas}
-            alternar={alternar}
-            fijas={fijas}
-          />
-          <button
-            onClick={exportar}
-            disabled={!lista.length}
-            className="rounded-[8px] border border-line-strong bg-surface px-2.5 py-1 font-semibold text-ink-2 transition hover:bg-canvas disabled:opacity-50"
-          >
-            ⤓ Exportar a Excel
-          </button>
-        </span>
+        <input
+          type="date"
+          title="Desde"
+          value={filtro.desde ?? ""}
+          onChange={(e) => setFiltro((f) => ({ ...f, desde: e.target.value || undefined }))}
+          className="num w-full outline-none"
+        />
+        <input
+          type="date"
+          title="Hasta"
+          value={filtro.hasta ?? ""}
+          onChange={(e) => setFiltro((f) => ({ ...f, hasta: e.target.value || undefined }))}
+          className="num w-full outline-none"
+        />
       </div>
 
-      <div className="p-3">
-        {error && (
-          <p className="mb-3 rounded-[10px] border border-bad/30 bg-bad-bg px-3 py-2 text-[12.5px] text-bad">
-            {error}
-          </p>
-        )}
+      <Contador n={lista.length} texto={cargando ? "órdenes · buscando…" : "órdenes"}>
+        <SelectorColumnas
+          columnas={columnas}
+          elegidas={elegidas}
+          alternar={alternar}
+          fijas={fijas}
+        />
+      </Contador>
 
-        {lista.length === 0 ? (
-          <Tarjeta className="p-6 text-[13.5px] text-ink-2">
-            Ninguna orden coincide. Prueba a ampliar el rango de fechas: por
-            defecto se miran los últimos ocho días.
-          </Tarjeta>
-        ) : (
-          <Tarjeta className="overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-[12.5px]">
-                <thead>
-                  <tr>
+      {error && (
+        <p className="mb-3 rounded-[8px] border border-bad/30 bg-bad-bg px-3 py-2 text-[13px] text-bad">
+          {error}
+        </p>
+      )}
+
+      {lista.length === 0 ? (
+        <p className="rounded-[8px] border border-line p-6 text-[14px] text-ink-2">
+          Ninguna orden coincide. Prueba a ampliar el rango de fechas: por
+          defecto se miran los últimos ocho días.
+        </p>
+      ) : (
+        <div className="overflow-hidden rounded-[8px] border border-line">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  {visibles.map((c) => (
+                    <th
+                      key={c.clave}
+                      className={c.alineacion === "derecha" ? "text-right" : "text-left"}
+                    >
+                      {c.texto}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filas.map((o) => (
+                  <tr key={o.id} className="transition hover:bg-surface-2">
                     {visibles.map((c) => (
-                      <th
+                      <td
                         key={c.clave}
-                        className={`whitespace-nowrap border-b border-line bg-surface-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-ink-3 ${
-                          c.alineacion === "derecha" ? "text-right" : "text-left"
+                        className={`border-b border-line align-middle ${
+                          c.alineacion === "derecha" ? "text-right" : ""
                         }`}
                       >
-                        {c.texto}
-                      </th>
+                        {c.pinta(o)}
+                      </td>
                     ))}
                   </tr>
-                </thead>
-                <tbody>
-                  {lista.map((o) => (
-                    <tr key={o.id} className="transition hover:bg-canvas">
-                      {visibles.map((c) => (
-                        <td
-                          key={c.clave}
-                          className={`border-b border-line px-3 py-1.5 align-middle ${
-                            c.alineacion === "derecha" ? "text-right" : ""
-                          }`}
-                        >
-                          {c.pinta(o)}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Tarjeta>
-        )}
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Paginacion pagina={pagina} total={total} onCambio={setPagina} />
+        </div>
+      )}
 
-        {lista.length >= 500 && (
-          <p className="mt-2 text-[11.5px] text-warn">
-            Se muestran las primeras 500. Acota la fecha o el texto para verlo
-            todo.
-          </p>
-        )}
-      </div>
-    </>
+      {lista.length >= 500 && (
+        <p className="mt-2 text-[12px] text-warn">
+          Se muestran las primeras 500. Acota la fecha o el texto para verlo
+          todo.
+        </p>
+      )}
+    </div>
   );
 }

@@ -1,47 +1,50 @@
 @import "tailwindcss";
 
 /* ============================================================
-   Sistema de diseño PuriqGo
+   Sistema de diseño
 
-   Los acentos son los de la marca: Naranja Destino #FFB42E,
-   Azul Puriq #062A69 y Azul Noche #041735. Los nombres de los
-   tokens («amber», «navy») se conservan a propósito: los usan
-   cientos de clases y renombrarlos sería un cambio enorme sin
-   ganar nada. Lo que importa es que el valor sea el de marca,
-   para que el logotipo no parezca pegado encima de otra paleta.
+   La interfaz sigue, medida a medida, la del sistema de última
+   milla que se tomó de referencia: barra superior azul noche,
+   carril blanco de iconos, lienzo gris, paneles blancos, azul de
+   acción en píldora y tablas de cabecera gris.
 
-   Neutros con sesgo azul (no gris genérico) y color semántico
-   separado del acento.
+   Los nombres de los tokens («amber», «navy») vienen de la
+   paleta anterior y se conservan a propósito: los usan cientos
+   de clases y renombrarlos sería un cambio enorme sin ganar
+   nada. «amber» es el color de acción —hoy azul— y «navy» el de
+   la barra superior.
    ============================================================ */
 @theme {
-  --color-amber: #ffb42e;
-  --color-amber-600: #e09410;
-  --color-amber-050: #fff5e2;
+  /* color de acción */
+  --color-amber: #4b82fa;
+  --color-amber-600: #2f68e8;
+  --color-amber-050: #edf5ff;
 
-  --color-navy-900: #041735;
-  --color-navy-800: #062a69;
-  --color-navy-700: #0d3d8f;
-  --color-navy-600: #1a55b5;
+  /* barra superior */
+  --color-navy-900: #132045;
+  --color-navy-800: #1b2c5a;
+  --color-navy-700: #25407f;
+  --color-navy-600: #3558a8;
 
-  --color-canvas: #f4f6f9;
+  --color-canvas: #f0f2f5;
   --color-surface: #ffffff;
-  --color-surface-2: #fafbfd;
-  --color-line: #e2e7ef;
-  --color-line-strong: #cbd3e0;
+  --color-surface-2: #f9fafb;
+  --color-line: #e1e6ed;
+  --color-line-strong: #c5d2e7;
 
-  --color-ink: #101b2b;
-  --color-ink-2: #4a566b;
-  --color-ink-3: #7c8798;
+  --color-ink: #39414d;
+  --color-ink-2: #546884;
+  --color-ink-3: #8892a2;
 
-  /* semánticos: independientes del acento */
-  --color-ok: #0e9f6e;
-  --color-ok-bg: #e4f6ef;
-  --color-warn: #c2760b;
-  --color-warn-bg: #fcf2df;
-  --color-bad: #d64545;
-  --color-bad-bg: #fcebeb;
-  --color-live: #2e7dd1;
-  --color-live-bg: #e7f0fb;
+  /* semánticos */
+  --color-ok: #1ab394;
+  --color-ok-bg: #e6f7f3;
+  --color-warn: #e8960c;
+  --color-warn-bg: #fef4e2;
+  --color-bad: #ed5565;
+  --color-bad-bg: #fdecee;
+  --color-live: #1f60ed;
+  --color-live-bg: #edf5ff;
 
   /* colores de ruta */
   --color-r1: #e8833a;
@@ -51,8 +54,8 @@
   --color-r5: #c2439b;
   --color-r6: #7c9a1f;
 
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
 }
 
 html,
@@ -151,4 +154,122 @@ body {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ------------------------------------------------------------
+   Armazón de las pantallas de escritorio.
+
+   Cada pantalla es un título sobre el lienzo gris y, debajo, un
+   único panel blanco con sombra que lo contiene todo: filtros,
+   contador, tabla. Se aplica aquí, a lo que venga después del
+   `header` de la página, para que ninguna pantalla tenga que
+   acordarse de envolver su contenido.
+   ------------------------------------------------------------ */
+.lienzo > :not(header) {
+  margin: 0 20px;
+  padding: 0 20px;
+  background: var(--color-surface);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  /* Varias pantallas devuelven dos o tres bloques seguidos —filtros, tabla—
+     y tienen que leerse como un solo panel. El recorte quita la sombra que
+     cada bloque echaría sobre el de arriba; hacia abajo se deja holgura para
+     que los desplegables de un bloque puedan caer sobre el siguiente. */
+  clip-path: inset(0 -12px -2000px -12px);
+}
+.lienzo > header + * {
+  padding-top: 20px;
+  clip-path: inset(-12px -12px -2000px -12px);
+}
+.lienzo > :not(header):last-child {
+  padding-bottom: 20px;
+  margin-bottom: 20px;
+}
+
+/* Las barras de filtros dejan de ser una tira con raya: dentro del panel
+   son una fila más, como en la referencia. `.raya` es la excepción, para
+   las pestañas, que sí llevan su línea. */
+.lienzo > .border-b:not(.raya),
+.lienzo > :not(header) > .border-b.bg-surface:not(.raya),
+.lienzo > :not(header) > .border-t.border-line:not(.raya) {
+  border-top: 0;
+  border-bottom: 0;
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 14px;
+}
+
+.lienzo table a {
+  color: #0792e0;
+  font-weight: 400;
+}
+.lienzo table a:hover {
+  text-decoration: underline;
+}
+
+/* La pantalla que no es un panel blanco sino tarjetas sobre el lienzo. */
+.lienzo > .sin-panel,
+.lienzo > header + .sin-panel,
+.lienzo > .sin-panel:last-child {
+  margin: 0;
+  padding: 0 0 20px;
+  background: transparent;
+  box-shadow: none;
+  clip-path: none;
+}
+
+/* ------------------------------------------------------------
+   Medidas de la referencia para lo que hay dentro del panel:
+   tablas con cabecera gris de 45 px y filas de 14 px, campos de
+   40 px con borde fino y botones en píldora de 32 px.
+
+   Van aquí, sin capa, y por eso mandan sobre las utilidades de
+   cada pantalla: así las tablas que no usan la pieza común
+   quedan igual que las que sí.
+   ------------------------------------------------------------ */
+.lienzo > :not(header):not(.sin-panel) thead th {
+  height: 45px;
+  padding: 0 13px;
+  background: var(--color-line);
+  color: #707070;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
+.lienzo > :not(header):not(.sin-panel) tbody td {
+  height: 49px;
+  padding: 6px 13px;
+  font-size: 14px;
+}
+.lienzo > :not(header):not(.sin-panel) table {
+  font-size: 14px;
+  color: #707070;
+}
+
+.lienzo > :not(header):not(.sin-panel) input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+.lienzo > :not(header):not(.sin-panel) select {
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 4px;
+  font-size: 14px;
+  color: var(--color-ink);
+  background-color: var(--color-surface);
+}
+.lienzo > :not(header):not(.sin-panel) input:focus,
+.lienzo > :not(header):not(.sin-panel) select:focus {
+  border-color: var(--color-amber);
+}
+
+.lienzo button.rounded-full.font-semibold,
+.lienzo a.rounded-full.font-semibold {
+  min-height: 32px;
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }

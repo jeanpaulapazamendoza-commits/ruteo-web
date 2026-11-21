@@ -135,7 +135,7 @@ export default function GestionSubestados({ lista }: { lista: Subestado[] }) {
                 <button
                   type="submit"
                   disabled={ocupado === `${e.clave}-nuevo` || !(nuevo[e.clave] ?? "").trim()}
-                  className="rounded-[8px] border border-amber-600 bg-amber px-2.5 py-1 text-[12px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-full border border-amber-600 bg-amber px-2.5 py-1 text-[12px] font-semibold text-white transition hover:bg-amber-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Añadir
                 </button>

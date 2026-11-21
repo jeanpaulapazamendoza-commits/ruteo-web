@@ -104,7 +104,7 @@ export default function CargarArchivo({
         </div>
         <button
           onClick={() => descargar("plantilla_tiendas.csv", plantillaCSV(), "text/csv;charset=utf-8")}
-          className="rounded-[9px] border border-line-strong bg-surface px-3 py-2 text-[12.5px] font-semibold transition hover:bg-canvas"
+          className="rounded-full border border-line-strong bg-surface px-3 py-2 text-[12.5px] font-semibold transition hover:bg-canvas"
         >
           ⤓ Plantilla CSV
         </button>
@@ -143,7 +143,7 @@ export default function CargarArchivo({
           type="file"
           accept=".csv,.xlsx,.xls,text/csv"
           onChange={alElegirArchivo}
-          className="block w-full text-[13px] text-ink-2 file:mr-3 file:cursor-pointer file:rounded-[9px] file:border file:border-line-strong file:bg-surface file:px-3 file:py-2 file:text-[12.5px] file:font-semibold file:text-ink hover:file:bg-canvas"
+          className="block w-full text-[13px] text-ink-2 file:mr-3 file:cursor-pointer file:rounded-full file:border file:border-line-strong file:bg-surface file:px-3 file:py-2 file:text-[12.5px] file:font-semibold file:text-ink hover:file:bg-canvas"
         />
         {analizando && <p className="mt-2 text-[13px] text-ink-3">Leyendo {nombre}…</p>}
       </div>
@@ -218,7 +218,7 @@ export default function CargarArchivo({
                         : new Set(lectura.avisos.map((a) => a.codigo)),
                     )
                   }
-                  className="ml-auto rounded-[8px] border border-line-strong bg-surface px-2.5 py-1 text-[12px] font-semibold transition hover:bg-canvas"
+                  className="ml-auto rounded-full border border-line-strong bg-surface px-2.5 py-1 text-[12px] font-semibold transition hover:bg-canvas"
                 >
                   {excluidos.size === lectura.avisos.length
                     ? "Volver a incluirlos"
@@ -278,7 +278,7 @@ export default function CargarArchivo({
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 onClick={() => usar("reemplazar")}
-                className="rounded-[9px] border border-amber-600 bg-amber px-4 py-2 text-[13px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white"
+                className="rounded-full border border-amber-600 bg-amber px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-amber-600 hover:text-white"
               >
                 {hayPuntos
                   ? `Reemplazar por estos ${lectura.filas.length - excluidos.size}`
@@ -287,7 +287,7 @@ export default function CargarArchivo({
               {hayPuntos && (
                 <button
                   onClick={() => usar("anadir")}
-                  className="rounded-[9px] border border-line-strong bg-surface px-4 py-2 text-[13px] font-semibold transition hover:bg-canvas"
+                  className="rounded-full border border-line-strong bg-surface px-4 py-2 text-[13px] font-semibold transition hover:bg-canvas"
                 >
                   + Añadir a los actuales
                 </button>
@@ -295,7 +295,7 @@ export default function CargarArchivo({
               {onCerrar && (
                 <button
                   onClick={onCerrar}
-                  className="rounded-[9px] border border-line-strong bg-surface px-3.5 py-2 text-[13px] font-semibold text-ink-2 transition hover:bg-canvas"
+                  className="rounded-full border border-line-strong bg-surface px-3.5 py-2 text-[13px] font-semibold text-ink-2 transition hover:bg-canvas"
                 >
                   Cancelar
                 </button>

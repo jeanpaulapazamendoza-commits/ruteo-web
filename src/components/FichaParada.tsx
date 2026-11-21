@@ -125,7 +125,7 @@ function Bloqueo({
         <button
           onClick={() => void cambiar(true)}
           disabled={yendo}
-          className="rounded-[8px] border border-line-strong bg-surface px-2.5 py-1 text-[11.5px] font-semibold text-ink-2 transition hover:bg-canvas disabled:opacity-50"
+          className="rounded-full border border-line-strong bg-surface px-2.5 py-1 text-[11.5px] font-semibold text-ink-2 transition hover:bg-canvas disabled:opacity-50"
           title="Congela el resultado: nadie podrá volver a marcar esta parada"
         >
           {yendo ? "…" : "🔒 Bloquear orden"}
@@ -145,7 +145,7 @@ function Bloqueo({
           <button
             onClick={() => void cambiar(false)}
             disabled={yendo}
-            className="ml-auto rounded-[8px] border border-line-strong bg-surface px-2.5 py-1 text-[12px] font-semibold transition hover:bg-canvas disabled:opacity-50"
+            className="ml-auto rounded-full border border-line-strong bg-surface px-2.5 py-1 text-[12px] font-semibold transition hover:bg-canvas disabled:opacity-50"
           >
             {yendo ? "…" : "Desbloquear orden"}
           </button>
@@ -305,7 +305,7 @@ function PruebaDeEntrega({ parada: p }: { parada: ParadaFicha }) {
                 <button
                   onClick={abrirFoto}
                   disabled={pidiendo}
-                  className="mt-1 rounded-[8px] border border-line-strong px-2.5 py-1 text-[12px] font-semibold transition hover:bg-canvas disabled:opacity-50"
+                  className="mt-1 rounded-full border border-line-strong px-2.5 py-1 text-[12px] font-semibold transition hover:bg-canvas disabled:opacity-50"
                 >
                   {pidiendo ? "Pidiendo…" : "📷 Ver la foto"}
                 </button>
@@ -552,14 +552,14 @@ function Documentos({ paradaId }: { paradaId: string }) {
         <select
           value={tipo}
           onChange={(e) => setTipo(e.target.value)}
-          className="rounded-[8px] border border-line-strong bg-surface px-2 py-1 text-[12px] outline-none transition focus:border-amber-600"
+          className="rounded-[4px] border border-line-strong bg-surface px-2 py-1 text-[12px] outline-none transition focus:border-amber-600"
         >
           {TIPOS_DOCUMENTO.map((t) => (
             <option key={t} value={t}>{t}</option>
           ))}
         </select>
 
-        <label className="cursor-pointer rounded-[8px] border border-amber-600 bg-amber px-3 py-1 text-[12px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white">
+        <label className="cursor-pointer rounded-full border border-amber-600 bg-amber px-3 py-1 text-[12px] font-semibold text-white transition hover:bg-amber-600 hover:text-white">
           {subiendo ? "Subiendo…" : "Subir documento"}
           <input
             type="file"
@@ -670,7 +670,7 @@ function Comentarios({ paradaId }: { paradaId: string }) {
           rows={2}
           maxLength={2000}
           placeholder="Llamé al cliente, reprograma para mañana por la tarde…"
-          className="w-full resize-y rounded-[9px] border border-line-strong bg-surface px-2.5 py-2 text-[12.5px] outline-none transition focus:border-amber-600"
+          className="w-full resize-y rounded-[4px] border border-line-strong bg-surface px-2.5 py-2 text-[12.5px] outline-none transition focus:border-amber-600"
         />
         <div className="mt-1.5 flex items-center gap-2">
           <span className="text-[11px] text-ink-3">
@@ -679,7 +679,7 @@ function Comentarios({ paradaId }: { paradaId: string }) {
           <button
             type="submit"
             disabled={guardando || !texto.trim()}
-            className="ml-auto rounded-[8px] border border-amber-600 bg-amber px-3 py-1 text-[12px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="ml-auto rounded-full border border-amber-600 bg-amber px-3 py-1 text-[12px] font-semibold text-white transition hover:bg-amber-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             {guardando ? "…" : "Agregar nota"}
           </button>

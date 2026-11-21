@@ -356,7 +356,7 @@ export default function HojaResultado({
             <button
               onClick={paso.guardar}
               disabled={guardando || !!paso.impedido}
-              className="h-[72px] w-full rounded-[10px] border border-amber-600 bg-amber text-[17px] font-extrabold text-navy-900 active:bg-amber-600 disabled:pointer-events-none disabled:opacity-50"
+              className="h-[72px] w-full rounded-[10px] border border-amber-600 bg-amber text-[17px] font-extrabold text-white active:bg-amber-600 disabled:pointer-events-none disabled:opacity-50"
             >
               {guardando ? "Guardando…" : "GUARDAR"}
             </button>

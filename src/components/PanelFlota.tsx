@@ -10,7 +10,7 @@ import {
   type ParadaConDesvio,
   type RutaEnCalle,
 } from "@/app/acciones/datos";
-import TiraIndicadores from "@/components/TiraIndicadores";
+import { AccionesPagina, BOTON_SECUNDARIO } from "@/components/Paginacion";
 import { hora, hoy } from "@/lib/horas";
 import { Pastilla, Tarjeta } from "@/components/ui";
 
@@ -92,6 +92,8 @@ export default function PanelFlota({
   const [auto, setAuto] = useState(true);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [busca, setBusca] = useState("");
+  const [soloEstado, setSoloEstado] = useState("");
   // La hora se guarda en estado y no se lee en cada pintado: así el servidor
   // y el navegador coinciden en el primer render y React no se queja.
   const [ahora, setAhora] = useState<number | null>(null);
@@ -181,109 +183,110 @@ export default function PanelFlota({
     );
   }
 
-  return (
-    <>
-      <TiraIndicadores
-        items={[
-          { clave: "en_calle", texto: "En calle", ayuda: "Han salido y les queda trabajo",
-            n: totales.enCalle, de: totales.rutas },
-          { clave: "paradas", texto: "Paradas", ayuda: "Gestionadas sobre asignadas",
-            n: totales.gestionadas, de: totales.asignadas },
-          { clave: "calladas", texto: "Sin marcar", ayuda: `Llevan mas de ${SILENCIO_MIN} minutos sin dar senales`,
-            n: totales.calladas, tono: totales.calladas > 0 ? "bad" : undefined },
-          { clave: "sin_salir", texto: "Sin salir", ayuda: "Rutas asignadas que no han arrancado",
-            n: totales.sinIniciar, tono: totales.sinIniciar > 0 ? "warn" : undefined },
-        ]}
-      />
+  const t0 = ahora ?? Date.now();
+  const listadas = rutas.filter((r) => {
+    const q = busca.trim().toLowerCase();
+    if (q && !`${r.conductor ?? ""} ${r.placa ?? ""} ${r.vehiculo ?? ""}`.toLowerCase().includes(q)) {
+      return false;
+    }
+    if (!soloEstado) return true;
+    const est = estadoDe(r, t0);
+    if (soloEstado === "en_ruta") return est.tono === "live" || est.tono === "bad";
+    if (soloEstado === "sin_iniciar") return est.tono === "plan";
+    return est.tono === "ok";
+  });
 
-    <div className="grid min-h-0 flex-1 grid-cols-1 @3xl:grid-cols-[360px_1fr]">
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <AccionesPagina>
+        {!dia && (
+          <label className="flex cursor-pointer items-center gap-1.5 text-[12px] text-ink-3">
+            <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
+            <span className="h-1.5 w-1.5 rounded-full bg-ok" /> se actualiza cada 30 s
+          </label>
+        )}
+        <button onClick={refrescar} disabled={cargando} className={BOTON_SECUNDARIO}>
+          {cargando ? "…" : "↻ Actualizar"}
+        </button>
+      </AccionesPagina>
+
+      {/* Filtros, a todo el ancho como en la referencia */}
+      <div className="grid grid-cols-1 gap-2 pb-3 @xl:grid-cols-2 @4xl:grid-cols-[1fr_1fr_1.4fr]">
+        <input
+          type="date"
+          value={dia ?? hoy()}
+          onChange={(e) =>
+            router.push(e.target.value ? `/flota?fecha=${e.target.value}` : "/flota")
+          }
+          className="num w-full outline-none"
+        />
+        <select
+          value={soloEstado}
+          onChange={(e) => setSoloEstado(e.target.value)}
+          className="w-full outline-none"
+        >
+          <option value="">Todos los estados</option>
+          <option value="en_ruta">En ruta</option>
+          <option value="sin_iniciar">Sin iniciar</option>
+          <option value="finalizada">Finalizada</option>
+        </select>
+        <input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar por nombre o patente"
+          className="w-full outline-none"
+        />
+      </div>
+
+      {error && (
+        <p className="mb-3 rounded-[8px] border border-bad/30 bg-bad-bg px-3 py-2 text-[13px] text-bad">
+          {error}
+        </p>
+      )}
+
+    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[8px] border border-line @3xl:grid-cols-[300px_1fr]">
       {/* Columna de conductores */}
       <div className="min-w-0 overflow-y-auto border-r border-line bg-surface">
-        <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2 text-[11.5px] text-ink-3">
-          <input
-            type="date"
-            value={dia ?? hoy()}
-            onChange={(e) =>
-              router.push(e.target.value ? `/flota?fecha=${e.target.value}` : "/flota")
-            }
-            className="num rounded-[8px] border border-line-strong bg-surface px-2 py-1 text-[11.5px]"
-          />
-          {!dia && (
-            <label className="flex cursor-pointer items-center gap-1.5">
-              <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
-              cada 30 s
-            </label>
-          )}
-          <button
-            onClick={refrescar}
-            disabled={cargando}
-            className="ml-auto rounded-[8px] border border-line-strong px-2 py-1 font-semibold text-ink-2 transition hover:bg-canvas disabled:opacity-50"
-          >
-            {cargando ? "…" : "↻ Actualizar"}
-          </button>
+        <div className="border-b border-line px-3.5 py-2.5 text-[13px] font-bold text-ink">
+          Conductores <span className="num">{listadas.length}</span> de{" "}
+          <span className="num">{rutas.length}</span>
+          <span className="ml-2 font-normal text-ink-3">
+            · {totales.gestionadas}/{totales.asignadas} paradas
+          </span>
         </div>
 
-        {error && (
-          <p className="m-3 rounded-[10px] border border-bad/30 bg-bad-bg px-3 py-2 text-[12.5px] text-bad">
-            {error}
-          </p>
-        )}
-
         <div className="divide-y divide-line">
-          {rutas.map((r) => {
-            const est = estadoDe(r, ahora ?? Date.now());
-            const pct = r.asignadas ? Math.round((r.gestionadas / r.asignadas) * 100) : 0;
+          {listadas.map((r) => {
+            const est = estadoDe(r, t0);
+            const nombre = r.conductor ?? "Sin conductor";
             return (
               <button
                 key={r.ruta_id}
                 onClick={() => setElegida(r.ruta_id)}
-                className={`flex w-full flex-col gap-1 px-3.5 py-2 text-left transition hover:bg-canvas ${
-                  elegida === r.ruta_id ? "bg-canvas" : ""
+                className={`flex w-full items-center gap-3 px-3.5 py-3 text-left transition hover:bg-surface-2 ${
+                  elegida === r.ruta_id ? "bg-amber-050" : ""
                 }`}
               >
-                <div className="flex items-center gap-2">
-                  <span
-                    className="num rounded px-1.5 py-0.5 text-[10.5px] font-bold text-white"
-                    style={{ background: color(r.indice) }}
-                  >
-                    R-{String(r.indice + 1).padStart(2, "0")}
-                  </span>
-                  <b className="min-w-0 flex-1 truncate text-[13px]">
-                    {r.conductor ?? "Sin conductor"}
-                  </b>
-                  <Pastilla tono={est.tono}>{est.texto}</Pastilla>
-                </div>
-
-                <div className="flex items-center gap-2 text-[11.5px] text-ink-3">
-                  {r.vehiculo || r.placa ? (
-                    <span className="num">{r.placa ?? r.vehiculo}</span>
-                  ) : (
-                    <span>Sin vehículo</span>
-                  )}
-                  <span className="num">{r.gestionadas}/{r.asignadas}</span>
-                  <Desvio min={r.desvio_min} />
-                  {r.bateria != null && (
-                    <span
-                      className={`num ml-auto ${r.bateria <= 20 ? "font-semibold text-bad" : ""}`}
-                      title="Batería del móvil en la última marca"
-                    >
-                      🔋{r.bateria}%
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-canvas text-[12px] font-bold text-ink-2">
+                  {nombre.slice(0, 1).toUpperCase()}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <b className="block truncate text-[13px] text-ink">{nombre}</b>
+                  <span className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-ink-3">
+                    <span className="num rounded-[4px] bg-canvas px-1.5 py-px text-ink-2">
+                      {r.placa ?? r.vehiculo ?? `R-${String(r.indice + 1).padStart(2, "0")}`}
                     </span>
-                  )}
-                </div>
-
-                <div className="h-1.5 overflow-hidden rounded-full border border-line bg-canvas">
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${pct}%`,
-                      background: pct === 100 ? "var(--color-ok)" : color(r.indice),
-                    }}
-                  />
-                </div>
+                    <span className="num">{r.gestionadas}/{r.asignadas}</span>
+                    <Desvio min={r.desvio_min} />
+                  </span>
+                </span>
+                <Pastilla tono={est.tono}>{est.tono === "live" ? "● En ruta" : est.texto}</Pastilla>
               </button>
             );
           })}
+          {listadas.length === 0 && (
+            <p className="px-3.5 py-4 text-[13px] text-ink-3">Ningún conductor coincide.</p>
+          )}
         </div>
       </div>
 
@@ -296,13 +299,13 @@ export default function PanelFlota({
             ahora={ahora ?? Date.now()}
           />
         ) : (
-          <p className="p-6 text-[13.5px] text-ink-2">
-            Elige un conductor para ver su ruta y sus horas.
+          <p className="p-6 text-center text-[13px] text-ink-3">
+            Selecciona un conductor para ver las estadísticas de su ruta
           </p>
         )}
       </div>
     </div>
-    </>
+    </div>
   );
 }
 
@@ -343,7 +346,7 @@ function DetalleConductor({
           {ruta.placa && <Pastilla tono="plan">{ruta.placa}</Pastilla>}
           <Link
             href={`/torre?despacho=${ruta.despacho_id}`}
-            className="ml-auto rounded-[9px] border border-line-strong bg-surface px-3 py-1.5 text-[12.5px] font-semibold transition hover:bg-canvas"
+            className="ml-auto rounded-full border border-line-strong bg-surface px-3 py-1.5 text-[12.5px] font-semibold transition hover:bg-canvas"
           >
             ◉ Ver en la torre
           </Link>

@@ -596,13 +596,13 @@ export default function Planificador({
             <div className="mt-2 flex flex-wrap gap-1.5">
               <button
                 onClick={() => setSubiendo((v) => !v)}
-                className="rounded-[8px] border border-amber-600 bg-amber px-2.5 py-1 text-[12px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white"
+                className="rounded-full border border-amber-600 bg-amber px-2.5 py-1 text-[12px] font-semibold text-white transition hover:bg-amber-600 hover:text-white"
               >
                 {subiendo ? "Cerrar" : "⇪ Otro archivo"}
               </button>
               <button
                 onClick={vaciarTodo}
-                className="rounded-[8px] border border-line-strong bg-surface px-2.5 py-1 text-[12px] font-semibold text-ink-2 transition hover:bg-canvas"
+                className="rounded-full border border-line-strong bg-surface px-2.5 py-1 text-[12px] font-semibold text-ink-2 transition hover:bg-canvas"
               >
                 Vaciar
               </button>
@@ -816,7 +816,7 @@ export default function Planificador({
               {!dibujando ? (
                 <button
                   onClick={() => { setPuntosDibujo([]); setDibujando(true); }}
-                  className="mb-2 w-full rounded-[9px] border border-amber-600 bg-amber px-3 py-2 text-[13px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white"
+                  className="mb-2 w-full rounded-full border border-amber-600 bg-amber px-3 py-2 text-[13px] font-semibold text-white transition hover:bg-amber-600 hover:text-white"
                 >
                   ✏️ Dibujar sector en el mapa
                 </button>
@@ -833,13 +833,13 @@ export default function Planificador({
                     <button
                       onClick={cerrarSector}
                       disabled={puntosDibujo.length < 3 || cargando === "sector"}
-                      className="flex-1 rounded-[8px] border border-amber-600 bg-amber px-2 py-1.5 text-[12px] font-semibold text-navy-900 disabled:opacity-50"
+                      className="flex-1 rounded-full border border-amber-600 bg-amber px-2 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
                     >
                       {cargando === "sector" ? "Buscando…" : "Cerrar y aplicar"}
                     </button>
                     <button
                       onClick={() => { setPuntosDibujo([]); setDibujando(false); }}
-                      className="rounded-[8px] border border-line-strong px-2 py-1.5 text-[12px] font-semibold"
+                      className="rounded-full border border-line-strong px-2 py-1.5 text-[12px] font-semibold"
                     >
                       Cancelar
                     </button>
@@ -882,7 +882,7 @@ export default function Planificador({
               {sinAsignar.length > 0 && grupos.length > 0 && (
                 <button
                   onClick={asignarAGruposCercanos}
-                  className="mb-2 w-full rounded-[9px] border border-line-strong bg-surface px-3 py-2 text-[12.5px] font-semibold text-ink-2 transition hover:bg-canvas"
+                  className="mb-2 w-full rounded-full border border-line-strong bg-surface px-3 py-2 text-[12.5px] font-semibold text-ink-2 transition hover:bg-canvas"
                 >
                   🤖 Auto-asignar {sinAsignar.length} libres al grupo más cercano
                 </button>
@@ -989,7 +989,7 @@ export default function Planificador({
                 <button
                   onClick={limpiarTodo}
                   title="Limpiar y elegir otra opción"
-                  className="rounded-[9px] border border-line-strong px-2.5 py-2 text-[13px] font-semibold text-ink-2 transition hover:bg-canvas"
+                  className="rounded-full border border-line-strong px-2.5 py-2 text-[13px] font-semibold text-ink-2 transition hover:bg-canvas"
                 >
                   ♻️
                 </button>
@@ -1069,7 +1069,7 @@ export default function Planificador({
           <button
             onClick={hacerRutear}
             disabled={cargando !== null || !grupos.length}
-            className="mt-1 w-full rounded-[9px] border border-amber-600 bg-amber px-3 py-2 text-[13px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white disabled:opacity-50"
+            className="mt-1 w-full rounded-full border border-amber-600 bg-amber px-3 py-2 text-[13px] font-semibold text-white transition hover:bg-amber-600 hover:text-white disabled:opacity-50"
           >
             {cargando === "rutear" ? "Optimizando…" : "▸ Calcular rutas óptimas"}
           </button>
@@ -1190,7 +1190,7 @@ export default function Planificador({
           {hayResultado && (
             <button
               onClick={limpiarTodo}
-              className="ml-auto rounded-[8px] border border-line-strong px-2 py-1 text-[11.5px] font-semibold text-ink-2 transition hover:bg-canvas"
+              className="ml-auto rounded-full border border-line-strong px-2 py-1 text-[11.5px] font-semibold text-ink-2 transition hover:bg-canvas"
             >
               ♻️ Limpiar selección
             </button>
@@ -1350,7 +1350,7 @@ function BotonChico({
 }: { children: React.ReactNode; onClick: () => void; disabled?: boolean }) {
   return (
     <button onClick={onClick} disabled={disabled}
-      className="rounded-[9px] border border-line-strong bg-surface px-2 py-1.5 text-[12px] font-semibold text-ink-2 transition hover:bg-canvas disabled:opacity-40">
+      className="rounded-full border border-line-strong bg-surface px-2 py-1.5 text-[12px] font-semibold text-ink-2 transition hover:bg-canvas disabled:opacity-40">
       {children}
     </button>
   );

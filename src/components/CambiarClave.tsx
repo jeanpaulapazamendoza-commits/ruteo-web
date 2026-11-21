@@ -97,7 +97,7 @@ export default function CambiarClave({ tieneClave }: { tieneClave: boolean }) {
         <button
           type="submit"
           disabled={guardando}
-          className="w-full rounded-[10px] border border-amber-600 bg-amber px-4 py-2.5 text-[14px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full rounded-full border border-amber-600 bg-amber px-4 py-2.5 text-[14px] font-semibold text-white transition hover:bg-amber-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
         >
           {guardando ? "Guardando…" : "Guardar contraseña"}
         </button>
@@ -131,7 +131,7 @@ function Campo({
         placeholder={placeholder}
         autoComplete={autoComplete}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-[10px] border border-line-strong bg-surface px-3 py-2.5 text-[14px] outline-none transition focus:border-amber-600"
+        className="w-full rounded-[4px] border border-line-strong bg-surface px-3 py-2.5 text-[14px] outline-none transition focus:border-amber-600"
       />
     </label>
   );

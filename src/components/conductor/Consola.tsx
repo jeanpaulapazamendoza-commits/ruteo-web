@@ -125,7 +125,7 @@ export default function Consola({
               </span>
             ) : (
               <>
-                <span className="num grid h-10 w-10 shrink-0 place-items-center rounded-full bg-amber text-[17px] font-extrabold text-navy-900">
+                <span className="num grid h-10 w-10 shrink-0 place-items-center rounded-full bg-amber text-[17px] font-extrabold text-white">
                   {activa?.orden ?? "—"}
                 </span>
                 <span className="min-w-0 flex-1">
@@ -169,7 +169,7 @@ export default function Consola({
               <button
                 onClick={onConfirmarRuta}
                 disabled={confirmando || sinParadas}
-                className="w-full rounded-[10px] border border-amber-600 bg-amber text-[17px] font-extrabold text-navy-900 active:bg-amber-600 disabled:pointer-events-none disabled:opacity-50"
+                className="w-full rounded-[10px] border border-amber-600 bg-amber text-[17px] font-extrabold text-white active:bg-amber-600 disabled:pointer-events-none disabled:opacity-50"
               >
                 {confirmando
                   ? "Confirmando…"
@@ -212,7 +212,7 @@ export default function Consola({
                   className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 overflow-hidden rounded-[10px] ${
                     terminada || cerrada
                       ? "border border-navy-800 bg-navy-800 text-white active:bg-navy-700"
-                      : "border border-amber-600 bg-amber text-navy-900 active:bg-amber-600"
+                      : "border border-amber-600 bg-amber text-white active:bg-amber-600"
                   } disabled:pointer-events-none`}
                 >
                   {terminada ? (

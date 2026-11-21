@@ -89,7 +89,7 @@ export default function GestionEquipo({
         </p>
         <button
           onClick={() => { setAbrirAlta((v) => !v); setError(null); }}
-          className="ml-auto rounded-[9px] border border-amber-600 bg-amber px-3.5 py-2 text-[13px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white"
+          className="ml-auto rounded-full border border-amber-600 bg-amber px-3.5 py-2 text-[13px] font-semibold text-white transition hover:bg-amber-600 hover:text-white"
         >
           + Agregar usuario
         </button>
@@ -119,7 +119,7 @@ export default function GestionEquipo({
           </div>
           <button
             onClick={() => setRestablecida(null)}
-            className="mt-3 rounded-[9px] border border-line-strong bg-surface px-3.5 py-2 text-[13px] font-semibold transition hover:bg-canvas"
+            className="mt-3 rounded-full border border-line-strong bg-surface px-3.5 py-2 text-[13px] font-semibold transition hover:bg-canvas"
           >
             Listo
           </button>
@@ -167,7 +167,7 @@ export default function GestionEquipo({
                       <button
                         onClick={() => restablecer(m)}
                         disabled={cargando}
-                        className="rounded-[8px] border border-line-strong px-2 py-0.5 text-[11.5px] font-semibold transition hover:bg-canvas disabled:opacity-50"
+                        className="rounded-full border border-line-strong px-2 py-0.5 text-[11.5px] font-semibold transition hover:bg-canvas disabled:opacity-50"
                         title="Genera una contraseña temporal para dictársela"
                       >
                         {ocupado === `${m.id}-clave` ? "…" : "Restablecer clave"}
@@ -179,7 +179,7 @@ export default function GestionEquipo({
                       <button
                         onClick={() => actualizar(m.id, { activo: !m.activo }, `${m.id}-act`)}
                         disabled={cargando}
-                        className={`rounded-[8px] border px-2 py-0.5 text-[11.5px] font-semibold transition disabled:opacity-50 ${
+                        className={`rounded-full border px-2 py-0.5 text-[11.5px] font-semibold transition disabled:opacity-50 ${
                           m.activo
                             ? "border-line-strong text-bad hover:bg-bad-bg"
                             : "border-ok/40 text-ok hover:bg-ok-bg"
@@ -249,7 +249,7 @@ function FormularioAlta({ onCerrar, onListo }: { onCerrar: () => void; onListo: 
         </div>
         <button
           onClick={onCerrar}
-          className="mt-3 rounded-[9px] border border-line-strong bg-surface px-3.5 py-2 text-[13px] font-semibold transition hover:bg-canvas"
+          className="mt-3 rounded-full border border-line-strong bg-surface px-3.5 py-2 text-[13px] font-semibold transition hover:bg-canvas"
         >
           Listo
         </button>
@@ -302,11 +302,11 @@ function FormularioAlta({ onCerrar, onListo }: { onCerrar: () => void; onListo: 
 
       <div className="mt-3 flex gap-2">
         <button type="submit" disabled={enviando}
-          className="rounded-[9px] border border-amber-600 bg-amber px-4 py-2 text-[13px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white disabled:opacity-50">
+          className="rounded-full border border-amber-600 bg-amber px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-amber-600 hover:text-white disabled:opacity-50">
           {enviando ? "Creando…" : "Crear usuario"}
         </button>
         <button type="button" onClick={onCerrar}
-          className="rounded-[9px] border border-line-strong bg-surface px-4 py-2 text-[13px] font-semibold transition hover:bg-canvas">
+          className="rounded-full border border-line-strong bg-surface px-4 py-2 text-[13px] font-semibold transition hover:bg-canvas">
           Cancelar
         </button>
       </div>

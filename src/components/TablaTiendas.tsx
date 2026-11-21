@@ -116,7 +116,7 @@ export default function TablaTiendas({
           value={filtro}
           onChange={(e) => setFiltro(e.target.value)}
           placeholder="Buscar por código, tienda o distrito…"
-          className="w-full max-w-[300px] rounded-[9px] border border-line-strong bg-surface px-3 py-1.5 text-[13px] outline-none focus:border-amber"
+          className="w-full max-w-[300px] rounded-[4px] border border-line-strong bg-surface px-3 py-1.5 text-[13px] outline-none focus:border-amber"
         />
 
         {seleccion.size > 0 ? (
@@ -133,7 +133,7 @@ export default function TablaTiendas({
             </button>
             <button
               onClick={() => setSeleccion(new Set())}
-              className="rounded-[9px] border border-line-strong px-3 py-1.5 text-[12.5px] font-semibold text-ink-2 transition hover:bg-canvas"
+              className="rounded-full border border-line-strong px-3 py-1.5 text-[12.5px] font-semibold text-ink-2 transition hover:bg-canvas"
             >
               Quitar selección
             </button>
@@ -142,7 +142,7 @@ export default function TablaTiendas({
           puedeBorrarTodo && (
             <button
               onClick={() => setConfirmarTodo(true)}
-              className="ml-auto rounded-[9px] border border-line-strong px-3 py-1.5 text-[12.5px] font-semibold text-bad transition hover:bg-bad-bg"
+              className="ml-auto rounded-full border border-line-strong px-3 py-1.5 text-[12.5px] font-semibold text-bad transition hover:bg-bad-bg"
             >
               🗑️ Eliminar {esSinArchivo ? "estas tiendas" : "esta carga"}
             </button>
@@ -180,7 +180,7 @@ export default function TablaTiendas({
             </button>
             <button
               onClick={() => setConfirmarTodo(false)}
-              className="rounded-[9px] border border-line-strong bg-surface px-3.5 py-2 text-[13px] font-semibold transition hover:bg-canvas"
+              className="rounded-full border border-line-strong bg-surface px-3.5 py-2 text-[13px] font-semibold transition hover:bg-canvas"
             >
               Cancelar
             </button>

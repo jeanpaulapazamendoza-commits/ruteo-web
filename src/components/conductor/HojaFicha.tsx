@@ -88,7 +88,7 @@ export default function HojaFicha({
                 key={a}
                 onClick={() => onApp(a)}
                 className={`h-10 px-3 text-[14px] font-bold ${
-                  app === a ? "bg-amber text-navy-900" : "bg-surface text-ink-2"
+                  app === a ? "bg-amber text-white" : "bg-surface text-ink-2"
                 }`}
               >
                 {a === "maps" ? "Maps" : "Waze"}

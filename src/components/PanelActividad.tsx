@@ -9,16 +9,31 @@ import {
   type Evento,
   type RutaEnCalle,
 } from "@/app/acciones/datos";
-import FranjaHoraria, { escalaDe, ReglaHoraria } from "@/components/FranjaHoraria";
+import { escalaDe, type Escala } from "@/components/FranjaHoraria";
+import { aCSV, descargar } from "@/lib/exportar";
 import { hora, hoy } from "@/lib/horas";
-import TiraIndicadores from "@/components/TiraIndicadores";
-import { Pastilla, Tarjeta } from "@/components/ui";
 
-const COLORES = [
-  "#E8833A", "#2E7DD1", "#0E8F9E", "#7A5AF8", "#C2439B", "#7C9A1F",
-  "#D9534F", "#2F855A", "#B7791F", "#5A67D8", "#D53F8C", "#319795",
-];
-const color = (i: number) => COLORES[i % COLORES.length];
+/**
+ * Los colores de esta pantalla, que son los de la de referencia.
+ *
+ * Actividad conserva allí su diseño anterior —Roboto a 13 px, verde y
+ * turquesa, tarjetas de esquina recta— y aquí se sigue igual, aunque el
+ * resto de pantallas vaya en azul y DM Sans. Lo que se quiere es que cada
+ * pantalla se parezca a la suya.
+ */
+const C = {
+  texto: "#676a6c",
+  tenue: "#a8a8a8",
+  verde: "#1ab394",
+  turquesa: "#23c6c8",
+  naranja: "#f8ac59",
+  rojo: "#ed5565",
+  gris: "#b5b8bb",
+  borde: "#dddddd",
+} as const;
+
+/** El color del cumplimiento: verde si va bien, naranja a medias, gris sin empezar. */
+const tonoDe = (pct: number) => (pct >= 75 ? C.verde : pct > 0 ? C.naranja : C.texto);
 
 /** Los indicadores que se pueden poner arriba, y cómo se calcula cada uno. */
 type ClaveIndicador =
@@ -159,49 +174,110 @@ export default function PanelActividad({
     });
   }, [rutas, busca, orden, ahora]);
 
-  return (
-    <>
-      <div className="sticky top-0 z-20 bg-surface">
-        <TiraIndicadores
-          items={(Object.keys(INDICADORES) as ClaveIndicador[]).map((k) => ({
-            clave: k,
-            texto: INDICADORES[k].texto,
-            ayuda: INDICADORES[k].ayuda,
-            n: totales[k].n,
-            de: totales[k].de,
-            tono: k === "fallido" && totales[k].n > 0 ? "bad" : undefined,
-          }))}
-          clave="actividad"
-          porDefecto={POR_DEFECTO}
-        />
+  const pctTotal = (k: ClaveIndicador) =>
+    totales[k].de ? Math.round((totales[k].n / totales[k].de) * 1000) / 10 : 0;
 
-        {/* Barra de herramientas */}
-        <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-2 text-[11.5px] text-ink-3">
-          <input
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar placa, conductor o despacho"
-            className="w-[220px] rounded-[8px] border border-line-strong bg-surface px-2.5 py-1 text-[12px]"
-          />
-          <select
-            value={orden}
-            onChange={(e) => setOrden(e.target.value as Orden)}
-            className="rounded-[8px] border border-line-strong bg-surface px-2 py-1 text-[11.5px]"
-          >
-            <option value="avance">Ordenar por avance</option>
-            <option value="desvio">Ordenar por retraso</option>
-            <option value="silencio">Ordenar por silencio</option>
-            <option value="placa">Ordenar por placa</option>
-          </select>
+  function exportar() {
+    descargar(
+      `actividad-${dia ?? hoy()}.csv`,
+      aCSV(
+        ["Vehículo", "Conductor", "Despacho", "Asignadas", "Entregas", "Gestionadas", "No entregadas", "Cumplimiento %", "Última marca"],
+        visibles.map((r) => [
+          r.placa ?? `R-${String(r.indice + 1).padStart(2, "0")}`,
+          r.conductor,
+          r.despacho,
+          r.asignadas,
+          r.entregadas,
+          r.gestionadas,
+          r.fallidas,
+          r.asignadas ? Math.round((r.gestionadas / r.asignadas) * 100) : 0,
+          r.ultima_marca ? hora(r.ultima_marca) : "",
+        ]),
+      ),
+    );
+  }
+
+  return (
+    <div
+      className="sin-panel pb-5 font-[family-name:var(--font-roboto)] text-[13px]"
+      style={{ color: C.texto }}
+    >
+      {/* Título y acciones */}
+      <div className="flex min-h-[46px] flex-wrap items-center gap-2 px-[18px] pt-1">
+        <span className="text-[18px]" style={{ color: "rgba(52,70,96,0.6)" }}>
+          <b className="font-bold">{rutas.length}</b> Vehículos en ruta
+        </span>
+
+        <div className="ml-auto flex flex-wrap items-center gap-1">
+          {actualizado && (
+            <span className="num mr-1 text-[11px]" style={{ color: C.tenue }}>
+              Actualizado {hora(actualizado)}
+            </span>
+          )}
           <input
             type="date"
             value={dia ?? hoy()}
             onChange={(e) =>
               router.push(e.target.value ? `/actividad?fecha=${e.target.value}` : "/actividad")
             }
-            className="num rounded-[8px] border border-line-strong bg-surface px-2 py-1 text-[11.5px]"
+            className="num h-9 rounded-[3px] border bg-white px-2 text-[13px] outline-none"
+            style={{ borderColor: C.borde, color: C.texto }}
           />
-          <label className="flex cursor-pointer items-center gap-1.5">
+          <button
+            onClick={refrescar}
+            disabled={cargando}
+            className="h-9 rounded-[3px] px-3 text-[13px] text-white transition hover:brightness-95 disabled:opacity-60"
+            style={{ background: "#70a2c7" }}
+          >
+            {cargando ? "…" : "↻ Actualizar"}
+          </button>
+          <button
+            onClick={exportar}
+            disabled={!visibles.length}
+            className="h-9 rounded-[3px] px-3 text-[13px] text-white transition hover:brightness-95 disabled:opacity-60"
+            style={{ background: C.turquesa }}
+          >
+            ⤓ Exportar a excel
+          </button>
+        </div>
+      </div>
+
+      {/* Tira de indicadores, buscador y filtros */}
+      <div className="flex min-h-[41px] flex-wrap items-center gap-y-1 px-[3px] py-[3px]">
+        <Indicador valor={`${pctTotal("cumplimiento")}%`} texto="Cumplimiento total" />
+        <Indicador valor={totales.cumplimiento.de} texto="Asignadas" />
+        <Indicador valor={totales.cumplimiento.n} texto="Gestionadas" />
+        <Indicador valor={`${pctTotal("entregado")}%`} texto="Entregadas" />
+        <Indicador valor={`${pctTotal("fallido")}%`} texto="No Entregadas" />
+        <Indicador valor={totales.en_ruta.n} texto="En ruta" />
+        <Indicador valor={totales.sin_salir.n} texto="Sin salir" />
+
+        <div className="ml-auto flex flex-wrap items-center gap-2 pr-[10px]">
+          <label className="relative block">
+            <span className="pointer-events-none absolute left-[11px] top-1/2 -translate-y-1/2 text-[13px]" style={{ color: C.turquesa }}>
+              ⌕
+            </span>
+            <input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar"
+              className="h-[34px] w-[183px] border-0 bg-white pl-[35px] pr-[5px] text-[13px] outline-none"
+              style={{ color: C.texto }}
+            />
+          </label>
+          <select
+            value={orden}
+            onChange={(e) => setOrden(e.target.value as Orden)}
+            title="Filtros"
+            className="h-[34px] border-0 bg-transparent text-[13px] outline-none"
+            style={{ color: C.texto }}
+          >
+            <option value="avance">☰ Por avance</option>
+            <option value="desvio">☰ Por retraso</option>
+            <option value="silencio">☰ Por silencio</option>
+            <option value="placa">☰ Por placa</option>
+          </select>
+          <label className="flex cursor-pointer items-center gap-1 text-[12px]">
             <input
               type="checkbox"
               checked={compacto}
@@ -210,44 +286,34 @@ export default function PanelActividad({
                 guardar("actividad:compacto", e.target.checked ? "1" : "0");
               }}
             />
-            Modo comprimido
+            Comprimido
           </label>
           {!dia && (
-            <label className="flex cursor-pointer items-center gap-1.5">
+            <label className="flex cursor-pointer items-center gap-1 text-[12px]">
               <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
-              cada 30 s
+              30 s
             </label>
           )}
-          <span className="ml-auto flex items-center gap-2">
-            {actualizado && <span className="num">Actualizado {hora(actualizado)}</span>}
-            <button
-              onClick={refrescar}
-              disabled={cargando}
-              className="rounded-[8px] border border-line-strong px-2 py-1 font-semibold text-ink-2 transition hover:bg-canvas disabled:opacity-50"
-            >
-              {cargando ? "…" : "↻ Actualizar"}
-            </button>
-          </span>
         </div>
       </div>
 
-      <div className="p-3">
+      <div className="px-[13px] pt-[2px]">
         {error && (
-          <p className="mb-3 rounded-[10px] border border-bad/30 bg-bad-bg px-3 py-2 text-[12.5px] text-bad">
+          <p className="mb-2 border px-3 py-2 text-[13px]" style={{ borderColor: C.rojo, color: C.rojo, background: "#fff" }}>
             {error}
           </p>
         )}
 
         {visibles.length === 0 ? (
-          <Tarjeta className="p-6 text-[13.5px] text-ink-2">
+          <div className="border bg-white p-6 text-[13px]" style={{ borderColor: C.borde }}>
             {rutas.length === 0
               ? dia
                 ? "Ese día no tuvo ninguna ruta asignada."
-                : "Hoy todavía no hay rutas. Guarda un despacho en el planificador y asígnale conductor."
+                : "Hoy todavía no hay rutas. Guarda un despacho en Nueva Actividad y asígnale conductor."
               : "Ningún vehículo coincide con la búsqueda."}
-          </Tarjeta>
+          </div>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-[10px]">
             {visibles.map((r) => (
               <TarjetaVehiculo
                 key={r.ruta_id}
@@ -256,143 +322,298 @@ export default function PanelActividad({
                 escala={escala}
                 compacto={compacto}
                 ahora={ahora}
+                esHoy={!dia}
               />
             ))}
-            {escala && (
-              <div className="px-1 pt-1">
-                <ReglaHoraria escala={escala} />
-              </div>
-            )}
           </div>
         )}
       </div>
-    </>
+    </div>
+  );
+}
+
+/** Un indicador de la tira: flechas, cifra en negrita y su nombre en gris. */
+function Indicador({ valor, texto }: { valor: string | number; texto: string }) {
+  return (
+    <span className="flex h-[35px] items-center gap-[5px] px-[6px]">
+      <span className="text-[11px] leading-none" style={{ color: C.turquesa }}>
+        ⬍
+      </span>
+      <b className="num text-[16px] font-bold">{valor}</b>
+      <span className="text-[12px] font-bold" style={{ color: C.tenue }}>
+        {texto}
+      </span>
+    </span>
   );
 }
 
 const SILENCIO_MIN = 90;
 
+/**
+ * La tarjeta de un vehículo, con la disposición de la referencia.
+ *
+ * Arriba, sobre gris claro: la placa con su punto de conexión, tres cifras
+ * —asignadas, entregas, gestionadas— y el cumplimiento con su barra. Abajo,
+ * al desplegar: el reparto de resultados a la izquierda y el día dibujado a
+ * la derecha, con las señales del móvil encima.
+ */
 function TarjetaVehiculo({
   ruta: r,
   eventos,
   escala,
   compacto,
   ahora,
+  esHoy,
 }: {
   ruta: RutaEnCalle;
   eventos: Evento[];
-  escala: ReturnType<typeof escalaDe>;
+  escala: Escala | null;
   compacto: boolean;
   ahora: number;
+  esHoy: boolean;
 }) {
+  const [abierta, setAbierta] = useState<boolean | null>(null);
+  // El modo comprimido pliega todas; el botón de cada una manda sobre él.
+  const desplegada = abierta ?? !compacto;
+
   const pct = r.asignadas ? Math.round((r.gestionadas / r.asignadas) * 100) : 0;
   const cerrada = Boolean(r.fin_real) || (r.asignadas > 0 && r.gestionadas === r.asignadas);
   const callado = r.ultima_marca ? (ahora - new Date(r.ultima_marca).getTime()) / 60000 : null;
+  const enSilencio = !cerrada && r.salida_real && callado != null && callado >= SILENCIO_MIN;
+  const conectado = Boolean(r.salida_real) && !cerrada && !enSilencio;
+
+  const parciales = Math.max(0, r.gestionadas - r.entregadas - r.fallidas);
+  const sobre = (n: number) => (r.gestionadas ? Math.round((n / r.gestionadas) * 100) : 0);
+  const tono = tonoDe(pct);
 
   const estado = cerrada
-    ? { texto: "Ruta finalizada", tono: "ok" as const }
+    ? "Ruta finalizada"
     : !r.salida_real
-      ? { texto: "Ruta no iniciada", tono: "plan" as const }
-      : callado != null && callado >= SILENCIO_MIN
-        ? { texto: "Sin dar señales", tono: "bad" as const }
-        : { texto: "En progreso", tono: "live" as const };
+      ? "Ruta no iniciada"
+      : enSilencio
+        ? "Sin dar señales"
+        : null;
 
   return (
-    <Tarjeta className={compacto ? "px-3 py-2" : "p-3"}>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        {/* Identidad */}
-        <div className="min-w-[180px]">
-          <div className="flex items-center gap-2">
-            <span
-              className="num rounded px-1.5 py-0.5 text-[10.5px] font-bold text-white"
-              style={{ background: color(r.indice) }}
-            >
+    <div
+      className="border bg-white"
+      style={{ borderColor: C.borde, boxShadow: "0 2px 1px rgba(0,0,0,0.1)" }}
+    >
+      {/* Franja superior */}
+      <div className="flex min-h-[67px] flex-wrap items-stretch" style={{ background: "#f9f9f9" }}>
+        <div className="flex w-[270px] shrink-0 items-start gap-[10px] px-[10px] pt-[6px]">
+          <span
+            className="mt-[6px] h-[9px] w-[9px] shrink-0 rounded-full"
+            style={{ background: conectado ? C.turquesa : "transparent" }}
+            title={conectado ? "En ruta y dando señales" : undefined}
+          />
+          <div className="min-w-0 flex-1">
+            <h3 className="num truncate text-[16px] font-bold leading-[18px]">
               {r.placa ?? `R-${String(r.indice + 1).padStart(2, "0")}`}
-            </span>
-            <Pastilla tono={estado.tono}>{estado.texto}</Pastilla>
-          </div>
-          <div className="mt-0.5 truncate text-[12.5px] font-semibold">
-            {r.conductor ?? "Sin conductor"}
-          </div>
-          {!compacto && (
-            <div className="truncate text-[11px] text-ink-3">
+            </h3>
+            <div className="truncate text-[11px] font-medium">{r.conductor ?? "Sin conductor"}</div>
+            <div className="truncate text-[11px]" style={{ color: C.tenue }}>
               {r.despacho ?? "Despacho"}
             </div>
-          )}
-        </div>
-
-        {/* Números */}
-        <div className="flex shrink-0 gap-4 text-[10px] uppercase tracking-wide text-ink-3">
-          <Cifra n={r.asignadas} texto="asignadas" />
-          <Cifra n={r.gestionadas} texto="gestionadas" />
-          <Cifra n={r.entregadas} texto="exitosas" tono={r.entregadas > 0 ? "ok" : undefined} />
-          <Cifra n={r.fallidas} texto="fallidas" tono={r.fallidas > 0 ? "bad" : undefined} />
-        </div>
-
-        {/* Cumplimiento */}
-        <div className="w-[110px] shrink-0">
-          <div className="flex items-baseline justify-between text-[11px] text-ink-3">
-            <span>Cumplimiento</span>
-            <b className="num text-[13px] text-ink">{pct}%</b>
           </div>
-          <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-canvas">
-            <div
-              className="h-full rounded-full"
-              style={{ width: `${pct}%`, background: pct === 100 ? "var(--color-ok)" : color(r.indice) }}
-            />
-          </div>
-        </div>
-
-        {/* El día de esta ruta */}
-        <div className="min-w-[200px] flex-1">
-          {escala ? (
-            <FranjaHoraria
-              eventos={eventos}
-              escala={escala}
-              color={color(r.indice)}
-              compacta={compacto}
-            />
-          ) : (
-            <span className="text-[11.5px] text-ink-3">Sin actividad todavía</span>
-          )}
-        </div>
-
-        {/* Señales del móvil y acceso */}
-        <div className="flex shrink-0 items-center gap-2 text-[11px] text-ink-3">
-          {r.bateria != null && (
-            <span
-              className={`num ${r.bateria <= 20 ? "font-bold text-bad" : ""}`}
-              title="Batería del móvil en su última marca"
-            >
-              🔋{r.bateria}%
-            </span>
-          )}
-          {r.red && <span className="num uppercase" title="Tipo de red">{r.red}</span>}
-          {r.ultima_marca && <span className="num">{hora(r.ultima_marca)}</span>}
           <Link
             href={`/torre?despacho=${r.despacho_id}`}
             title="Seguir este despacho en la torre"
-            className="rounded-[8px] border border-line-strong px-2 py-1 text-[11.5px] font-semibold text-ink-2 transition hover:bg-canvas"
+            className="mt-[2px] grid h-[18px] w-[24px] shrink-0 place-items-center rounded-full border text-[10px]"
+            style={{ borderColor: C.turquesa, color: C.turquesa }}
           >
             ◉
           </Link>
         </div>
+
+        <Numero n={r.asignadas} texto="Asignadas" />
+        <Numero n={r.entregadas} texto="Entregas" />
+        <Numero n={r.gestionadas} texto="Gestionadas" />
+
+        <div className="ml-auto flex min-w-[260px] max-w-[400px] flex-1 items-center gap-3 border-l px-[14px]" style={{ borderColor: "#ececec" }}>
+          <div className="min-w-0 flex-1">
+            <div className="text-[12px] font-bold" style={{ color: tono }}>
+              Cumplimiento
+            </div>
+            <div className="mt-[3px] flex items-center gap-2">
+              <div className="h-[2px] flex-1" style={{ background: "#dfe2e5" }}>
+                <div className="h-full" style={{ width: `${pct}%`, background: tono }} />
+              </div>
+              <span className="num w-[42px] text-right text-[16px] font-bold" style={{ color: tono }}>
+                {pct}%
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => setAbierta(!desplegada)}
+            aria-expanded={desplegada}
+            title={desplegada ? "Plegar" : "Desplegar"}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[11px] text-white transition hover:brightness-95"
+            style={{ background: C.turquesa }}
+          >
+            <span className={`transition-transform ${desplegada ? "" : "-rotate-90"}`}>▾</span>
+          </button>
+        </div>
       </div>
-    </Tarjeta>
+
+      {/* Franja inferior */}
+      {desplegada && (
+        <div className="flex flex-wrap">
+          <div className="w-[270px] shrink-0 px-[10px] pb-[10px] pt-[30px]">
+            {estado && (
+              <div
+                className="-mt-[22px] mb-[6px] text-[11px] font-bold"
+                style={{ color: enSilencio ? C.rojo : C.verde }}
+              >
+                {estado}
+              </div>
+            )}
+            <Reparto n={r.entregadas} texto="Entregadas" pct={sobre(r.entregadas)} color={C.verde} />
+            <Reparto n={parciales} texto="Parciales" pct={sobre(parciales)} color={C.naranja} />
+            <Reparto n={r.fallidas} texto="No Entregadas" pct={sobre(r.fallidas)} color={C.rojo} />
+          </div>
+
+          <div className="min-w-[320px] flex-1 px-[10px]">
+            <div className="flex h-[31px] items-center justify-end gap-0 text-[11px] font-bold" style={{ color: "#a2a2a2" }}>
+              <Senal texto="Desvío" valor={r.desvio_min != null ? `${r.desvio_min > 0 ? "+" : ""}${r.desvio_min} min` : null} alerta={r.desvio_min != null && r.desvio_min > 15} />
+              <Senal texto="Señal" valor={r.red ? r.red.toUpperCase() : null} alerta={Boolean(enSilencio)} />
+              <Senal texto="Batería" valor={r.bateria != null ? `${r.bateria}%` : null} alerta={r.bateria != null && r.bateria <= 20} />
+              <Senal texto="Última" valor={r.ultima_marca ? hora(r.ultima_marca) : null} />
+            </div>
+            {escala ? (
+              <LineaDia eventos={eventos} escala={escala} ahora={esHoy ? ahora : null} />
+            ) : (
+              <div className="pb-4 text-[11px]" style={{ color: C.tenue }}>
+                Sin actividad todavía
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
-function Cifra({ n, texto, tono }: { n: number; texto: string; tono?: "ok" | "bad" }) {
+function Numero({ n, texto }: { n: number; texto: string }) {
   return (
-    <div>
-      <div
-        className={`num text-[15px] font-bold normal-case leading-none tracking-tight ${
-          tono === "ok" ? "text-ok" : tono === "bad" ? "text-bad" : "text-ink"
-        }`}
-      >
-        {n}
+    <div className="flex w-[78px] shrink-0 flex-col items-center justify-center border-l" style={{ borderColor: "#ececec" }}>
+      <span className="num text-[16px] font-bold leading-[23px]">{n}</span>
+      <span className="text-[11px]" style={{ color: C.tenue }}>
+        {texto}
+      </span>
+    </div>
+  );
+}
+
+function Reparto({ n, texto, pct, color }: { n: number; texto: string; pct: number; color: string }) {
+  return (
+    <div className="mb-[9px]">
+      <div className="flex items-baseline justify-between text-[10px] font-bold">
+        <span>
+          <span className="num">{n}</span> {texto}
+        </span>
+        <span className="num">{pct}%</span>
       </div>
+      <div className="mt-[2px] h-[2px]" style={{ background: "#dfe2e5" }}>
+        <div className="h-full" style={{ width: `${pct}%`, background: color }} />
+      </div>
+    </div>
+  );
+}
+
+function Senal({ texto, valor, alerta = false }: { texto: string; valor: string | null; alerta?: boolean }) {
+  return (
+    <span className="px-[14px] py-[3px]" title={valor ?? "Sin dato"}>
       {texto}
+      {alerta && <span style={{ color: C.rojo }}> ●</span>}
+      {valor && (
+        <span className="num ml-1 font-normal" style={{ color: alerta ? C.rojo : C.texto }}>
+          {valor}
+        </span>
+      )}
+    </span>
+  );
+}
+
+const TONO_EVENTO: Record<string, string> = {
+  entregado: C.verde,
+  parcial: C.naranja,
+  reprogramado: C.naranja,
+  fallido: C.rojo,
+  pendiente: C.gris,
+};
+
+/**
+ * El día de la ruta: un punto por parada marcada, sobre un eje de horas.
+ *
+ * Todas las tarjetas comparten la misma escala, para poder comparar una ruta
+ * con la de al lado de un vistazo. La raya naranja es la hora actual.
+ */
+function LineaDia({
+  eventos,
+  escala,
+  ahora,
+}: {
+  eventos: Evento[];
+  escala: Escala;
+  ahora: number | null;
+}) {
+  const ancho = escala.hasta - escala.desde || 1;
+  const pos = (t: number) => ((t - escala.desde) / ancho) * 100;
+
+  const horaMs = 60 * 60 * 1000;
+  const horas = Math.max(1, Math.round(ancho / horaMs));
+  const paso = [1, 2, 3, 4, 6, 12, 24].find((p) => horas / p <= 8) ?? 24;
+  const marcas: number[] = [];
+  for (let t = escala.desde; t <= escala.hasta; t += horaMs * paso) marcas.push(t);
+
+  const salida = eventos.find((e) => e.tipo === "ruta_iniciada");
+  const marcasParada = eventos.filter(
+    (e) => e.tipo !== "ruta_iniciada" && e.tipo !== "ruta_terminada",
+  );
+
+  return (
+    <div className="relative mx-[14px] h-[84px]">
+      {/* Eje punteado */}
+      <div className="absolute inset-x-0 top-[62px] border-t border-dashed" style={{ borderColor: "#cfd3d7" }} />
+
+      {marcas.map((t) => (
+        <span
+          key={t}
+          className="num absolute top-[66px] -translate-x-1/2 text-[9px]"
+          style={{ left: `${pos(t)}%`, color: C.tenue }}
+        >
+          {hora(new Date(t))}
+        </span>
+      ))}
+
+      {ahora !== null && ahora >= escala.desde && ahora <= escala.hasta && (
+        <span
+          className="absolute top-0 h-[62px] w-[2px]"
+          style={{ left: `${pos(ahora)}%`, background: C.naranja }}
+          title="Ahora"
+        />
+      )}
+
+      {salida && (
+        <span
+          title={`Salió del centro a las ${hora(salida.ocurrido_en)}`}
+          className="absolute top-[18px] h-[18px] w-[3px] -translate-x-1/2"
+          style={{ left: `${pos(new Date(salida.ocurrido_en).getTime())}%`, background: C.turquesa }}
+        />
+      )}
+
+      {marcasParada.map((e) => (
+        <span
+          key={e.id}
+          title={`${hora(e.ocurrido_en)} · ${e.parada ?? "Parada"}`}
+          className="absolute top-[20px] h-[14px] w-[14px] -translate-x-1/2 rounded-full border-2 border-white"
+          style={{
+            left: `${pos(new Date(e.ocurrido_en).getTime())}%`,
+            background: TONO_EVENTO[e.tipo] ?? C.gris,
+          }}
+        />
+      ))}
     </div>
   );
 }

@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { estadoFlota, eventosDelDia } from "@/app/acciones/datos";
-import { BarraSuperior } from "@/components/ui";
 import PanelActividad from "@/components/PanelActividad";
 
 /**
@@ -29,18 +28,7 @@ export default async function PaginaActividad({
     eventosDelDia(dia ?? undefined),
   ]);
 
-  return (
-    <>
-      <BarraSuperior
-        migaja="Operación"
-        titulo="Actividad"
-        acciones={
-          <span className="text-[12px] text-ink-2">
-            <b className="num text-ink">{rutas.length}</b> vehículos
-          </span>
-        }
-      />
-      <PanelActividad rutas={rutas} eventos={eventos} dia={dia} />
-    </>
-  );
+  // Sin `BarraSuperior`: en la referencia esta pantalla lleva su propio
+  // encabezado —«N Vehículos en ruta»— y lo pinta el panel.
+  return <PanelActividad rutas={rutas} eventos={eventos} dia={dia} />;
 }

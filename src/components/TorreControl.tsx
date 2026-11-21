@@ -284,7 +284,7 @@ export default function TorreControl({
             <button
               onClick={refrescar}
               disabled={cargando}
-              className="rounded-[8px] border border-line-strong px-2 py-1 font-semibold text-ink-2 transition hover:bg-canvas disabled:opacity-50"
+              className="rounded-full border border-line-strong px-2 py-1 font-semibold text-ink-2 transition hover:bg-canvas disabled:opacity-50"
             >
               {cargando ? "…" : "↻ Actualizar"}
             </button>

@@ -19,17 +19,24 @@ export function BarraSuperior({
   titulo: string;
   acciones?: ReactNode;
 }) {
+  // El título va suelto sobre el lienzo gris, sin caja: 22 px en el azul
+  // grisáceo de la referencia, con las acciones en píldora a la derecha. La
+  // caja blanca es lo de debajo.
   return (
-    <header className="flex flex-wrap items-center gap-3 border-b border-line bg-surface px-4 py-2">
-      <div>
-        <div className="text-[11.5px] font-medium leading-tight text-ink-3">{migaja}</div>
-        <h1 className="text-[15px] font-bold leading-tight tracking-tight">{titulo}</h1>
+    <header className="flex min-h-[72px] shrink-0 flex-wrap items-center gap-3 px-5 py-4">
+      <div className="min-w-0">
+        {/* La referencia no lleva rótulo de sección sobre el título. La miga
+            solo se pinta cuando es un enlace de vuelta, que sí hace falta. */}
+        {typeof migaja !== "string" && (
+          <div className="text-[12px] font-medium leading-tight text-ink-3">{migaja}</div>
+        )}
+        <h1 className="truncate text-[22px] font-bold leading-[28px] text-ink-2">{titulo}</h1>
       </div>
-      {acciones && (
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          {acciones}
-        </div>
-      )}
+      {/* Siempre presente, aunque la página no ponga nada: aquí cuelgan los
+          paneles sus botones con `AccionesPagina`. */}
+      <div id="acciones-pagina" className="ml-auto flex flex-wrap items-center gap-2">
+        {acciones}
+      </div>
     </header>
   );
 }
@@ -51,10 +58,12 @@ export function Tabla({
   anchoMin?: number;
   children: ReactNode;
 }) {
+  // Las medidas son las de la referencia: marco redondeado de 8 px, cabecera
+  // gris de 45 px con el texto en 14 px negrita, filas de 14 px.
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto rounded-[8px] border border-line">
       <table
-        className="w-full border-collapse text-[12.5px]"
+        className="w-full border-collapse text-[14px] text-[#707070]"
         style={{ minWidth: `${anchoMin}px` }}
       >
         <thead>
@@ -62,7 +71,7 @@ export function Tabla({
             {cabeceras.map((c, i) => (
               <th
                 key={i}
-                className="border-b border-line bg-surface-2 px-3 py-1.5 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ink-3"
+                className="h-[45px] whitespace-nowrap border-r border-white/70 bg-line px-[13px] text-left text-[14px] font-bold text-[#707070] last:border-r-0"
               >
                 {c}
               </th>
@@ -87,7 +96,7 @@ export function Celda({
 }) {
   return (
     <td
-      className={`border-b border-line px-3 py-1.5 align-middle ${className}`}
+      className={`h-[49px] border-b border-line px-[13px] py-1.5 align-middle ${className}`}
       style={ancho ? { width: ancho } : undefined}
     >
       {children}
@@ -136,7 +145,7 @@ export function Tarjeta({
 }) {
   return (
     <div
-      className={`rounded-[10px] border border-line bg-surface shadow-[0_1px_2px_rgba(16,27,43,0.05)] ${className}`}
+      className={`rounded-[8px] border border-line bg-surface shadow-[0_1px_3px_rgba(0,0,0,0.08)] ${className}`}
     >
       {children}
     </div>
@@ -175,16 +184,19 @@ export function Pastilla({
   tono: "ok" | "warn" | "bad" | "live" | "plan";
   children: ReactNode;
 }) {
+  // Píldoras de la referencia: de contorno para los resultados —verde lo
+  // entregado, naranja lo dudoso, rojo lo fallido— y de relleno azul claro
+  // para lo que está en marcha.
   const estilos: Record<string, string> = {
-    ok: "bg-ok-bg text-ok",
-    warn: "bg-warn-bg text-warn",
-    bad: "bg-bad-bg text-bad",
-    live: "bg-live-bg text-live",
-    plan: "bg-canvas text-ink-2 border border-line",
+    ok: "border border-ok text-ok bg-surface",
+    warn: "border border-warn text-warn bg-surface",
+    bad: "border border-bad text-bad bg-surface",
+    live: "border border-transparent bg-live-bg text-live",
+    plan: "border border-line-strong text-ink-2 bg-surface",
   };
   return (
     <span
-      className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${estilos[tono]}`}
+      className={`inline-block whitespace-nowrap rounded-full px-2.5 py-[3px] text-[12px] leading-none ${estilos[tono]}`}
     >
       {children}
     </span>

@@ -1,12 +1,24 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { DM_Sans, JetBrains_Mono, Roboto } from "next/font/google";
 import "./globals.css";
 import RegistrarSW from "@/components/RegistrarSW";
 
-/* Dos roles tipográficos: interfaz y dato numérico. */
-const inter = Inter({
+/*
+ * La tipografía de la interfaz es la del sistema de referencia: DM Sans en
+ * las pantallas de tabla y Roboto en la de Actividad, que allí conserva su
+ * diseño anterior. Se cargan las dos para que cada pantalla se parezca a la
+ * suya y no a un promedio de ambas.
+ */
+const inter = DM_Sans({
   variable: "--font-inter",
   subsets: ["latin"],
+  display: "swap",
+});
+
+const roboto = Roboto({
+  variable: "--font-roboto",
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
   display: "swap",
 });
 
@@ -25,7 +37,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#101B2B",
+  themeColor: "#132045",
   // El móvil del conductor se usa con una mano y a veces con guantes: que no
   // se descoloque la vista al enfocar un campo.
   width: "device-width",
@@ -41,7 +53,7 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`${inter.variable} ${mono.variable} h-full antialiased`}
+      className={`${inter.variable} ${roboto.variable} ${mono.variable} h-full antialiased`}
     >
       <body className="min-h-full font-[family-name:var(--font-inter)]">
         <RegistrarSW />

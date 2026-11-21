@@ -227,7 +227,7 @@ function Datos({ cliente, editable }: { cliente: ClienteFicha; editable: boolean
           {editable && (
             <button
               onClick={() => setEditando(true)}
-              className="ml-auto rounded-[8px] border border-line-strong bg-surface px-2.5 py-1 text-[11.5px] font-semibold transition hover:bg-canvas"
+              className="ml-auto rounded-full border border-line-strong bg-surface px-2.5 py-1 text-[11.5px] font-semibold transition hover:bg-canvas"
             >
               Editar
             </button>
@@ -272,7 +272,7 @@ function Datos({ cliente, editable }: { cliente: ClienteFicha; editable: boolean
             value={campos.notas}
             onChange={(e) => setCampos({ ...campos, notas: e.target.value })}
             rows={3}
-            className="mt-1 w-full resize-y rounded-[9px] border border-line-strong bg-surface px-2.5 py-2 text-[12.5px] outline-none transition focus:border-amber-600"
+            className="mt-1 w-full resize-y rounded-[4px] border border-line-strong bg-surface px-2.5 py-2 text-[12.5px] outline-none transition focus:border-amber-600"
             placeholder="Recibe solo hasta las 11. El portón de atrás es el bueno."
           />
         </div>
@@ -293,13 +293,13 @@ function Datos({ cliente, editable }: { cliente: ClienteFicha; editable: boolean
           <button
             onClick={() => void guardar()}
             disabled={guardando || !campos.nombre.trim()}
-            className="rounded-[8px] border border-amber-600 bg-amber px-3 py-1 text-[12px] font-semibold text-navy-900 transition hover:bg-amber-600 hover:text-white disabled:opacity-50"
+            className="rounded-full border border-amber-600 bg-amber px-3 py-1 text-[12px] font-semibold text-white transition hover:bg-amber-600 hover:text-white disabled:opacity-50"
           >
             {guardando ? "Guardando…" : "Guardar"}
           </button>
           <button
             onClick={() => { setEditando(false); setError(null); }}
-            className="rounded-[8px] border border-line-strong bg-surface px-3 py-1 text-[12px] font-semibold transition hover:bg-canvas"
+            className="rounded-full border border-line-strong bg-surface px-3 py-1 text-[12px] font-semibold transition hover:bg-canvas"
           >
             Cancelar
           </button>
@@ -362,7 +362,7 @@ function Entrada({
       <input
         value={valor}
         onChange={(e) => onCambio(e.target.value)}
-        className="mt-1 w-full rounded-[9px] border border-line-strong bg-surface px-2.5 py-1.5 text-[12.5px] outline-none transition focus:border-amber-600"
+        className="mt-1 w-full rounded-[4px] border border-line-strong bg-surface px-2.5 py-1.5 text-[12.5px] outline-none transition focus:border-amber-600"
       />
     </label>
   );
