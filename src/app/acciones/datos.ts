@@ -86,6 +86,152 @@ export async function guardarNotaEmpresa(orgId: string, nota: string | null) {
   ]);
 }
 
+/**
+ * La hora del negocio.
+ *
+ * Las horas planificadas (`eta`, `salida_prog`) se guardan como hora local
+ * sin zona, y los hechos (`hora_entrega`, `ocurrido_en`) con zona. Para
+ * restar una de otra hay que traer el instante a la misma hora local, y la
+ * operación es de Lima. Si algún día hay clientes en otro huso, esto pasa a
+ * ser una columna de la organización.
+ */
+const ZONA = "America/Lima";
+
+export type RutaEnCalle = {
+  ruta_id: string;
+  indice: number;
+  despacho_id: string;
+  despacho: string | null;
+  fecha: string;
+  conductor: string | null;
+  vehiculo: string | null;
+  placa: string | null;
+  salida_prog: string | null;
+  salida_real: string | null;
+  fin_real: string | null;
+  km_plan: number | null;
+  asignadas: number;
+  gestionadas: number;
+  entregadas: number;
+  fallidas: number;
+  /** Lo último que marcó, para saber si sigue vivo o lleva dos horas callado. */
+  ultima_marca: string | null;
+  /** Minutos de desfase medio contra la hora estimada. Negativo es adelanto. */
+  desvio_min: number | null;
+  /** Dónde estaba el móvil la última vez que marcó. */
+  ultima_lat: number | null;
+  ultima_lon: number | null;
+  cd_lat: number | null;
+  cd_lon: number | null;
+  bateria: number | null;
+  red: string | null;
+};
+
+/**
+ * Las rutas de un día, con lo que se sabe de cada una ahora mismo.
+ *
+ * Todo sale de lo que ya se registra: no hace falta que el móvil mande su
+ * posición cada minuto. La última posición conocida es el GPS que capturó al
+ * marcar la última parada, y el silencio se mide desde su último evento.
+ */
+export async function estadoFlota(fecha?: string) {
+  const yo = await idSesion();
+  return comoUsuario<RutaEnCalle>(
+    yo,
+    `with marcas as (
+       select p.ruta_id,
+              count(*) filter (where p.estado_entrega <> 'pendiente') as gestionadas,
+              count(*) filter (where p.estado_entrega = 'entregado')   as entregadas,
+              count(*) filter (where p.estado_entrega = 'fallido')     as fallidas,
+              count(*)                                                 as asignadas,
+              avg(extract(epoch from
+                    ((p.hora_entrega at time zone $2)::time - p.eta)) / 60)
+                filter (where p.hora_entrega is not null and p.eta is not null)
+                as desvio_min
+         from paradas p
+        group by p.ruta_id),
+     -- Lo último que se supo, en tres preguntas distintas. La más reciente
+     -- sirve para medir el silencio, pero puede ser el arranque de la ruta,
+     -- que no lleva ni posición ni batería: esas se buscan en el último
+     -- evento que sí las traía.
+     ultimo as (
+       select distinct on (e.ruta_id) e.ruta_id, e.ocurrido_en
+         from eventos e
+        order by e.ruta_id, e.ocurrido_en desc, e.id desc),
+     donde as (
+       select distinct on (e.ruta_id)
+              e.ruta_id,
+              coalesce(p.gps_lat, p.lat) as lat,
+              coalesce(p.gps_lon, p.lon) as lon
+         from eventos e
+         join paradas p on p.id = e.parada_id
+        order by e.ruta_id, e.ocurrido_en desc, e.id desc),
+     movil as (
+       select distinct on (e.ruta_id) e.ruta_id, e.datos
+         from eventos e
+        where e.datos ? 'bateria' or e.datos ? 'red'
+        order by e.ruta_id, e.ocurrido_en desc, e.id desc)
+     select r.id as ruta_id, r.indice, r.despacho_id, d.nombre as despacho,
+            d.fecha, c.nombre as conductor,
+            v.nombre as vehiculo, v.placa,
+            r.salida_prog, r.salida_real, r.fin_real, r.km as km_plan,
+            coalesce(m.asignadas, 0)   as asignadas,
+            coalesce(m.gestionadas, 0) as gestionadas,
+            coalesce(m.entregadas, 0)  as entregadas,
+            coalesce(m.fallidas, 0)    as fallidas,
+            u.ocurrido_en as ultima_marca,
+            round(m.desvio_min)::int as desvio_min,
+            w.lat as ultima_lat, w.lon as ultima_lon,
+            d.cd_lat, d.cd_lon,
+            (t.datos->>'bateria')::int as bateria,
+            t.datos->>'red' as red
+       from rutas r
+       join despachos d on d.id = r.despacho_id
+       left join perfiles c on c.id = r.conductor_id
+       left join vehiculos v on v.id = r.vehiculo_id
+       left join marcas m on m.ruta_id = r.id
+       left join ultimo u on u.ruta_id = r.id
+       left join donde  w on w.ruta_id = r.id
+       left join movil  t on t.ruta_id = r.id
+      where not r.sin_asignar and d.fecha = coalesce($1::date, current_date)
+      order by r.salida_real desc nulls last, d.creado_en desc, r.indice`,
+    [fecha ?? null, ZONA],
+  );
+}
+
+export type ParadaConDesvio = {
+  id: string;
+  orden: number;
+  nombre: string | null;
+  distrito: string | null;
+  lat: number;
+  lon: number;
+  bultos: number;
+  estado_entrega: string;
+  eta: string | null;
+  hora_entrega: string | null;
+  motivo: string | null;
+  /** Minutos de diferencia entre la hora real y la estimada. */
+  desvio_min: number | null;
+};
+
+/** Las paradas de una ruta con su hora real al lado de la estimada. */
+export async function paradasDeRuta(rutaId: string) {
+  const yo = await idSesion();
+  return comoUsuario<ParadaConDesvio>(
+    yo,
+    `select p.id, p.orden, p.nombre, p.distrito, p.lat, p.lon, p.bultos,
+            p.estado_entrega, p.eta, p.hora_entrega, p.motivo,
+            round(extract(epoch from
+              ((p.hora_entrega at time zone $2)::time - p.eta)) / 60)::int
+              as desvio_min
+       from paradas p
+      where p.ruta_id = $1
+      order by p.orden`,
+    [rutaId, ZONA],
+  );
+}
+
 /** Un paso de la historia de una ruta o de una de sus paradas. */
 export type Evento = {
   id: number;

@@ -87,8 +87,46 @@ export async function iniciarRuta(rutaId: string): Promise<string> {
   return rpc<string>("iniciar_ruta", { p_ruta: rutaId });
 }
 
+/**
+ * Cómo está el teléfono ahora mismo.
+ *
+ * Se manda con cada marca para que el planificador pueda distinguir «no ha
+ * entregado» de «se quedó sin batería o sin cobertura», que desde el
+ * escritorio se ven exactamente igual.
+ *
+ * Las dos APIs son opcionales y no están en todos los navegadores: si falta
+ * alguna se manda sin ella. Nunca debe impedir que la entrega se registre.
+ */
+export async function estadoDelMovil(): Promise<{ bateria?: number; red?: string }> {
+  const estado: { bateria?: number; red?: string } = {};
+  if (typeof navigator === "undefined") return estado;
+
+  try {
+    const red = (navigator as Navigator & { connection?: { effectiveType?: string } })
+      .connection?.effectiveType;
+    if (red) estado.red = red;
+  } catch {
+    /* el navegador no la expone */
+  }
+
+  try {
+    const api = (navigator as Navigator & {
+      getBattery?: () => Promise<{ level: number }>;
+    }).getBattery;
+    if (api) {
+      const b = await api.call(navigator);
+      estado.bateria = Math.round(b.level * 100);
+    }
+  } catch {
+    /* el navegador no la expone, o la bloquea */
+  }
+
+  return estado;
+}
+
 /** Registra el resultado de una parada. */
 export async function marcarParada(entrega: Entrega) {
+  const movil = await estadoDelMovil();
   await rpc("marcar_parada", {
     p: {
       parada_id: entrega.parada_id,
@@ -101,6 +139,8 @@ export async function marcarParada(entrega: Entrega) {
       foto_url: entrega.foto_url ?? null,
       gps_lat: entrega.gps_lat ?? null,
       gps_lon: entrega.gps_lon ?? null,
+      bateria: movil.bateria ?? null,
+      red: movil.red ?? null,
     },
   });
 }
