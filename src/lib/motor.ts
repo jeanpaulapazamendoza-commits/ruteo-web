@@ -75,7 +75,13 @@ export type ConfigAgrupar = {
   criterio: "tiendas" | "bultos" | "flota";
   capacidad: number;
   k: number;
-  flota: { cantidad: number; capacidad: number; max_tiendas: number }[];
+  flota: {
+    cantidad: number;
+    capacidad: number;
+    max_tiendas: number;
+    /** Lo que tiene este tipo de vehículo. Solo lo usa «Planificar flota». */
+    etiquetas?: string[];
+  }[];
   vueltas: number;
   uso_flota: "compacto" | "minimo";
 };
@@ -138,7 +144,42 @@ export type ConfigPlanificar = Omit<ConfigRutear, "tiempo_tsp"> & {
   flota: ConfigAgrupar["flota"];
   /** Segundos que se le dan al solver para mejorar la solución. */
   tiempo_s: number;
+  /** Cuánto se adelanta a las prioritarias: 0 nada, 1 normal, 3 con empeño. */
+  peso_prioridad: number;
+  balanceo: "ninguno" | "tiempo" | "paradas";
 };
+
+/**
+ * Lo que un punto exige del vehículo: refrigerado, moto, rampa…
+ *
+ * No es una columna fija del archivo: se lee de una columna propia del cliente
+ * que se llame «etiquetas» (o «requisitos», «requiere», «tipo_vehiculo»), con
+ * los valores separados por coma, punto y coma o barra. Así no hay que tocar
+ * la base de datos para empezar a usarlas, y quedan a la vista en la ficha de
+ * la orden como cualquier otro campo del cliente.
+ */
+const COLUMNAS_ETIQUETA = ["etiquetas", "etiqueta", "requisitos", "requiere", "tipo_vehiculo", "tags"];
+
+const sinTildes = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+/** Parte un texto de etiquetas y las deja comparables: minúsculas, sin tildes. */
+export function partirEtiquetas(texto: string | null | undefined): string[] {
+  if (!texto) return [];
+  const limpias = sinTildes(texto)
+    .toLowerCase()
+    .split(/[,;|/]/)
+    .map((e) => e.trim().replace(/\s+/g, " "))
+    .filter(Boolean);
+  return [...new Set(limpias)];
+}
+
+export function etiquetasDe(t: TiendaMapa): string[] {
+  for (const [columna, valor] of Object.entries(t.extra ?? {})) {
+    const nombre = sinTildes(columna).toLowerCase().trim().replace(/\s+/g, "_");
+    if (COLUMNAS_ETIQUETA.includes(nombre)) return partirEtiquetas(valor);
+  }
+  return [];
+}
 
 export type ResumenPlan = {
   tiendas: number;
@@ -149,6 +190,10 @@ export type ResumenPlan = {
   matriz: "calles" | "recta";
   /** Si el solver partió de la agrupación de siempre o construyó la suya. */
   desde_agrupacion: boolean;
+  balanceo: ConfigPlanificar["balanceo"];
+  peso_prioridad: number;
+  /** Cuántos puntos pedían alguna etiqueta. */
+  con_etiquetas: number;
 };
 
 /**
@@ -172,7 +217,17 @@ export function planificar(tiendas: TiendaMapa[], cfg: ConfigPlanificar) {
     motivos: Record<string, string>;
     totales: { rutas: number; km: number; duracion_min: number; costo: number; paradas: number };
     resumen: ResumenPlan;
-  }>("/planificar", { tiendas, ...cfg });
+  }>("/planificar", {
+    ...cfg,
+    // El motor solo necesita lo que rutea: la ficha del cliente, los
+    // artículos y las columnas propias se quedan aquí.
+    tiendas: tiendas.map((t) => ({
+      id: t.id, codigo: t.codigo, nombre: t.nombre, distrito: t.distrito,
+      lat: t.lat, lon: t.lon, bultos: t.bultos, prioridad: t.prioridad,
+      ventana_ini: t.ventana_ini, ventana_fin: t.ventana_fin,
+      etiquetas: etiquetasDe(t),
+    })),
+  });
 }
 
 export function tiendasEnSector(tiendas: TiendaMapa[], poligono: number[][]) {

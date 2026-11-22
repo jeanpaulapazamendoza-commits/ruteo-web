@@ -586,11 +586,11 @@ export function fusionarPuntos(base: PuntoPlan[], nuevos: PuntoPlan[]) {
 /** CSV de ejemplo. Lleva BOM para que Excel muestre bien las tildes. */
 export function plantillaCSV() {
   const cabecera =
-    "codigo_sucursal,name_sucursal,distrito,latitud,longitud,cantidad_bultos,prioridad,hora_inicio,hora_fin";
+    "codigo_sucursal,name_sucursal,distrito,latitud,longitud,cantidad_bultos,prioridad,hora_inicio,hora_fin,etiquetas";
   const ejemplos = [
-    "294,1ro de Mayo VES,Villa El Salvador,-12.197770,-76.966510,12,0,,",
-    "275,24 de Junio VES,Villa El Salvador,-12.205820,-76.940960,8,1,09:00,13:00",
-    "2278,Alamos 17 VES,Villa El Salvador,-12.209451,-76.942489,15,0,,",
+    "294,1ro de Mayo VES,Villa El Salvador,-12.197770,-76.966510,12,0,,,",
+    "275,24 de Junio VES,Villa El Salvador,-12.205820,-76.940960,8,1,09:00,13:00,refrigerado",
+    "2278,Alamos 17 VES,Villa El Salvador,-12.209451,-76.942489,15,0,,,",
   ];
   return "﻿" + [cabecera, ...ejemplos].join("\r\n") + "\r\n";
 }
@@ -605,4 +605,5 @@ export const COLUMNAS_PLANTILLA = [
   { nombre: "prioridad", obligatoria: false, descripcion: "0 normal · 1 se visita primero · 2…" },
   { nombre: "hora_inicio", obligatoria: false, descripcion: "Inicio de ventana, ej. 09:00" },
   { nombre: "hora_fin", obligatoria: false, descripcion: "Fin de ventana, ej. 13:00" },
+  { nombre: "etiquetas", obligatoria: false, descripcion: "Lo que exige del vehículo, separado por comas. Ej. refrigerado" },
 ];

@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  agrupar, planificar, rutear, tiendasEnSector,
+  agrupar, etiquetasDe, partirEtiquetas, planificar, rutear, tiendasEnSector,
   type ConfigAgrupar, type ConfigRutear,
   type Grupo, type Ruta, type TiendaMapa,
   type ResumenPlan,
@@ -145,6 +145,8 @@ export default function Planificador({
   const [motivos, setMotivos] = useState<Record<string, string>>({});
   const [resumenPlan, setResumenPlan] = useState<ResumenPlan | null>(null);
   const [tiempoPlan, setTiempoPlan] = useState(20);
+  const [pesoPrioridad, setPesoPrioridad] = useState(1);
+  const [balanceo, setBalanceo] = useState<"ninguno" | "tiempo" | "paradas">("ninguno");
   const [error, setError] = useState<string | null>(null);
   const [resaltado, setResaltado] = useState<number | null>(null);
   const [guardado, setGuardado] = useState<ResumenGuardado | null>(null);
@@ -404,6 +406,20 @@ export default function Planificador({
     }
   }
 
+  // Lo que piden los puntos cargados, para avisar antes de planificar de
+  // una etiqueta que ningún vehículo tiene.
+  const etiquetasPedidas = useMemo(() => {
+    const cuenta = new Map<string, number>();
+    for (const t of tiendas) {
+      for (const e of etiquetasDe(t)) cuenta.set(e, (cuenta.get(e) ?? 0) + 1);
+    }
+    return [...cuenta.entries()].sort((a, b) => b[1] - a[1]);
+  }, [tiendas]);
+  const etiquetasFlota = useMemo(
+    () => new Set(cfgA.flota.flatMap((f) => f.etiquetas ?? [])),
+    [cfgA.flota],
+  );
+
   /**
    * Reparte y ordena de una vez, con la flota y los parámetros de ruta.
    *
@@ -419,7 +435,13 @@ export default function Planificador({
     try {
       const { tiempo_tsp: _sinUso, ...ruta } = cfgR;
       void _sinUso;
-      const r = await planificar(tiendas, { ...ruta, flota: cfgA.flota, tiempo_s: tiempoPlan });
+      const r = await planificar(tiendas, {
+        ...ruta,
+        flota: cfgA.flota,
+        tiempo_s: tiempoPlan,
+        peso_prioridad: pesoPrioridad,
+        balanceo,
+      });
       setGruposAuto(r.grupos);
       setSinAsignarAuto(r.sin_asignar);
       setRutas(r.rutas);
@@ -966,7 +988,8 @@ export default function Planificador({
                     Tipos de vehículo. Máx. tiendas 0 = sin límite.
                   </p>
                   {cfgA.flota.map((f, i) => (
-                    <div key={i} className="mb-2 grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5">
+                    <div key={i} className="mb-2">
+                    <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5">
                       <Numero valor={f.cantidad} min={1} etiquetaCorta="uds"
                         onChange={(v) => { const n = [...cfgA.flota]; n[i] = { ...f, cantidad: v }; setCfgA({ ...cfgA, flota: n }); }} />
                       <Numero valor={f.capacidad} min={1} etiquetaCorta="blt"
@@ -979,7 +1002,28 @@ export default function Planificador({
                         title="Quitar"
                       >✕</button>
                     </div>
+                      <CampoEtiquetas
+                        key={`${i}-${cfgA.flota.length}`}
+                        valor={f.etiquetas ?? []}
+                        onChange={(v) => { const n = [...cfgA.flota]; n[i] = { ...f, etiquetas: v }; setCfgA({ ...cfgA, flota: n }); }}
+                      />
+                    </div>
                   ))}
+                  {etiquetasPedidas.length > 0 && (
+                    <p className="mb-2 rounded-[9px] bg-canvas px-2.5 py-2 text-[11.5px] leading-snug text-ink-2">
+                      Los puntos piden:{" "}
+                      {etiquetasPedidas.map(([e, n], k) => (
+                        <span key={e} className={etiquetasFlota.has(e) ? "" : "font-semibold text-warn"}>
+                          {k > 0 && ", "}
+                          {e} (<span className="num">{n}</span>)
+                        </span>
+                      ))}
+                      .{" "}
+                      {etiquetasPedidas.some(([e]) => !etiquetasFlota.has(e))
+                        ? "Lo marcado no lo tiene ningún vehículo: escríbelo en el tipo que corresponda o esos puntos quedarán sin asignar."
+                        : "Solo irán en los vehículos que lo tengan."}
+                    </p>
+                  )}
                   <button
                     onClick={() => setCfgA({ ...cfgA, flota: [...cfgA.flota, { cantidad: 1, capacidad: 200, max_tiendas: 0 }] })}
                     className="mb-2 w-full rounded-[9px] border border-dashed border-line-strong py-1.5 text-[12px] font-semibold text-ink-2 hover:bg-canvas"
@@ -1121,6 +1165,29 @@ export default function Planificador({
                 queda sin asignar, con su motivo.
               </p>
               <div className="mt-2">
+                <Campo etiqueta="Puntos prioritarios">
+                  <Selector
+                    valor={String(pesoPrioridad)}
+                    onChange={(v) => setPesoPrioridad(Number(v))}
+                    opciones={[
+                      ["0", "Sin adelantar"],
+                      ["0.5", "Adelantar un poco"],
+                      ["1", "Visitarlos antes"],
+                      ["3", "Lo antes posible"],
+                    ]}
+                  />
+                </Campo>
+                <Campo etiqueta="Equilibrar las rutas">
+                  <Selector
+                    valor={balanceo}
+                    onChange={(v) => setBalanceo(v as typeof balanceo)}
+                    opciones={[
+                      ["ninguno", "No: lo más corto"],
+                      ["tiempo", "Por duración"],
+                      ["paradas", "Por número de paradas"],
+                    ]}
+                  />
+                </Campo>
                 <Campo etiqueta="Segundos de cálculo, como máximo">
                   <Numero valor={tiempoPlan} min={5} max={60} onChange={setTiempoPlan} />
                 </Campo>
@@ -1407,6 +1474,26 @@ function Seccion({ titulo, children }: { titulo: string; children: React.ReactNo
       </h3>
       {children}
     </div>
+  );
+}
+
+/**
+ * Las etiquetas de un tipo de vehículo, escritas separadas por comas.
+ *
+ * Se guarda el texto tal cual mientras se escribe —si se normalizara a cada
+ * tecla, la coma recién puesta desaparecería— y se entregan ya limpias.
+ */
+function CampoEtiquetas({ valor, onChange }: { valor: string[]; onChange: (v: string[]) => void }) {
+  const [texto, setTexto] = useState(valor.join(", "));
+  return (
+    <input
+      type="text"
+      value={texto}
+      placeholder="Etiquetas: refrigerado, moto…"
+      aria-label="Etiquetas del vehículo"
+      onChange={(e) => { setTexto(e.target.value); onChange(partirEtiquetas(e.target.value)); }}
+      className="mt-1 w-full rounded-[9px] border border-line-strong bg-surface px-2 py-1 text-[12px] placeholder:text-ink-3"
+    />
   );
 }
 

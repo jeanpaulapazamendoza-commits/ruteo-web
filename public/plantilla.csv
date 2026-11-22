@@ -1,4 +1,4 @@
-﻿codigo_sucursal,name_sucursal,distrito,latitud,longitud,cantidad_bultos,prioridad,hora_inicio,hora_fin
-294,1ro de Mayo VES,Villa El Salvador,-12.197770,-76.966510,12,0,,
-275,24 de Junio VES,Villa El Salvador,-12.205820,-76.940960,8,1,09:00,13:00
-2278,Alamos 17 VES,Villa El Salvador,-12.209451,-76.942489,15,0,,
+﻿codigo_sucursal,name_sucursal,distrito,latitud,longitud,cantidad_bultos,prioridad,hora_inicio,hora_fin,etiquetas
+294,1ro de Mayo VES,Villa El Salvador,-12.197770,-76.966510,12,0,,,
+275,24 de Junio VES,Villa El Salvador,-12.205820,-76.940960,8,1,09:00,13:00,refrigerado
+2278,Alamos 17 VES,Villa El Salvador,-12.209451,-76.942489,15,0,,,

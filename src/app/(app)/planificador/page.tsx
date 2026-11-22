@@ -92,6 +92,8 @@ export default async function PaginaPlanificador({
       prioridad: number;
       ventana_ini: string | null;
       ventana_fin: string | null;
+      extra: Record<string, string> | null;
+      items: NonNullable<TiendaMapa["items"]> | null;
     };
 
     const [cab, rutas] = await Promise.all([
@@ -107,7 +109,14 @@ export default async function PaginaPlanificador({
                   (select json_agg(x order by x.orden)
                      from (select p.orden, p.tienda_id, p.codigo, p.nombre,
                                   p.distrito, p.lat, p.lon, p.bultos,
-                                  p.prioridad, p.ventana_ini, p.ventana_fin
+                                  p.prioridad, p.ventana_ini, p.ventana_fin,
+                                  p.extra,
+                                  (select json_agg(json_build_object(
+                                            'codigo', i.codigo, 'nombre', i.nombre,
+                                            'cantidad', i.cantidad, 'precio', i.precio)
+                                          order by i.id)
+                                     from items i
+                                    where i.parada_id = p.id) as items
                              from paradas p
                             where p.ruta_id = r.id) x),
                   '[]'::json
@@ -143,6 +152,10 @@ export default async function PaginaPlanificador({
           prioridad: p.prioridad ?? 0,
           ventana_ini: p.ventana_ini ? String(p.ventana_ini).slice(0, 5) : null,
           ventana_fin: p.ventana_fin ? String(p.ventana_fin).slice(0, 5) : null,
+          // Sin esto, volver a rutear un despacho guardaba las paradas sin sus
+          // artículos ni sus columnas propias: se perdían al replanificar.
+          items: p.items ?? [],
+          extra: p.extra ?? {},
         });
       }
       return ids;
