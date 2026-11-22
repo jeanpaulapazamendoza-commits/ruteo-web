@@ -15,6 +15,7 @@ import AsignarRutas, {
   type Conductor,
   type Vehiculo,
 } from "@/components/AsignarRutas";
+import { asegurarTrazados } from "@/lib/trazado";
 
 type Kpis = {
   rutas?: number; paradas?: number; bultos?: number;
@@ -68,6 +69,10 @@ export default async function PaginaDespacho({
   if (!despacho) notFound();
 
   const sinRutear = despacho.estado === "cargado";
+
+  // Las rutas sin recorrido dibujado (paradas movidas a mano, despachos sin
+  // planificar) se trazan por calles antes de leerlas.
+  await asegurarTrazados(usuario, { despacho: id });
 
   type RutaCruda = RutaGuardada & {
     conductor_id: string | null;

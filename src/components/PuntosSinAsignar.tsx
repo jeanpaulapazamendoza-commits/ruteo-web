@@ -140,9 +140,9 @@ export default function PuntosSinAsignar({
       )}
 
       <p className="border-t border-line px-4 py-2 text-[11px] text-ink-3">
-        Al mover, la parada se añade al final de la ruta elegida y su trazado
-        queda sin dibujar. Para recalcular el recorrido, abre el despacho en el
-        planificador.
+        Al mover, la parada se añade al final de la ruta elegida y el
+        recorrido se vuelve a dibujar por calles en ese orden. Para recalcular
+        el orden, abre el despacho en el planificador.
       </p>
     </Tarjeta>
   );

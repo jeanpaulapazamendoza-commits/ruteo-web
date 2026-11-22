@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { comoUsuario, unaFila } from "@/lib/db";
 import RutaReparto, { type ParadaReparto } from "@/components/RutaReparto";
+import { asegurarTrazados } from "@/lib/trazado";
 
 type Cabecera = {
   id: string;
@@ -25,6 +26,8 @@ export default async function PaginaRutaConductor({
   const { rutaId } = await params;
   const sesion = await auth();
   const id = sesion!.user.id;
+
+  await asegurarTrazados(id, { ruta: rutaId });
 
   const ruta = await unaFila<Cabecera>(
     id,

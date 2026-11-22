@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { comoUsuario, unaFila } from "@/lib/db";
 import { BarraSuperior, Celda, Tabla, Tarjeta, EstadoVacio, Pastilla } from "@/components/ui";
 import { diaLargo } from "@/lib/horas";
+import { asegurarTrazados } from "@/lib/trazado";
 import TorreControl, {
   type ParadaSeguimiento,
   type RutaSeguida,
@@ -159,6 +160,8 @@ export default async function PaginaTorre({
   }
 
   // ── Detalle: seguimiento en vivo del despacho elegido ────────────────────
+  await asegurarTrazados(yo, { despacho: activo.id });
+
   const [paradas, rutas, cab] = await Promise.all([
     comoUsuario<ParadaSeguimiento>(
       yo,
