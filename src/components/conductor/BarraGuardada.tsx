@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { comprimirFoto } from "@/lib/entregas";
+import { IconoCamara, IconoCerrar, IconoCheck, IconoLapiz } from "@/components/conductor/iconos";
 
 /**
  * Lo que pasó con la última entrega, y qué se le puede añadir todavía.
@@ -17,6 +18,11 @@ import { comprimirFoto } from "@/lib/entregas";
  * Ahora no vence. Se queda hasta que el conductor cierra la parada siguiente o
  * la descarta él mismo, así que la cámara puede tardar lo que haga falta.
  */
+const CAJA =
+  "rounded-[16px] border border-line bg-surface px-2.5 py-2 shadow-[0_6px_20px_rgba(19,32,69,0.14)]";
+const ACCION =
+  "flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-line-strong px-3 text-[14px] font-bold text-ink active:bg-canvas disabled:opacity-50";
+
 export default function BarraGuardada({
   texto,
   etiquetaTexto,
@@ -73,77 +79,81 @@ export default function BarraGuardada({
        encima del aviso «Tienes N entregas sin subir» al cerrar sesión —justo
        el aviso que evita perderlas— y seguía respondiendo a los toques por
        encima de un diálogo que debería bloquear la pantalla. */
-    <div className="carril fixed inset-x-0 bottom-[calc(var(--consola)+env(safe-area-inset-bottom))] z-40 mx-auto w-full max-w-[560px] px-3">
+    <div className="carril fixed inset-x-0 bottom-[calc(var(--consola)+env(safe-area-inset-bottom)+8px)] z-40 mx-auto w-full max-w-[560px] px-4">
       {escribiendo ? (
-        <div className="rounded-[10px] border border-navy-700 bg-navy-800 p-2.5">
-          <label className="mb-1.5 block text-[13px] font-bold uppercase tracking-[0.1em] text-white/70">
-            {etiquetaTexto}
-          </label>
+        <div className={CAJA}>
+          <label className="mb-1.5 block px-1 text-[13px] font-bold text-ink-2">{etiquetaTexto}</label>
           <div className="flex gap-2">
             <input
               autoFocus
               value={valor}
               onChange={(e) => setValor(e.target.value)}
-              className="h-11 min-w-0 flex-1 rounded-[9px] border border-line-strong bg-surface px-3 text-[16px] text-ink"
+              className="h-11 min-w-0 flex-1 rounded-full border border-line-strong bg-surface px-4 text-[16px] text-ink"
             />
             <button
               onClick={() => {
                 if (valor.trim()) onTexto(valor.trim());
                 setEscribiendo(false);
               }}
-              className="h-11 w-[92px] shrink-0 rounded-[9px] bg-white text-[14px] font-bold text-navy-900"
+              className="h-11 shrink-0 rounded-full bg-amber px-5 text-[14px] font-bold text-white active:bg-amber-600"
             >
               Listo
             </button>
           </div>
         </div>
       ) : (
-        <div className="rounded-[10px] border border-navy-700 bg-navy-800 px-2.5 py-2">
-          <div className="flex h-11 items-center gap-2">
-            <span className="min-w-0 flex-1 truncate text-[14px] font-bold text-white">
-              {subida ? "✓ " : "↑ "}
-              {texto}
+        <div className={CAJA}>
+          {/* Arriba, qué se guardó, entero. Antes compartía fila con cuatro
+              botones y en un móvil se leía «#2 no entreg…». */}
+          <div className="flex h-9 items-center gap-2 pl-1">
+            <span
+              className={`grid h-6 w-6 shrink-0 place-items-center rounded-full ${
+                subida ? "bg-ok-bg text-ok" : "bg-warn-bg text-warn"
+              }`}
+            >
+              <IconoCheck tam={13} />
             </span>
+            <span className="min-w-0 flex-1 truncate text-[15px] font-bold text-ink">{texto}</span>
             {miniatura && (
               /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={miniatura} alt="" className="h-11 w-11 shrink-0 rounded-[9px] object-cover" />
+              <img src={miniatura} alt="" className="h-8 w-8 shrink-0 rounded-[8px] object-cover" />
             )}
-            <button
-              onClick={() => archivo.current?.click()}
-              disabled={comprimiendo}
-              aria-label="Añadir una foto"
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-[9px] border border-white/40 text-[17px] text-white disabled:opacity-50"
-            >
-              {comprimiendo ? "…" : "📷"}
-            </button>
-            <button
-              onClick={() => setEscribiendo(true)}
-              aria-label={etiquetaTexto}
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-[9px] border border-white/40 text-[17px] text-white"
-            >
-              ✎
-            </button>
-            <button
-              onClick={onCorregir}
-              className="h-11 shrink-0 rounded-[9px] bg-white px-3 text-[14px] font-bold text-navy-900"
-            >
-              Corregir
-            </button>
             <button
               onClick={onCerrar}
               aria-label="Ocultar este aviso"
-              className="grid h-11 w-8 shrink-0 place-items-center text-[17px] text-white/70"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-3 active:bg-canvas"
             >
-              ✕
+              <IconoCerrar tam={16} />
+            </button>
+          </div>
+
+          {/* Debajo, lo que todavía se le puede añadir, con su nombre. */}
+          <div className="mt-1 flex items-center gap-1.5">
+            <button
+              onClick={() => archivo.current?.click()}
+              disabled={comprimiendo}
+              className={ACCION}
+            >
+              <IconoCamara tam={16} /> {comprimiendo ? "…" : "Foto"}
+            </button>
+            <button onClick={() => setEscribiendo(true)} className={`${ACCION} min-w-0`}>
+              <IconoLapiz tam={16} />
+              <span className="truncate">{etiquetaTexto.replace(/[¿?]/g, "")}</span>
+            </button>
+            <button
+              onClick={onCorregir}
+              className="ml-auto h-9 shrink-0 rounded-full px-3 text-[14px] font-bold text-amber-600 active:bg-amber-050"
+            >
+              Corregir
             </button>
           </div>
 
           {!subida && (
-            <p className="mt-1 text-[13px] font-semibold text-white/80">
+            <p className="mt-1.5 px-1 text-[13px] font-medium text-ink-2">
               Guardada en el móvil · sube sola al recuperar señal
             </p>
           )}
-          {aviso && <p className="mt-1 text-[13px] font-bold text-white">{aviso}</p>}
+          {aviso && <p className="mt-1.5 px-1 text-[13px] font-bold text-bad">{aviso}</p>}
         </div>
       )}
 

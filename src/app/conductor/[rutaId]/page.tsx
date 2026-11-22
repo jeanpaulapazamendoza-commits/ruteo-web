@@ -46,10 +46,16 @@ export default async function PaginaRutaConductor({
 
   const paradas = await comoUsuario<ParadaReparto>(
     id,
-    `select id, orden, codigo, nombre, distrito, lat, lon, bultos, prioridad,
-            eta, ventana_ini, ventana_fin, estado_entrega, hora_entrega,
-            motivo, bultos_entregados, observaciones, recibe
-       from paradas where ruta_id = $1 order by orden`,
+    // La dirección y el teléfono no viajan en la parada: son de la ficha del
+    // cliente, que se enlaza por su código.
+    `select p.id, p.orden, p.codigo, p.nombre, p.distrito, p.lat, p.lon, p.bultos,
+            p.prioridad, p.eta, p.ventana_ini, p.ventana_fin, p.estado_entrega,
+            p.hora_entrega, p.motivo, p.bultos_entregados, p.observaciones, p.recibe,
+            cl.direccion, cl.telefono
+       from paradas p
+       left join clientes cl on cl.org_id = p.org_id and cl.codigo = p.codigo
+      where p.ruta_id = $1
+      order by p.orden`,
     [rutaId],
   );
 

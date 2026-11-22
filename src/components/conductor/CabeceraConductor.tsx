@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { salir as cerrarSesion } from "@/app/acciones-sesion";
 import type { EstadoCola } from "@/hooks/useCola";
 import Logo from "@/components/Logo";
+import { IconoAtras, IconoMenu } from "@/components/conductor/iconos";
 
 /**
  * Cabecera de la app de reparto, en sus dos formas: la lista de rutas y una
@@ -24,8 +25,6 @@ export default function CabeceraConductor(
         etiqueta: string;
         cerradas: number;
         total: number;
-        mapaVisible: boolean;
-        onPlegarMapa: () => void;
         cola: EstadoCola;
       },
 ) {
@@ -60,25 +59,16 @@ export default function CabeceraConductor(
               <Link
                 href="/conductor"
                 aria-label="Volver a tus rutas"
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-[10px] text-[17px] text-white active:bg-white/10"
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-white active:bg-white/10"
               >
-                ‹
+                <IconoAtras />
               </Link>
-              <span className="shrink-0 rounded-[7px] bg-navy-700 px-2 py-1 text-[13px] font-bold text-white">
-                {props.etiqueta}
-              </span>
-              <span className="num ml-2 text-[17px] font-extrabold text-white">
-                {props.cerradas}/{props.total}
-              </span>
+              <span className="text-[17px] font-bold text-white">{props.etiqueta}</span>
               <span className="flex-1" />
-              <button
-                onClick={props.onPlegarMapa}
-                aria-label="Mostrar u ocultar el mapa"
-                aria-pressed={props.mapaVisible}
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-[10px] text-[17px] text-white active:bg-white/10"
-              >
-                🗺
-              </button>
+              <span className="text-[14px] font-medium text-white/80">
+                <b className="num text-[17px] font-bold text-white">{props.cerradas}</b> de{" "}
+                <span className="num">{props.total}</span>
+              </span>
               <BotonMenu onClick={() => setMenu(true)} />
             </div>
             {/* Regla de avance: el único sitio donde el progreso es continuo */}
@@ -96,20 +86,20 @@ export default function CabeceraConductor(
         <div className="fixed inset-0 z-50 bg-navy-900/45" onClick={() => setMenu(false)}>
           <div
             onClick={(e) => e.stopPropagation()}
-            className="hoja absolute inset-x-0 bottom-0 mx-auto w-full max-w-[560px] rounded-t-[14px] bg-surface p-3 pb-[calc(env(safe-area-inset-bottom)+12px)]"
+            className="hoja absolute inset-x-0 bottom-0 mx-auto w-full max-w-[560px] rounded-t-[20px] bg-surface p-4 pb-[calc(env(safe-area-inset-bottom)+16px)]"
           >
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong" />
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-line-strong" />
             {!confirmar ? (
               <div className="flex flex-col gap-2">
                 <Link
                   href="/cuenta"
-                  className="grid h-16 w-full place-items-center rounded-[12px] border-2 border-line-strong bg-surface text-[17px] font-bold text-ink active:bg-canvas"
+                  className="grid h-14 w-full place-items-center rounded-full border border-line-strong bg-surface text-[16px] font-bold text-ink active:bg-canvas"
                 >
                   Mi cuenta y contraseña
                 </Link>
                 <button
                   onClick={() => setConfirmar(true)}
-                  className="h-16 w-full rounded-[12px] border-2 border-line-strong bg-surface text-[17px] font-bold text-ink active:bg-canvas"
+                  className="h-14 w-full rounded-full border border-line-strong bg-surface text-[16px] font-bold text-ink active:bg-canvas"
                 >
                   Cerrar sesión
                 </button>
@@ -140,14 +130,14 @@ export default function CabeceraConductor(
                   {pendientes > 0 && (
                     <button
                       onClick={() => props.cola.subir()}
-                      className="h-16 w-full rounded-[12px] border border-amber-600 bg-amber text-[17px] font-extrabold text-white active:bg-amber-600"
+                      className="h-14 w-full rounded-full bg-amber text-[16px] font-bold text-white active:bg-amber-600"
                     >
                       Subir ahora
                     </button>
                   )}
                   <button
                     onClick={salir}
-                    className="h-16 w-full rounded-[12px] border-2 border-bad bg-surface text-[17px] font-bold text-ink active:bg-canvas"
+                    className="h-14 w-full rounded-full border border-bad bg-surface text-[16px] font-bold text-bad active:bg-bad-bg"
                   >
                     {pendientes > 0 ? "Cerrar sesión igualmente" : "Cerrar sesión"}
                   </button>
@@ -172,9 +162,9 @@ function BotonMenu({ onClick }: { onClick: () => void }) {
     <button
       onClick={onClick}
       aria-label="Menú"
-      className="grid h-11 w-11 shrink-0 place-items-center rounded-[10px] text-[17px] text-white active:bg-white/10"
+      className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-white active:bg-white/10"
     >
-      ⋯
+      <IconoMenu />
     </button>
   );
 }

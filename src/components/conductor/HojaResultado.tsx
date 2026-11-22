@@ -10,6 +10,7 @@ import {
 } from "@/lib/entregas";
 import { resumenEntrega } from "@/lib/estadoParada";
 import { subestados } from "@/app/acciones/datos";
+import { IconoAtras, IconoCamara, IconoCerrar, IconoLapiz } from "@/components/conductor/iconos";
 
 export type DatosEntrega = {
   estado: EstadoEntrega;
@@ -205,26 +206,29 @@ export default function HojaResultado({
     <div className="fixed inset-0 z-50 bg-navy-900/45" onClick={onCerrar}>
       <div
         onClick={(e) => e.stopPropagation()}
-        className="hoja absolute inset-x-0 bottom-0 mx-auto flex max-h-[94dvh] w-full max-w-[560px] flex-col rounded-t-[14px] bg-surface pb-[env(safe-area-inset-bottom)]"
+        className="hoja absolute inset-x-0 bottom-0 mx-auto flex max-h-[94dvh] w-full max-w-[560px] flex-col rounded-t-[20px] bg-surface pb-[env(safe-area-inset-bottom)]"
       >
         <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-line-strong" />
 
         {/* Cabecera: de qué parada hablamos, y qué se está preguntando */}
-        <div className="flex shrink-0 items-start gap-1 px-2 pb-2.5 pt-2">
+        <div className="flex shrink-0 items-start gap-1 px-4 pb-3 pt-3">
           {estado && (
             <button
               onClick={() => setEstado(null)}
               aria-label="Elegir otro resultado"
-              className="-ml-1 grid h-11 w-9 shrink-0 place-items-center text-[20px] text-ink-2 active:bg-canvas"
+              className="-ml-2 grid h-11 w-10 shrink-0 place-items-center rounded-full text-ink-2 active:bg-canvas"
             >
-              ‹
+              <IconoAtras />
             </button>
           )}
           <div className="min-w-0 flex-1 pt-0.5">
-            <h2 className="truncate text-[22px] font-extrabold leading-none tracking-tight text-ink">
-              #{parada.orden} · {nombre}
+            <p className="text-[13px] font-bold text-ink-2">
+              Parada <span className="num">{parada.orden}</span>
+            </p>
+            <h2 className="mt-0.5 truncate text-[22px] font-bold leading-tight tracking-tight text-ink">
+              {nombre}
             </h2>
-            <p className="mt-1 truncate text-[14px] font-semibold text-ink-2">
+            <p className="mt-0.5 truncate text-[14px] text-ink-2">
               {paso.pregunta ?? (
                 <>
                   <span className="num">{parada.bultos}</span> bultos
@@ -237,14 +241,14 @@ export default function HojaResultado({
           <button
             onClick={onCerrar}
             aria-label="Cerrar"
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-[10px] text-[18px] text-ink-2 active:bg-canvas"
+            className="-mr-2 grid h-11 w-11 shrink-0 place-items-center rounded-full text-ink-2 active:bg-canvas"
           >
-            ✕
+            <IconoCerrar />
           </button>
         </div>
 
         {corrigiendo && (
-          <p className="shrink-0 border-t border-line px-3 py-2 text-[14px] text-ink-2">
+          <p className="shrink-0 border-t border-line px-4 py-2.5 text-[14px] text-ink-2">
             Ya la marcaste como <b>{ESTADOS_ENTREGA[parada.estado_entrega].texto}</b>
             {resumenEntrega({ ...parada, bultos: parada.bultos })?.includes("·")
               ? ` · ${parada.motivo ?? ""}`
@@ -254,18 +258,12 @@ export default function HojaResultado({
         )}
 
         {/* Adjuntos: fijos, siempre a la vista */}
-        <div className="flex h-12 shrink-0 items-center gap-2 border-t border-line px-3">
-          <button
-            onClick={() => archivo.current?.click()}
-            className="h-10 rounded-[9px] border-2 border-line-strong bg-surface px-3 text-[14px] font-bold text-ink active:bg-canvas"
-          >
-            📷 Foto
+        <div className="flex h-14 shrink-0 items-center gap-2 border-t border-line px-4">
+          <button onClick={() => archivo.current?.click()} className={ADJUNTO}>
+            <IconoCamara tam={16} /> Foto
           </button>
-          <button
-            onClick={() => setVerObs((v) => !v)}
-            className="h-10 rounded-[9px] border-2 border-line-strong bg-surface px-3 text-[14px] font-bold text-ink active:bg-canvas"
-          >
-            ✎ Observación
+          <button onClick={() => setVerObs((v) => !v)} className={ADJUNTO}>
+            <IconoLapiz tam={16} /> Observación
           </button>
           {miniatura && (
             /* eslint-disable-next-line @next/next/no-img-element */
@@ -274,20 +272,20 @@ export default function HojaResultado({
         </div>
 
         {verObs && (
-          <div className="shrink-0 border-t border-line px-3 py-2.5">
+          <div className="shrink-0 border-t border-line px-4 py-3">
             <textarea
               value={observaciones}
               onChange={(e) => setObservaciones(e.target.value)}
               rows={2}
               placeholder="Lo que quieras dejar anotado"
-              className="w-full rounded-[10px] border-2 border-line-strong bg-surface px-3 py-2 text-[16px]"
+              className="w-full rounded-[14px] border border-line-strong bg-surface px-4 py-2 text-[16px]"
             />
           </div>
         )}
 
         {/* Decisión. `min-h-0` es lo que permite que esta zona ceda y haga
             scroll en vez de empujar el botón de guardar fuera de la pantalla. */}
-        <div className="sombras-scroll min-h-0 flex-1 overflow-y-auto border-t border-line p-3">
+        <div className="sombras-scroll min-h-0 flex-1 overflow-y-auto border-t border-line p-4">
           {!estado ? (
             <Paso1 parada={parada} onElegir={setEstado} />
           ) : estado === "entregado" ? (
@@ -295,7 +293,7 @@ export default function HojaResultado({
               value={recibe}
               onChange={(e) => setRecibe(e.target.value)}
               placeholder="Nombre de quien recibe"
-              className="h-14 w-full rounded-[10px] border-2 border-line-strong bg-surface px-3 text-[16px]"
+              className="h-14 w-full rounded-[14px] border border-line-strong bg-surface px-4 text-[16px]"
             />
           ) : estado === "parcial" ? (
             <>
@@ -306,7 +304,7 @@ export default function HojaResultado({
                   value={falto}
                   onChange={(e) => setFalto(e.target.value)}
                   placeholder="¿Qué faltó? (opcional)"
-                  className="mb-3 h-14 w-full rounded-[10px] border-2 border-line-strong bg-surface px-3 text-[16px]"
+                  className="mb-3 h-14 w-full rounded-[14px] border border-line-strong bg-surface px-4 text-[16px]"
                 />
               )}
               <RejillaBultos
@@ -324,7 +322,7 @@ export default function HojaResultado({
                   <button
                     key={m}
                     onClick={() => setMotivo(m)}
-                    className={`flex h-16 w-full items-center gap-3 rounded-[12px] border-2 px-4 text-left text-[17px] font-bold text-ink active:bg-canvas ${
+                    className={`flex min-h-[56px] w-full items-center gap-3 rounded-[14px] border px-4 py-2 text-left text-[16px] font-bold text-ink active:bg-canvas ${
                       motivo === m ? "border-bad bg-bad-bg" : "border-line-strong bg-surface"
                     }`}
                   >
@@ -339,7 +337,7 @@ export default function HojaResultado({
                   value={detalle}
                   onChange={(e) => setDetalle(e.target.value)}
                   placeholder="Cuéntanos qué pasó"
-                  className="mt-3 h-14 w-full rounded-[10px] border-2 border-line-strong bg-surface px-3 text-[16px]"
+                  className="mt-3 h-14 w-full rounded-[14px] border border-line-strong bg-surface px-4 text-[16px]"
                 />
               )}
             </>
@@ -349,16 +347,16 @@ export default function HojaResultado({
         {/* Guardar, anclado. Vivía dentro de la zona que hace scroll y en un
             móvil quedaba por debajo del borde: el conductor no lo veía. */}
         {paso.guardar && (
-          <div className="shrink-0 border-t border-line px-3 pb-3 pt-2.5">
+          <div className="shrink-0 border-t border-line px-4 pb-4 pt-3">
             {paso.impedido && (
-              <p className="mb-2 text-[14px] font-semibold text-ink-2">{paso.impedido}</p>
+              <p className="mb-2 text-center text-[14px] font-medium text-ink-2">{paso.impedido}</p>
             )}
             <button
               onClick={paso.guardar}
               disabled={guardando || !!paso.impedido}
-              className="h-[72px] w-full rounded-[10px] border border-amber-600 bg-amber text-[17px] font-extrabold text-white active:bg-amber-600 disabled:pointer-events-none disabled:opacity-50"
+              className="h-[58px] w-full rounded-full bg-amber text-[17px] font-bold text-white active:bg-amber-600 disabled:pointer-events-none disabled:opacity-50"
             >
-              {guardando ? "Guardando…" : "GUARDAR"}
+              {guardando ? "Guardando…" : "Guardar"}
             </button>
           </div>
         )}
@@ -375,6 +373,9 @@ export default function HojaResultado({
     </div>
   );
 }
+
+const ADJUNTO =
+  "flex h-10 items-center gap-2 rounded-full border border-line-strong bg-surface px-4 text-[14px] font-bold text-ink active:bg-canvas";
 
 /** Paso 1: qué pasó con la parada. Ninguna opción viene marcada. */
 function Paso1({
@@ -440,12 +441,12 @@ function Opcion({
   return (
     <button
       onClick={onClick}
-      className={`flex h-[76px] w-full items-center gap-3 rounded-[12px] border-2 px-4 text-left ${
+      className={`flex h-[68px] w-full items-center gap-3 rounded-[16px] border px-4 text-left ${
         activo ? borde : "border-line-strong bg-surface"
       } ${deshabilitado ? "pointer-events-none opacity-50" : "active:bg-canvas"}`}
     >
       <span
-        className={`grid h-11 w-11 shrink-0 place-items-center rounded-full text-[20px] text-white ${disco}`}
+        className={`grid h-10 w-10 shrink-0 place-items-center rounded-full text-[17px] text-white ${disco}`}
       >
         {glifo}
       </span>
@@ -500,7 +501,7 @@ function RejillaBultos({
     return (
       <div>
         <div
-          className={`num mb-2 flex h-12 items-center rounded-[10px] border-2 px-3 text-[24px] font-extrabold ${
+          className={`num mb-2 flex h-12 items-center rounded-[14px] border px-4 text-[22px] font-bold ${
             n ? "border-amber-600 bg-amber-050 text-ink" : "border-line-strong bg-surface text-ink-2"
           }`}
         >
@@ -517,7 +518,7 @@ function RejillaBultos({
               <button
                 key={t}
                 onClick={() => escribir(t)}
-                className="num h-14 rounded-[12px] border-2 border-line-strong bg-surface text-[24px] font-extrabold text-ink active:bg-canvas"
+                className="num h-14 rounded-[12px] border border-line-strong bg-surface text-[24px] font-bold text-ink active:bg-canvas"
               >
                 {t}
               </button>
@@ -544,7 +545,7 @@ function RejillaBultos({
         <button
           key={n}
           onClick={() => onElegir(n)}
-          className={`num h-16 rounded-[12px] border-2 text-[24px] font-extrabold text-ink active:border-amber-600 active:bg-amber ${
+          className={`num h-16 rounded-[14px] border text-[22px] font-bold text-ink active:border-amber-600 active:bg-amber ${
             elegido === n ? "border-amber-600 bg-amber-050" : "border-line-strong bg-surface"
           }`}
         >
@@ -554,7 +555,7 @@ function RejillaBultos({
       {max > 8 && (
         <button
           onClick={() => onTeclado(true)}
-          className="h-16 rounded-[12px] border-2 border-line-strong bg-surface text-[14px] font-bold text-ink active:bg-canvas"
+          className="h-16 rounded-[12px] border border-line-strong bg-surface text-[14px] font-bold text-ink active:bg-canvas"
         >
           Más…
         </button>

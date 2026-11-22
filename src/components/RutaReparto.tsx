@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import {
-  enlaceNavegacion, iniciarRuta, marcarParada, posicionActual, subirFoto,
+  iniciarRuta, marcarParada, posicionActual, subirFoto,
   type Entrega, type EstadoEntrega,
 } from "@/lib/entregas";
 import { usePosicion } from "@/lib/posicion";
@@ -18,6 +18,9 @@ import Consola from "@/components/conductor/Consola";
 import BarraGuardada from "@/components/conductor/BarraGuardada";
 import HojaResultado, { type DatosEntrega } from "@/components/conductor/HojaResultado";
 import HojaFicha from "@/components/conductor/HojaFicha";
+import {
+  IconoAbajo, IconoAdelante, IconoMapa, IconoTelefono,
+} from "@/components/conductor/iconos";
 
 // Leaflet necesita `window`: solo en el navegador.
 const MapaSeguimiento = dynamic(() => import("@/components/MapaSeguimiento"), {
@@ -33,6 +36,9 @@ export type ParadaReparto = {
   codigo: string | null;
   nombre: string | null;
   distrito: string | null;
+  /** De la ficha del cliente, si la tiene. */
+  direccion: string | null;
+  telefono: string | null;
   lat: number;
   lon: number;
   bultos: number;
@@ -65,6 +71,11 @@ type UltimaEntrega = {
 
 /**
  * La pantalla de una ruta.
+ *
+ * Una sola cosa en primer plano: la parada a la que se va. Su nombre, su
+ * dirección, cuántos bultos y a qué hora, en grande; debajo, un botón. El
+ * mapa está plegado y lo que viene después es una lista corta, porque al
+ * conductor le importa la siguiente parada, no las veinte.
  *
  * Es un orquestador: la cabecera, la consola, el carril y las hojas son
  * componentes propios, y aquí solo vive el estado que comparten. La parada
@@ -104,7 +115,7 @@ export default function RutaReparto({
   const [bloqueado, setBloqueado] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [errorLocal, setErrorLocal] = useState<string | null>(null);
-  const [verMapa, setVerMapa] = useState(true);
+  const [verMapa, setVerMapa] = useState(false);
   const [verCerradas, setVerCerradas] = useState(false);
   const [appNav, setAppNav] = useState<"maps" | "waze">("maps");
 
@@ -121,13 +132,12 @@ export default function RutaReparto({
   useEffect(() => {
     const app = localStorage.getItem("ruteo:navegador");
     const mapa = localStorage.getItem("ruteo:mapa");
-    // `localStorage` y el alto de la ventana no existen en el servidor, así
-    // que no pueden leerse en el estado inicial sin romper la hidratación.
-    // En pantallas cortas el mapa arranca plegado: así siempre se ven al menos
-    // tres paradas sin hacer scroll.
+    // `localStorage` no existe en el servidor, así que no puede leerse en el
+    // estado inicial sin romper la hidratación. El mapa arranca plegado: quien
+    // lo quiera lo abre una vez y se queda abierto.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (app === "waze" || app === "maps") setAppNav(app);
-    setVerMapa(mapa === null ? window.innerHeight >= 700 : mapa === "1");
+    setVerMapa(mapa === "1");
   }, []);
 
   /**
@@ -382,6 +392,25 @@ export default function RutaReparto({
   );
 
   const paradaHoja = hoja && activa ? activa : null;
+  const terminada = total > 0 && resumen.cerradas === total && !activa;
+  // Antes de salir la tarjeta habla de la ruta entera, así que la lista
+  // tiene que enseñar todas las paradas, también la primera.
+  const siguientes = lista.filter(
+    (p) => p.estado_entrega === "pendiente" && (!salida || p.id !== activa?.id),
+  );
+  const hechas = lista.filter((p) => p.estado_entrega !== "pendiente" && p.id !== activa?.id);
+
+  const alternarMapa = () =>
+    setVerMapa((v) => {
+      localStorage.setItem("ruteo:mapa", v ? "0" : "1");
+      return !v;
+    });
+
+  /** Elegir una parada la sube a la tarjeta, y la tarjeta está arriba. */
+  const elegir = (id: string) => {
+    setFijada(id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   return (
     <>
@@ -390,75 +419,126 @@ export default function RutaReparto({
         etiqueta={`R-${String(indice + 1).padStart(2, "0")}`}
         cerradas={resumen.cerradas}
         total={total}
-        mapaVisible={verMapa}
-        onPlegarMapa={() =>
-          setVerMapa((v) => {
-            localStorage.setItem("ruteo:mapa", v ? "0" : "1");
-            return !v;
-          })
-        }
         cola={cola}
       />
 
-      <div className="px-3 pb-[calc(var(--consola)+var(--carril)+env(safe-area-inset-bottom)+12px)] pt-3">
-        <div className="mb-2.5 flex items-center gap-2 px-1 text-[14px] font-semibold text-ink-2">
-          <span className="min-w-0 flex-1 truncate">{despacho}</span>
-          <span className="num shrink-0">{fecha}</span>
-        </div>
-
-        {!salida && (
-          <div className="mb-2.5 rounded-[12px] border border-line bg-surface p-3 text-[14px] text-ink-2">
+      <div className="flex flex-col gap-3 px-4 pb-[calc(var(--consola)+var(--carril)+env(safe-area-inset-bottom)+16px)] pt-4">
+        {/* ── Lo que toca ahora ─────────────────────────────────────── */}
+        {!salida ? (
+          <section className={TARJETA}>
+            <p className={SOBRE}>{despacho} · {diaCorto(fecha)}</p>
             {total === 0 ? (
               <>
-                <b className="text-ink">Esta ruta no tiene paradas.</b>
-                <br />
-                Avisa al planificador antes de salir del centro de distribución.
+                <h1 className={TITULO}>Esta ruta no tiene paradas</h1>
+                <p className="mt-1.5 text-[15px] leading-snug text-ink-2">
+                  Avisa al planificador antes de salir del centro de distribución.
+                </p>
               </>
             ) : (
               <>
-                <span className="num text-[17px] font-bold text-ink">{total}</span> paradas ·{" "}
-                <span className="num text-[17px] font-bold text-ink">{bultos}</span> bultos
-                {km ? (
-                  <>
-                    {" "}
-                    · <span className="num text-[17px] font-bold text-ink">{Number(km).toFixed(0)}</span>{" "}
-                    km
-                  </>
-                ) : null}
+                <h1 className={TITULO}>Tu ruta de hoy</h1>
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <Dato valor={total} texto={total === 1 ? "parada" : "paradas"} />
+                  <Dato valor={bultos} texto="bultos" />
+                  <Dato valor={km ? Number(km).toFixed(0) : "—"} texto="km" />
+                </div>
+                {salidaProg && (
+                  <p className="mt-4 border-t border-line pt-3 text-[15px] text-ink-2">
+                    Sales del centro a las <b className="num text-ink">{hhmm(salidaProg)}</b>
+                  </p>
+                )}
               </>
             )}
-          </div>
-        )}
+          </section>
+        ) : terminada ? (
+          <section className={TARJETA}>
+            <p className={SOBRE}>{despacho} · {diaCorto(fecha)}</p>
+            <h1 className={TITULO}>Ruta terminada</h1>
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <Dato valor={resumen.conformes} texto="entregadas" />
+              <Dato valor={resumen.parciales} texto="parciales" />
+              <Dato valor={resumen.fallidas} texto="sin entregar" />
+            </div>
+          </section>
+        ) : activa ? (
+          <section className={TARJETA}>
+            <div className="flex items-center gap-2">
+              <p className={SOBRE}>
+                Parada <span className="num">{activa.orden}</span> de <span className="num">{total}</span>
+              </p>
+              {activa.prioridad > 0 && <Chip tono="bg-amber-050 text-amber-600">Prioritaria</Chip>}
+              {fueraDeSecuencia && <Chip tono="bg-warn-bg text-warn">Fuera de orden</Chip>}
+              {activa.estado_entrega !== "pendiente" && (
+                <Chip tono={`${pinta(activa.estado_entrega).fondo} text-ink`}>
+                  {pinta(activa.estado_entrega).texto}
+                </Chip>
+              )}
+            </div>
 
-        {/* Mapa: dónde ha estado y qué le queda */}
-        {salida && total > 0 && (
-          <div className="mb-2.5 overflow-hidden rounded-[14px] border border-line bg-surface">
+            <h1 className={TITULO}>{activa.nombre ?? activa.codigo ?? "Parada"}</h1>
+            <p className="mt-1 text-[15px] leading-snug text-ink-2">
+              {lugar(activa) ?? "Sin dirección registrada"}
+            </p>
+
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <Dato valor={activa.bultos} texto={activa.bultos === 1 ? "bulto" : "bultos"} />
+              <Dato valor={hhmm(activa.eta) ?? "—"} texto="llegada" />
+              <Dato
+                valor={
+                  hhmm(activa.ventana_ini) && hhmm(activa.ventana_fin)
+                    ? `${hhmm(activa.ventana_ini)}–${hhmm(activa.ventana_fin)}`
+                    : "Libre"
+                }
+                texto="horario"
+                chico
+              />
+            </div>
+
+            {activa.estado_entrega !== "pendiente" && resumenEntrega(activa) && (
+              <p className="mt-3 rounded-[10px] bg-canvas px-3 py-2 text-[14px] text-ink-2">
+                {resumenEntrega(activa)}
+              </p>
+            )}
+
+            <div className="mt-3 flex items-center gap-1 border-t border-line pt-2">
+              {activa.telefono && (
+                <a href={`tel:${activa.telefono.replace(/[^\d+]/g, "")}`} className={ENLACE}>
+                  <IconoTelefono tam={16} /> Llamar
+                </a>
+              )}
+              <button onClick={() => setFicha(true)} className={ENLACE}>
+                Ver detalles
+              </button>
+              {fueraDeSecuencia && primeraPendiente && (
+                <button onClick={() => setFijada(null)} className={`${ENLACE} ml-auto`}>
+                  Volver a la <span className="num">{primeraPendiente.orden}</span>
+                </button>
+              )}
+            </div>
+          </section>
+        ) : null}
+
+        {/* ── Mapa, plegado ─────────────────────────────────────────── */}
+        {total > 0 && (
+          <section className="overflow-hidden rounded-[16px] border border-line bg-surface">
             <button
-              onClick={() =>
-                setVerMapa((v) => {
-                  localStorage.setItem("ruteo:mapa", v ? "0" : "1");
-                  return !v;
-                })
-              }
-              className="flex h-11 w-full items-center gap-2 px-3 text-left"
+              onClick={alternarMapa}
+              aria-expanded={verMapa}
+              className="flex h-12 w-full items-center gap-2.5 px-4 text-left text-[15px] font-bold text-ink active:bg-canvas"
             >
-              <span className="text-[14px] font-bold text-ink">Mapa de la ruta</span>
-              <span className="ml-auto flex items-center gap-1.5">
-                <Punto clase="bg-ok" />
-                <Punto clase="bg-warn" />
-                <Punto clase="bg-bad" />
-                <Punto clase="bg-line-strong" />
-                <span className="ml-1 text-[14px] font-semibold text-ink-2">
-                  {verMapa ? "Ocultar" : "Ver"}
-                </span>
-              </span>
+              <IconoMapa tam={18} className="text-ink-2" />
+              Mapa de la ruta
+              <IconoAbajo
+                tam={18}
+                className={`ml-auto text-ink-3 transition-transform ${verMapa ? "rotate-180" : ""}`}
+              />
             </button>
             {/* `isolate` no es decorativo: Leaflet pinta sus capas con z-index
                 de 400 a 1000 y, sin un contexto de apilamiento propio, esos
                 números compiten con los de la app. El mapa atravesaba la hoja
                 de resultado (z-50) y tapaba sus primeras opciones. */}
             {verMapa && (
-              <div className="relative isolate h-[200px] border-t border-line">
+              <div className="relative isolate h-[220px] border-t border-line">
                 <MapaSeguimiento
                   paradas={lista.map((p) => ({
                     id: p.id,
@@ -475,54 +555,69 @@ export default function RutaReparto({
                   colorRuta="#2E7DD1"
                   cd={cd}
                   siguienteId={activa?.id ?? null}
-                  onClicParada={(id) => {
-                    setFijada(id);
-                    document
-                      .getElementById(`parada-${id}`)
-                      ?.scrollIntoView({ block: "center", behavior: "auto" });
-                  }}
+                  onClicParada={(id) => setFijada(id)}
                 />
                 {!cola.enLinea && (
                   <div className="pointer-events-none absolute inset-0 z-[500] grid place-items-center">
-                    <span className="rounded-[10px] bg-navy-900/90 px-3 py-2 text-[14px] font-bold text-white">
+                    <span className="rounded-full bg-navy-900/90 px-4 py-2 text-[13px] font-bold text-white">
                       Mapa sin señal · trabaja con la lista
                     </span>
                   </div>
                 )}
               </div>
             )}
-          </div>
+          </section>
         )}
 
-        {/* Cerradas, plegadas: lo hecho estorba menos que lo que falta */}
-        {resumen.cerradas > 0 && (
-          <button
-            onClick={() => setVerCerradas((v) => !v)}
-            className="mb-2 flex h-12 w-full items-center gap-2 rounded-[12px] border border-line bg-surface px-3 text-left"
-          >
-            <span className="text-[17px] text-ink-2">{verCerradas ? "▾" : "▸"}</span>
-            <span className="flex-1 text-[14px] font-bold text-ink">
-              <span className="num">{resumen.cerradas}</span> cerradas ·{" "}
-              <span className="num">{resumen.conformes}</span> conformes ·{" "}
-              <span className="num">{resumen.parciales + resumen.fallidas}</span> con incidencia
-            </span>
-          </button>
+        {/* ── Lo que viene después ──────────────────────────────────── */}
+        {siguientes.length > 0 && (
+          <section>
+            <h2 className="mb-1.5 px-1 text-[13px] font-bold text-ink-2">
+              {salida ? "Después" : "Paradas"} · <span className="num">{siguientes.length}</span>
+            </h2>
+            <div className="overflow-hidden rounded-[16px] border border-line bg-surface">
+              {siguientes.map((p) => (
+                <FilaParada
+                  key={p.id}
+                  parada={p}
+                  enCola={cola.ids.has(p.id)}
+                  onSeleccionar={salida ? () => elegir(p.id) : undefined}
+                />
+              ))}
+            </div>
+          </section>
         )}
 
-        <div className="flex flex-col gap-2">
-          {lista
-            .filter((p) => verCerradas || p.estado_entrega === "pendiente" || p.id === activa?.id)
-            .map((p) => (
-              <FilaParada
-                key={p.id}
-                parada={p}
-                activa={p.id === activa?.id}
-                enCola={cola.ids.has(p.id)}
-                appNav={appNav}
-                onSeleccionar={() => setFijada(p.id)}
+        {/* ── Lo hecho, plegado: estorba menos que lo que falta ─────── */}
+        {hechas.length > 0 && (
+          <section className="overflow-hidden rounded-[16px] border border-line bg-surface">
+            <button
+              onClick={() => setVerCerradas((v) => !v)}
+              aria-expanded={verCerradas}
+              className="flex h-12 w-full items-center gap-2.5 px-4 text-left text-[15px] font-bold text-ink active:bg-canvas"
+            >
+              <span>
+                Hechas · <span className="num">{hechas.length}</span>
+              </span>
+              {resumen.parciales + resumen.fallidas > 0 && (
+                <span className="text-[13px] font-semibold text-ink-2">
+                  <span className="num">{resumen.parciales + resumen.fallidas}</span> con incidencia
+                </span>
+              )}
+              <IconoAbajo
+                tam={18}
+                className={`ml-auto text-ink-3 transition-transform ${verCerradas ? "rotate-180" : ""}`}
               />
-            ))}
-        </div>
+            </button>
+            {verCerradas && (
+              <div className="border-t border-line">
+                {hechas.map((p) => (
+                  <FilaParada key={p.id} parada={p} enCola={cola.ids.has(p.id)} onSeleccionar={() => elegir(p.id)} />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
       </div>
 
       <Consola
@@ -530,7 +625,6 @@ export default function RutaReparto({
         errorLocal={errorLocal}
         onReintentarLocal={() => setErrorLocal(null)}
         activa={activa}
-        fueraDeSecuencia={fueraDeSecuencia}
         appNav={appNav}
         bloqueado={bloqueado}
         guardando={!!guardando}
@@ -555,14 +649,12 @@ export default function RutaReparto({
             });
         }}
         onOtro={() => setHoja(true)}
-        onFicha={() => setFicha(true)}
         rutaIniciada={!!salida}
         onConfirmarRuta={confirmarRuta}
         confirmando={confirmando}
         sinParadas={total === 0}
         resumen={resumen}
         cd={cd}
-        salidaProg={salidaProg}
       />
 
       {ultima && (
@@ -610,87 +702,96 @@ export default function RutaReparto({
   );
 }
 
-/**
- * Una parada de la lista.
- *
- * Tocarla **solo la selecciona**: la consola pasa a apuntar a ella y el botón
- * grande cambia de nombre. Nunca escribe nada, para que rozar la pantalla
- * dentro de una furgoneta en marcha no cierre una entrega.
- */
-function FilaParada({
-  parada, activa, enCola, appNav, onSeleccionar,
-}: {
-  parada: ParadaReparto;
-  activa: boolean;
-  enCola: boolean;
-  appNav: "maps" | "waze";
-  onSeleccionar: () => void;
-}) {
-  const p = pinta(parada.estado_entrega);
-  const cerrada = parada.estado_entrega !== "pendiente";
-  const segunda =
-    resumenEntrega(parada) ??
-    [
-      `${parada.bultos} bultos`,
-      parada.distrito,
-      hhmm(parada.ventana_ini) && hhmm(parada.ventana_fin)
-        ? `${hhmm(parada.ventana_ini)}–${hhmm(parada.ventana_fin)}`
-        : hhmm(parada.eta)
-          ? `llega ${hhmm(parada.eta)}`
-          : null,
-    ]
-      .filter(Boolean)
-      .join(" · ");
+const TARJETA = "rounded-[16px] border border-line bg-surface p-4 shadow-[0_2px_10px_rgba(19,32,69,0.05)]";
+const SOBRE = "text-[13px] font-bold text-ink-2";
+const TITULO = "mt-1 text-[24px] font-bold leading-[1.15] tracking-tight text-ink";
+const ENLACE =
+  "flex h-10 items-center gap-1.5 rounded-full px-3 text-[14px] font-bold text-amber-600 active:bg-amber-050";
 
+const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+/** «22 nov»: el día del despacho, sin pasar por zonas horarias. */
+function diaCorto(f: string) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(f));
+  return m ? `${Number(m[3])} ${MESES[Number(m[2]) - 1]}` : String(f);
+}
+
+/** Dirección y distrito, sin repetir el distrito si la dirección ya lo trae. */
+function lugar(p: { direccion: string | null; distrito: string | null }) {
+  const d = p.direccion?.trim() || null;
+  if (!d) return p.distrito;
+  if (!p.distrito || d.toLowerCase().includes(p.distrito.toLowerCase())) return d;
+  return `${d} · ${p.distrito}`;
+}
+
+/** Una cifra grande con su nombre debajo. */
+function Dato({ valor, texto, chico = false }: { valor: React.ReactNode; texto: string; chico?: boolean }) {
   return (
-    <div
-      id={`parada-${parada.id}`}
-      className={`flex h-[76px] scroll-mt-[76px] items-stretch overflow-hidden rounded-[12px] border-2 ${
-        activa ? "border-amber-600" : "border-line"
-      }`}
-    >
-      <i className={`w-1.5 shrink-0 ${p.rail}`} />
-      <button
-        onClick={onSeleccionar}
-        className={`flex min-w-0 flex-1 items-center gap-2.5 px-3 text-left ${
-          activa ? "bg-amber-050" : p.fondo
-        }`}
-      >
-        <span
-          className={`num grid h-9 w-9 shrink-0 place-items-center rounded-full text-[17px] font-bold ${
-            activa
-              ? "bg-amber text-white"
-              : cerrada
-                ? "border border-line-strong bg-surface text-ink-2"
-                : "bg-canvas text-ink"
-          }`}
-        >
-          {parada.orden}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[17px] font-bold text-ink">
-            {parada.nombre ?? parada.codigo}
-            {parada.prioridad > 0 && <span className="ml-1 text-amber-600">⭐</span>}
-          </span>
-          <span className="block truncate text-[14px] font-medium text-ink-2">{segunda}</span>
-        </span>
-        {enCola && <span className="shrink-0 text-[17px] text-ink-2">↑</span>}
-        <span className="shrink-0 text-[17px] text-ink">{p.glifo}</span>
-      </button>
-      <a
-        href={enlaceNavegacion(parada.lat, parada.lon, appNav)}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label={`Navegar a ${parada.nombre ?? parada.codigo}`}
-        className="grid w-11 shrink-0 place-items-center border-l border-line bg-surface text-[17px] text-navy-800"
-      >
-        ▶
-      </a>
+    <div className="rounded-[12px] bg-canvas px-2 py-2.5 text-center">
+      <div className={`num font-bold leading-none text-ink ${chico ? "text-[17px] leading-[26px]" : "text-[26px]"}`}>
+        {valor}
+      </div>
+      <div className="mt-1.5 text-[12.5px] font-medium leading-none text-ink-2">{texto}</div>
     </div>
   );
 }
 
-/** Punto de color de la leyenda del mapa. */
-function Punto({ clase }: { clase: string }) {
-  return <i className={`inline-block h-2 w-2 rounded-full not-italic ${clase}`} />;
+function Chip({ tono, children }: { tono: string; children: React.ReactNode }) {
+  return <span className={`rounded-full px-2.5 py-0.5 text-[12px] font-bold ${tono}`}>{children}</span>;
+}
+
+/**
+ * Una parada de la lista.
+ *
+ * Tocarla **solo la elige**: sube a la tarjeta de arriba y el botón grande
+ * pasa a hablar de ella. Nunca escribe nada, para que rozar la pantalla
+ * dentro de una furgoneta en marcha no cierre una entrega.
+ */
+function FilaParada({
+  parada, enCola, onSeleccionar,
+}: {
+  parada: ParadaReparto;
+  enCola: boolean;
+  /** Sin esto la fila solo informa: antes de salir no hay nada que elegir. */
+  onSeleccionar?: () => void;
+}) {
+  const p = pinta(parada.estado_entrega);
+  const cerrada = parada.estado_entrega !== "pendiente";
+  const ventana =
+    hhmm(parada.ventana_ini) && hhmm(parada.ventana_fin)
+      ? `${hhmm(parada.ventana_ini)}–${hhmm(parada.ventana_fin)}`
+      : null;
+  const segunda =
+    resumenEntrega(parada) ??
+    [`${parada.bultos} ${parada.bultos === 1 ? "bulto" : "bultos"}`, ventana ?? parada.distrito]
+      .filter(Boolean)
+      .join(" · ");
+
+  return (
+    <button
+      id={`parada-${parada.id}`}
+      onClick={onSeleccionar}
+      disabled={!onSeleccionar}
+      className="flex min-h-[64px] w-full items-center gap-3 border-b border-line px-4 py-2.5 text-left last:border-b-0 enabled:active:bg-canvas"
+    >
+      <span
+        className={`num grid h-8 w-8 shrink-0 place-items-center rounded-full text-[14px] font-bold ${
+          cerrada ? `${p.fondo} text-ink` : "bg-canvas text-ink"
+        }`}
+      >
+        {cerrada ? p.glifo : parada.orden}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[16px] font-bold text-ink">
+          {parada.nombre ?? parada.codigo}
+        </span>
+        <span className="block truncate text-[13.5px] text-ink-2">{segunda}</span>
+      </span>
+      {enCola && <span className="shrink-0 text-[12px] font-bold text-warn">sin subir</span>}
+      {!cerrada && hhmm(parada.eta) && (
+        <span className="num shrink-0 text-[14px] font-semibold text-ink-2">{hhmm(parada.eta)}</span>
+      )}
+      {onSeleccionar && <IconoAdelante tam={16} className="shrink-0 text-ink-3" />}
+    </button>
+  );
 }
