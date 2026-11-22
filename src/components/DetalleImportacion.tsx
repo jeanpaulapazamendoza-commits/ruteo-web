@@ -154,7 +154,10 @@ export default function DetalleImportacion({ datos: d }: { datos: Datos }) {
           <summary className="cursor-pointer text-[13.5px] font-bold text-warn">
             {nAvisos} con coordenada dudosa
             {excluidas > 0 && (
-              <span className="font-normal text-ink-2"> · {excluidas} se dejaron fuera al subirlo</span>
+              <span className="font-normal text-ink-2">
+                {" · "}
+                {excluidas === 1 ? "1 se dejó fuera" : `${excluidas} se dejaron fuera`} al subirlo
+              </span>
             )}
           </summary>
           <ul className="mt-3 space-y-1.5 text-[13px] text-ink-2">
