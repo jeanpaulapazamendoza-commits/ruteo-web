@@ -778,7 +778,18 @@ function TarjetaVehiculo({
           </Link>
         </Celda>
         <Celda rotulo="Conductor">
-          <span className="block truncate">{r.conductor ?? ""}</span>
+          {r.conductor_telefono ? (
+            <a
+              href={`tel:${r.conductor_telefono.replace(/[^\d+]/g, "")}`}
+              title={`Llamar al ${r.conductor_telefono}`}
+              className="block truncate hover:underline"
+              style={{ color: C.azul }}
+            >
+              {r.conductor ?? r.conductor_telefono}
+            </a>
+          ) : (
+            <span className="block truncate">{r.conductor ?? ""}</span>
+          )}
         </Celda>
         <Celda rotulo="Estado de ruta">
           <span
@@ -1028,12 +1039,16 @@ function LineaDia({
   escala: Escala;
   ahora: number | null;
 }) {
+  // Acercar: la línea se ensancha y se desplaza de lado. Con veinte marcas
+  // en una hora los puntos se pisan, y de cerca se separan.
+  const [zoom, setZoom] = useState(1);
   const ancho = escala.hasta - escala.desde || 1;
   const pos = (t: number) => ((t - escala.desde) / ancho) * 100;
 
   const horaMs = 60 * 60 * 1000;
   const horas = Math.max(1, Math.round(ancho / horaMs));
-  const paso = [1, 2, 3, 4, 6, 12, 24].find((p) => horas / p <= 8) ?? 24;
+  // De cerca caben más rótulos de hora.
+  const paso = [1, 2, 3, 4, 6, 12, 24].find((p) => horas / p <= 8 * zoom) ?? 24;
   const marcas: number[] = [];
   for (let t = escala.desde; t <= escala.hasta; t += horaMs * paso) marcas.push(t);
 
@@ -1043,8 +1058,29 @@ function LineaDia({
   );
 
   return (
-    <div className="mx-3 mb-2 bg-surface-2 px-6 pb-1 pt-3">
-      <div className="relative h-[74px]">
+    <div className="relative mx-3 mb-2 bg-surface-2 pt-3">
+      <div className="absolute right-2 top-1.5 z-10 flex overflow-hidden rounded-full border border-line bg-surface text-[12px] text-ink">
+        <button
+          onClick={() => setZoom((z) => Math.max(1, z / 2))}
+          disabled={zoom === 1}
+          title="Alejar"
+          aria-label="Alejar la línea del día"
+          className="grid h-6 w-7 place-items-center transition hover:bg-canvas disabled:opacity-40"
+        >
+          −
+        </button>
+        <button
+          onClick={() => setZoom((z) => Math.min(8, z * 2))}
+          disabled={zoom === 8}
+          title="Acercar"
+          aria-label="Acercar la línea del día"
+          className="grid h-6 w-7 place-items-center border-l border-line transition hover:bg-canvas disabled:opacity-40"
+        >
+          +
+        </button>
+      </div>
+      <div className="overflow-x-auto px-6 pb-1">
+      <div className="relative h-[74px]" style={{ width: `${zoom * 100}%` }}>
         <div className="absolute inset-x-0 top-[50px] border-t" style={{ borderColor: "#cfd6df" }} />
 
         {marcas.map((t) => (
@@ -1084,6 +1120,7 @@ function LineaDia({
             }}
           />
         ))}
+      </div>
       </div>
     </div>
   );

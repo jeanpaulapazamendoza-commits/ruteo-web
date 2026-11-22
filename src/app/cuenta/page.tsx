@@ -36,7 +36,7 @@ export default async function PaginaCuenta() {
       />
 
       <div className="flex flex-col gap-4 p-4">
-        <MiPerfil nombre={yo.nombre} email={yo.email} rol={yo.rolTexto} empresa={yo.empresa} />
+        <MiPerfil nombre={yo.nombre} telefono={yo.telefono} email={yo.email} rol={yo.rolTexto} empresa={yo.empresa} />
         <CambiarClave tieneClave={yo.tieneClave} />
       </div>
     </div>

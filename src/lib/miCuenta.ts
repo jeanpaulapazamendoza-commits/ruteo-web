@@ -14,6 +14,7 @@ const ROL: Record<string, string> = {
 export async function miCuenta(usuario: string) {
   const yo = await unaFila<{
     nombre: string | null;
+    telefono: string | null;
     email: string | null;
     rol: string;
     empresa: string | null;
@@ -21,7 +22,7 @@ export async function miCuenta(usuario: string) {
     tiene_clave: boolean;
   }>(
     usuario,
-    `select p.nombre, p.email, p.rol, o.nombre as empresa,
+    `select p.nombre, p.telefono, p.email, p.rol, o.nombre as empresa,
             public.tengo_clave() as tiene_clave
        from perfiles p
        left join organizaciones o on o.id = p.org_id
@@ -31,6 +32,7 @@ export async function miCuenta(usuario: string) {
   if (!yo) return null;
   return {
     nombre: yo.nombre ?? "",
+    telefono: yo.telefono ?? "",
     email: yo.email ?? "—",
     rol: yo.rol,
     rolTexto: ROL[yo.rol] ?? yo.rol,

@@ -18,11 +18,13 @@ const CAMPO =
  */
 export default function MiPerfil({
   nombre: inicial,
+  telefono: telInicial,
   email,
   rol,
   empresa,
 }: {
   nombre: string;
+  telefono: string;
   email: string;
   rol: string;
   empresa: string;
@@ -30,11 +32,15 @@ export default function MiPerfil({
   const router = useRouter();
   const [nombre, setNombre] = useState(inicial);
   const [guardado, setGuardado] = useState(inicial);
+  const [telefono, setTelefono] = useState(telInicial);
+  const [telGuardado, setTelGuardado] = useState(telInicial);
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [listo, setListo] = useState(false);
 
-  const cambiado = nombre.trim() !== guardado.trim() && nombre.trim().length >= 2;
+  const nombreCambiado = nombre.trim() !== guardado.trim();
+  const telCambiado = telefono.trim() !== telGuardado.trim();
+  const cambiado = (nombreCambiado || telCambiado) && nombre.trim().length >= 2;
 
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
@@ -43,9 +49,16 @@ export default function MiPerfil({
     setError(null);
     setListo(false);
     try {
-      const nuevo = await rpc<string>("cambiar_mi_nombre", { p_nombre: nombre });
-      setGuardado(nuevo ?? nombre.trim());
-      setNombre(nuevo ?? nombre.trim());
+      if (nombreCambiado) {
+        const nuevo = await rpc<string>("cambiar_mi_nombre", { p_nombre: nombre });
+        setGuardado(nuevo ?? nombre.trim());
+        setNombre(nuevo ?? nombre.trim());
+      }
+      if (telCambiado) {
+        const tel = await rpc<string | null>("cambiar_mi_telefono", { p_telefono: telefono });
+        setTelGuardado(tel ?? "");
+        setTelefono(tel ?? "");
+      }
       setListo(true);
       // La barra de arriba lee el nombre en cada carga.
       router.refresh();
@@ -71,13 +84,25 @@ export default function MiPerfil({
             className={`${CAMPO} mt-1 font-normal`}
           />
         </label>
+        <label className="mt-3 block text-[13px] font-semibold text-ink-2">
+          Teléfono
+          <input
+            value={telefono}
+            onChange={(e) => { setTelefono(e.target.value); setListo(false); }}
+            maxLength={20}
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="Para que la oficina pueda llamarte"
+            className={`${CAMPO} num mt-1 font-normal`}
+          />
+        </label>
         <div className="mt-2.5 flex items-center gap-3">
           <button
             type="submit"
             disabled={!cambiado || ocupado}
             className="inline-flex h-9 items-center rounded-full bg-amber px-4 text-[14px] font-bold text-white transition hover:bg-amber-600 disabled:opacity-50"
           >
-            {ocupado ? "Guardando…" : "Guardar nombre"}
+            {ocupado ? "Guardando…" : "Guardar"}
           </button>
           {listo && <span role="status" className="text-[13px] font-semibold text-ok">Guardado</span>}
           {error && <span role="alert" className="text-[13px] font-semibold text-bad">{error}</span>}

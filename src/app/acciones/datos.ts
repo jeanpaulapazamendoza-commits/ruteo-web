@@ -21,16 +21,24 @@ async function idSesion() {
 /** Cambia el rol o el estado de un miembro del equipo. */
 export async function actualizarPerfil(
   id: string,
-  cambios: { rol?: "admin" | "planificador" | "conductor"; activo?: boolean },
+  cambios: {
+    rol?: "admin" | "planificador" | "conductor";
+    activo?: boolean;
+    /** Cadena vacía lo borra; sin la clave, no se toca. */
+    telefono?: string | null;
+  },
 ) {
   const yo = await idSesion();
+  const tel = cambios.telefono === undefined ? undefined : (cambios.telefono ?? "").trim();
+  if (tel && !/^[0-9+() -]{6,20}$/.test(tel)) throw new Error("Ese teléfono no parece válido.");
   await comoUsuario(
     yo,
     `update perfiles
         set rol = coalesce($2, rol),
-            activo = coalesce($3, activo)
+            activo = coalesce($3, activo),
+            telefono = case when $4::boolean then nullif($5, '') else telefono end
       where id = $1`,
-    [id, cambios.rol ?? null, cambios.activo ?? null],
+    [id, cambios.rol ?? null, cambios.activo ?? null, tel !== undefined, tel ?? ""],
   );
 }
 
@@ -104,6 +112,8 @@ export type RutaEnCalle = {
   despacho: string | null;
   fecha: string;
   conductor: string | null;
+  /** Para llamarle: lo pone él en su perfil o un administrador en Usuarios. */
+  conductor_telefono: string | null;
   vehiculo: string | null;
   placa: string | null;
   /** El vehículo de la ruta y su grupo, si tiene. */
@@ -181,7 +191,7 @@ export async function estadoFlota(fecha?: string) {
         where e.datos ? 'bateria' or e.datos ? 'red'
         order by e.ruta_id, e.ocurrido_en desc, e.id desc)
      select r.id as ruta_id, r.indice, r.despacho_id, d.nombre as despacho,
-            d.fecha, c.nombre as conductor,
+            d.fecha, c.nombre as conductor, c.telefono as conductor_telefono,
             v.nombre as vehiculo, v.placa, v.id as vehiculo_id, v.grupo,
             r.salida_prog, r.salida_real, r.fin_real, r.km as km_plan,
             coalesce(m.asignadas, 0)   as asignadas,

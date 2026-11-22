@@ -37,6 +37,7 @@ const PERMITIDAS = {
   fijar_clave: "escalar",
   cambiar_mi_clave: "escalar",
   cambiar_mi_nombre: "escalar",
+  cambiar_mi_telefono: "escalar",
   tengo_clave: "escalar",
   // Devuelven filas.
   resumen_despachos: "conjunto",

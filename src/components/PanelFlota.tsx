@@ -479,6 +479,14 @@ function FichaRuta({
 
   return (
     <div className="px-3 pb-3">
+      {r.conductor_telefono && (
+        <a
+          href={`tel:${r.conductor_telefono.replace(/[^\d+]/g, "")}`}
+          className="num mb-2 flex h-8 items-center justify-center gap-1.5 rounded-full border border-line-strong bg-surface text-[13px] font-bold text-ink transition hover:bg-canvas"
+        >
+          Llamar · {r.conductor_telefono}
+        </a>
+      )}
       <div className="grid grid-cols-2 gap-2">
         <Cifra valor={`${r.gestionadas}/${r.asignadas}`} texto="Órdenes gestionadas" />
         <Cifra

@@ -25,7 +25,7 @@ export default async function PaginaPerfil() {
       <BarraSuperior migaja="" titulo="Mi perfil" />
       <div>
         <div className="flex flex-col gap-4 pb-1">
-          <MiPerfil nombre={yo.nombre} email={yo.email} rol={yo.rolTexto} empresa={yo.empresa} />
+          <MiPerfil nombre={yo.nombre} telefono={yo.telefono} email={yo.email} rol={yo.rolTexto} empresa={yo.empresa} />
           <CambiarClave tieneClave={yo.tieneClave} />
         </div>
       </div>

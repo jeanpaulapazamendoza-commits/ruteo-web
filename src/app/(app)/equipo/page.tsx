@@ -19,7 +19,7 @@ export default async function PaginaEquipo() {
 
   const miembros = await comoUsuario<MiembroEquipo>(
     sesion.user.id,
-    `select id, nombre, email, rol, activo, creado_en
+    `select id, nombre, email, telefono, rol, activo, creado_en
        from perfiles order by creado_en`,
   );
 

@@ -15,6 +15,7 @@ export type MiembroEquipo = {
   id: string;
   nombre: string | null;
   email: string | null;
+  telefono: string | null;
   rol: "admin" | "planificador" | "conductor";
   activo: boolean;
   creado_en: string;
@@ -172,7 +173,7 @@ export default function GestionEquipo({
       </div>
 
       <div className="overflow-hidden rounded-[8px] border border-line [&>div:first-child]:rounded-none [&>div:first-child]:border-0">
-        <Tabla cabeceras={["Nombre", "Estado", "Usuario", "Rol/Permisos", "Alta", ""]} anchoMin={820}>
+        <Tabla cabeceras={["Nombre", "Estado", "Usuario", "Teléfono", "Rol/Permisos", "Alta", ""]} anchoMin={960}>
           {visibles.map((m) => {
             const soyYo = m.id === miId;
             const cargando = ocupado?.startsWith(m.id);
@@ -184,6 +185,25 @@ export default function GestionEquipo({
                 </Celda>
                 <Celda>{m.activo ? "Activo" : "Bloqueado"}</Celda>
                 <Celda>{m.email}</Celda>
+                <Celda>
+                  {/* Se guarda al salir del campo: es un dato suelto y no
+                      merece un botón por fila. */}
+                  <input
+                    key={m.telefono ?? ""}
+                    defaultValue={m.telefono ?? ""}
+                    disabled={cargando}
+                    inputMode="tel"
+                    maxLength={20}
+                    placeholder="—"
+                    aria-label={`Teléfono de ${m.nombre ?? m.email ?? "este usuario"}`}
+                    onBlur={(e) => {
+                      const v = e.target.value.trim();
+                      if (v !== (m.telefono ?? "")) void actualizar(m.id, { telefono: v }, `${m.id}-tel`);
+                    }}
+                    onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                    className="num h-8 w-[130px] rounded-[4px] border border-line bg-surface px-2 text-[13px] outline-none focus:border-amber disabled:opacity-60"
+                  />
+                </Celda>
                 <Celda>
                   <select
                     value={m.rol}
