@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { TileLayer } from "react-leaflet";
+import L from "leaflet";
+import { TileLayer, useMap } from "react-leaflet";
 import { FONDOS, buscarFondo, guardarFondo, leerFondo } from "@/lib/mapas";
 
 /**
@@ -83,7 +84,99 @@ export default function FondoMapa({ compacto = false }: { compacto?: boolean }) 
           {!compacto && <span>{fondo.nombre}</span>}
         </button>
       </div>
+
+      <ControlesVista />
     </>
+  );
+}
+
+const BOTON_VISTA =
+  "grid h-[30px] w-[30px] place-items-center bg-surface text-ink transition hover:bg-canvas";
+
+/**
+ * «Encuadrar» y pantalla completa, bajo el zoom.
+ *
+ * En la referencia los lleva el mapa de Flota. Aquí van en el fondo, que es
+ * lo que montan todos los mapas: así los tiene cualquiera sin que cada
+ * pantalla tenga que acordarse.
+ *
+ * Encuadrar no necesita saber qué se está pintando: mira las capas que hay
+ * en el mapa —marcadores y trazados— y ajusta la vista a todas.
+ */
+function ControlesVista() {
+  const mapa = useMap();
+  const [completa, setCompleta] = useState(false);
+  const [puede, setPuede] = useState(false);
+
+  useEffect(() => {
+    const caja = mapa.getContainer();
+    // En el iPhone no existe la pantalla completa para un elemento: el botón
+    // no se enseña en vez de enseñarse y no hacer nada.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPuede(Boolean(document.fullscreenEnabled && caja.requestFullscreen));
+    const alCambiar = () => {
+      setCompleta(document.fullscreenElement === caja);
+      // El mapa cambia de tamaño sin que Leaflet se entere.
+      setTimeout(() => mapa.invalidateSize(), 80);
+    };
+    document.addEventListener("fullscreenchange", alCambiar);
+    return () => document.removeEventListener("fullscreenchange", alCambiar);
+  }, [mapa]);
+
+  function encuadrar() {
+    const limites = L.latLngBounds([]);
+    mapa.eachLayer((capa) => {
+      if (capa instanceof L.Marker || capa instanceof L.CircleMarker) {
+        limites.extend(capa.getLatLng());
+      } else if (capa instanceof L.Polyline) {
+        const b = capa.getBounds();
+        if (b.isValid()) limites.extend(b);
+      }
+    });
+    if (limites.isValid()) mapa.fitBounds(limites.pad(0.1));
+  }
+
+  function alternar() {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void mapa.getContainer().requestFullscreen().catch(() => {});
+  }
+
+  return (
+    <div
+      // Sin esto, un clic en el botón es también un clic en el mapa, y en el
+      // planificador eso pone un vértice del sector que se está dibujando.
+      ref={(el) => {
+        if (el) {
+          L.DomEvent.disableClickPropagation(el);
+          L.DomEvent.disableScrollPropagation(el);
+        }
+      }}
+      className="absolute left-[10px] top-[80px] z-[800] flex flex-col overflow-hidden rounded-[4px] border-2 border-black/20 bg-clip-padding"
+    >
+      <button onClick={encuadrar} title="Encuadrar" aria-label="Encuadrar todo en el mapa" className={BOTON_VISTA}>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+          <circle cx="12" cy="12" r="2.5" />
+        </svg>
+      </button>
+      {puede && (
+        <button
+          onClick={alternar}
+          title={completa ? "Salir de pantalla completa" : "Pantalla completa"}
+          aria-label={completa ? "Salir de pantalla completa" : "Ver el mapa a pantalla completa"}
+          aria-pressed={completa}
+          className={`${BOTON_VISTA} border-t border-black/15`}
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            {completa ? (
+              <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+            ) : (
+              <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+            )}
+          </svg>
+        </button>
+      )}
+    </div>
   );
 }
 

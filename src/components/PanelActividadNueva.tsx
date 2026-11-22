@@ -106,6 +106,32 @@ export default function PanelActividadNueva({
   const [actualizado, setActualizado] = useState<number | null>(null);
   const [ahora, setAhora] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Las rutas fijadas con la chincheta: se quedan arriba, se ordene como se
+  // ordene. Se guardan en el navegador: es una preferencia de quien mira.
+  const [fijadas, setFijadas] = useState<string[]>([]);
+
+  useEffect(() => {
+    try {
+      const g = JSON.parse(localStorage.getItem("actividad:fijadas") ?? "[]");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (Array.isArray(g)) setFijadas(g.filter((x) => typeof x === "string"));
+    } catch {
+      /* almacenamiento bloqueado: vale solo para esta sesión */
+    }
+  }, []);
+
+  function fijar(id: string) {
+    setFijadas((prev) => {
+      const nuevo = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      try {
+        // Solo las últimas cincuenta: las rutas de hace un mes ya no vuelven.
+        localStorage.setItem("actividad:fijadas", JSON.stringify(nuevo.slice(-50)));
+      } catch {
+        /* sin almacenamiento */
+      }
+      return nuevo;
+    });
+  }
   const montado = useRef(true);
 
   useEffect(() => () => { montado.current = false; }, []);
@@ -228,16 +254,23 @@ export default function PanelActividadNueva({
     const silencio = (r: RutaEnCalle) =>
       r.ultima_marca ? t0 - new Date(r.ultima_marca).getTime() : -1;
 
-    if (!orden) return lista;
-    return [...lista].sort((a, b) => {
-      if (orden === "placa") return (a.placa ?? a.conductor ?? "").localeCompare(b.placa ?? b.conductor ?? "");
-      if (orden === "desvio") return (b.desvio_min ?? -9999) - (a.desvio_min ?? -9999);
-      if (orden === "silencio") return silencio(b) - silencio(a);
-      const pa = a.asignadas ? a.gestionadas / a.asignadas : 1;
-      const pb = b.asignadas ? b.gestionadas / b.asignadas : 1;
-      return pa - pb;
-    });
-  }, [rutas, busca, vehiculo, soloEstado, orden, t0]);
+    const ordenadas = !orden
+      ? lista
+      : [...lista].sort((a, b) => {
+          if (orden === "placa") return (a.placa ?? a.conductor ?? "").localeCompare(b.placa ?? b.conductor ?? "");
+          if (orden === "desvio") return (b.desvio_min ?? -9999) - (a.desvio_min ?? -9999);
+          if (orden === "silencio") return silencio(b) - silencio(a);
+          const pa = a.asignadas ? a.gestionadas / a.asignadas : 1;
+          const pb = b.asignadas ? b.gestionadas / b.asignadas : 1;
+          return pa - pb;
+        });
+    // Las fijadas, primero, sin alterar el orden dentro de cada grupo.
+    if (!fijadas.length) return ordenadas;
+    return [
+      ...ordenadas.filter((r) => fijadas.includes(r.ruta_id)),
+      ...ordenadas.filter((r) => !fijadas.includes(r.ruta_id)),
+    ];
+  }, [rutas, busca, vehiculo, soloEstado, orden, t0, fijadas]);
 
   function exportar() {
     descargar(
@@ -446,6 +479,8 @@ export default function PanelActividadNueva({
               compacto={compacto}
               ahora={t0}
               esHoy={!dia}
+              fijada={fijadas.includes(r.ruta_id)}
+              onFijar={() => fijar(r.ruta_id)}
             />
           ))}
         </div>
@@ -669,6 +704,8 @@ function TarjetaVehiculo({
   compacto,
   ahora,
   esHoy,
+  fijada,
+  onFijar,
 }: {
   ruta: RutaEnCalle;
   eventos: Evento[];
@@ -676,6 +713,9 @@ function TarjetaVehiculo({
   compacto: boolean;
   ahora: number;
   esHoy: boolean;
+  /** Fijada arriba con la chincheta. */
+  fijada: boolean;
+  onFijar: () => void;
 }) {
   const [abierta, setAbierta] = useState(false);
   const [paradas, setParadas] = useState<ParadaConDesvio[] | null>(null);
@@ -710,7 +750,25 @@ function TarjetaVehiculo({
   return (
     <div className="overflow-hidden rounded-[8px] bg-surface shadow-[0_1px_2px_rgba(0,0,0,0.06)]">
       <div className="grid grid-cols-2 divide-x divide-line @2xl:grid-cols-4 @5xl:grid-cols-8">
-        <Celda rotulo="📌 Vehículo">
+        <Celda
+          rotulo={
+            <span className="flex items-center gap-1">
+              <button
+                onClick={onFijar}
+                aria-pressed={fijada}
+                aria-label={fijada ? "Dejar de fijar esta ruta arriba" : "Fijar esta ruta arriba"}
+                title={fijada ? "Fijada arriba · toca para soltarla" : "Fijar arriba"}
+                className="grid h-[21px] w-[21px] place-items-center rounded-full transition hover:bg-black/5"
+                style={{ color: fijada ? C.azul : C.rotulo, opacity: fijada ? 1 : 0.6 }}
+              >
+                <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" aria-hidden="true">
+                  <path d="M10.2 1.2 14.8 5.8l-1.1 1.1-.9-.2-2.6 2.6.3 2.7-1.2 1.2-2.9-2.9-3.9 3.9-.9-.9 3.9-3.9-2.9-2.9L3.8 5.3l2.7.3 2.6-2.6-.2-.9z" />
+                </svg>
+              </button>
+              Vehículo
+            </span>
+          }
+        >
           <Link
             href={`/torre?despacho=${r.despacho_id}`}
             className="num block truncate pl-[25px] text-[16px] font-bold"
@@ -879,7 +937,7 @@ const ROTULO: Record<string, string> = {
   pendiente: "Pendiente",
 };
 
-function Celda({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
+function Celda({ rotulo, children }: { rotulo: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="h-[64px] min-w-0 p-2">
       <div className="truncate text-[14px] font-medium leading-[21px]" style={{ color: C.rotulo }}>
