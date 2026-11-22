@@ -1,5 +1,5 @@
 import { rpc } from "@/app/acciones/rpc";
-import type { ConfigRutear, Ruta, TiendaMapa } from "@/lib/motor";
+import { BASE_CENTRO, type ConfigRutear, type Ruta, type TiendaMapa } from "@/lib/motor";
 
 /**
  * Simplifica una polilínea (Ramer–Douglas–Peucker).
@@ -136,6 +136,7 @@ export async function guardarDespacho({
   parametros,
   puntos = [],
   sinAsignar = [],
+  metodo = null,
 }: {
   /** Despacho sobre el que se trabaja: sus rutas se reemplazan. */
   despachoId: string;
@@ -147,6 +148,8 @@ export async function guardarDespacho({
   puntos?: TiendaMapa[];
   /** Los que quedaron fuera de toda ruta. Se guardan igual, en la bandeja. */
   sinAsignar?: TiendaMapa[];
+  /** Cómo se calculó, para el historial de planes. */
+  metodo?: string | null;
 }): Promise<ResumenGuardado> {
   const validas = rutas.filter((r) => !r.error && r.paradas.length > 0);
   if (!validas.length) throw new Error("No hay rutas calculadas para guardar.");
@@ -171,6 +174,11 @@ export async function guardarDespacho({
       salida: hora(r.salida),
       fin: hora(r.fin),
       geometria: geo,
+      // De qué base sale. El centro del despacho no es una base con nombre:
+      // se guarda vacío, que es «sale del centro».
+      base_nombre: r.base && r.base.id !== BASE_CENTRO ? r.base.nombre : null,
+      base_lat: r.base && r.base.id !== BASE_CENTRO ? r.base.lat : null,
+      base_lon: r.base && r.base.id !== BASE_CENTRO ? r.base.lon : null,
       paradas: r.paradas.map((p) => {
         const origen = porId.get(p.id);
         return {
@@ -212,6 +220,7 @@ export async function guardarDespacho({
       cd_lon: cfg.cd_lon,
       parametros,
       kpis,
+      metodo,
       rutas: rutasPayload,
       sin_asignar: sinAsignar.map((p) => ({
         tienda_id: refTienda(p.id),
@@ -256,6 +265,11 @@ export async function asignarRutas(
 /** Borra un ruteo completo. Solo el admin, y solo si no salió a reparto. */
 export async function eliminarDespacho(despachoId: string) {
   await rpc("eliminar_despacho", { p_despacho: despachoId });
+}
+
+/** Vuelve a poner un plan anterior del historial. Solo antes de salir a reparto. */
+export async function restaurarPlan(planId: number) {
+  return rpc<string>("restaurar_plan", { p_plan: planId });
 }
 
 /** Mientras no se cierre, admite órdenes nuevas aunque ya esté en la calle. */

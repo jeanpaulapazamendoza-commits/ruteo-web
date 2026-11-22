@@ -32,7 +32,9 @@ export default async function PaginaRutaConductor({
   const ruta = await unaFila<Cabecera>(
     id,
     `select r.id, r.indice, r.km, r.salida_prog, r.salida_real, r.geometria,
-            d.nombre as despacho, d.fecha, d.cd_lat, d.cd_lon
+            d.nombre as despacho, d.fecha,
+            coalesce(r.base_lat, d.cd_lat) as cd_lat,
+            coalesce(r.base_lon, d.cd_lon) as cd_lon
        from rutas r
        join despachos d on d.id = r.despacho_id
       where r.id = $1`,

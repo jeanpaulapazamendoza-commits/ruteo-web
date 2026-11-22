@@ -127,11 +127,14 @@ export default function MapaRutas({
   colorDibujo = "#FFB42E",
   zonasFijas = [],
   onClicZona,
+  bases = [],
 }: {
   tiendas: TiendaMapa[];
   grupos: Grupo[];
   rutas: Ruta[];
   cd: { lat: number; lon: number };
+  /** Las otras bases de las que salen rutas, además del centro. */
+  bases?: { nombre: string; lat: number; lon: number }[];
   sinAsignar: string[];
   mostrarZonas: boolean;
   mostrarTrazos: boolean;
@@ -327,6 +330,11 @@ export default function MapaRutas({
       <Marker position={[cd.lat, cd.lon]} icon={iconoCD}>
         <Tooltip>Centro de distribución</Tooltip>
       </Marker>
+      {bases.map((b) => (
+        <Marker key={`${b.nombre}-${b.lat}-${b.lon}`} position={[b.lat, b.lon]} icon={iconoCD}>
+          <Tooltip>Base: {b.nombre}</Tooltip>
+        </Marker>
+      ))}
     </MapContainer>
   );
 }

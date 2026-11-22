@@ -188,7 +188,9 @@ export async function estadoFlota(fecha?: string) {
             u.ocurrido_en as ultima_marca,
             round(m.desvio_min)::int as desvio_min,
             w.lat as ultima_lat, w.lon as ultima_lon,
-            d.cd_lat, d.cd_lon,
+            -- El centro de esta ruta: su base, si sale de una.
+            coalesce(r.base_lat, d.cd_lat) as cd_lat,
+            coalesce(r.base_lon, d.cd_lon) as cd_lon,
             (t.datos->>'bateria')::int as bateria,
             t.datos->>'red' as red
        from rutas r
@@ -467,7 +469,9 @@ export async function fichaParada(paradaId: string) {
             p.orden, p.extra, p.bloqueada, p.ruta_id, r.indice as ruta_indice,
             c.nombre as conductor, v.placa, r.salida_real,
             d.id as despacho_id, d.nombre as despacho, d.fecha,
-            i.nombre_archivo as archivo, d.cd_lat, d.cd_lon,
+            i.nombre_archivo as archivo,
+            coalesce(r.base_lat, d.cd_lat) as cd_lat,
+            coalesce(r.base_lon, d.cd_lon) as cd_lon,
             cl.id as cliente_id, cl.telefono as cliente_telefono,
             cl.direccion as cliente_direccion,
             d.creado_en as ingresado_en, cr.nombre as ingresado_por,

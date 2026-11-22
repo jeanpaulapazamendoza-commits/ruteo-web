@@ -53,6 +53,8 @@ type RutaCruda = {
   conductor: string | null;
   capacidad_bultos: number | null;
   max_tiendas: number | null;
+  base_lat: number | null;
+  base_lon: number | null;
   paradas: ParadaCruda[];
 };
 
@@ -133,6 +135,7 @@ export async function prepararInsercion(
       yo,
       `select r.id, r.indice, r.estado, r.salida_prog, r.salida_real,
               v.placa, c.nombre as conductor, v.capacidad_bultos, v.max_tiendas,
+              r.base_lat, r.base_lon,
               coalesce(
                 (select json_agg(x order by x.orden)
                    from (select p.id, p.orden, p.codigo, p.nombre, p.lat, p.lon,
@@ -216,6 +219,9 @@ export async function prepararInsercion(
       id: r.id,
       lat: ultima ? (ultima.gps_lat ?? ultima.lat) : null,
       lon: ultima ? (ultima.gps_lon ?? ultima.lon) : null,
+      // Su base, si sale de una: de ahí parte y ahí vuelve.
+      base_lat: r.base_lat,
+      base_lon: r.base_lon,
       hora,
       pendientes: pendientes.map(aTienda),
       // El conductor ya va hacia su siguiente parada: delante no entra nada.

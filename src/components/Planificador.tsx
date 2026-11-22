@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  agrupar, etiquetasDe, partirEtiquetas, planificar, rutear, tiendasEnSector,
+  agrupar, BASE_CENTRO, etiquetasDe, partirEtiquetas, planificar, rutear, tiendasEnSector,
   type ConfigAgrupar, type ConfigRutear,
   type Grupo, type Ruta, type TiendaMapa,
   type ResumenPlan,
@@ -79,6 +79,7 @@ export default function Planificador({
   idDespacho = null,
   gruposIniciales = null,
   zonas = [],
+  bases = [],
 }: {
   /** Puntos que vienen de la base (el despacho en curso o una carga antigua). */
   puntosServidor?: TiendaMapa[];
@@ -92,6 +93,8 @@ export default function Planificador({
   gruposIniciales?: string[][] | null;
   /** Zonas fijas de la empresa, para repartir los puntos de un botón. */
   zonas?: Zona[];
+  /** Las bases guardadas: de dónde puede salir la flota. */
+  bases?: { id: string; nombre: string; lat: number; lon: number }[];
 }) {
   const router = useRouter();
   // Si venimos de un despacho ya ruteado, arrancamos en manual con sus grupos.
@@ -396,6 +399,7 @@ export default function Planificador({
         parametros: { modo, ...cfgA, ...cfgR },
         puntos: tiendas,
         sinAsignar: libres,
+        metodo: resumenPlan ? "Planificar flota" : esManual ? "Manual" : "Agrupar y rutear",
       });
       setGuardado(res);
       router.refresh();
@@ -435,12 +439,26 @@ export default function Planificador({
     try {
       const { tiempo_tsp: _sinUso, ...ruta } = cfgR;
       void _sinUso;
+      // Las bases solo viajan si algún tipo de vehículo sale de una. El
+      // centro del despacho va el primero: de él salen los que no dicen nada.
+      const usadas = bases.filter((b) => cfgA.flota.some((f) => f.base === b.id));
       const r = await planificar(tiendas, {
         ...ruta,
-        flota: cfgA.flota,
+        flota: usadas.length
+          ? cfgA.flota.map((f) => ({
+              ...f,
+              base: f.base && usadas.some((b) => b.id === f.base) ? f.base : BASE_CENTRO,
+            }))
+          : cfgA.flota.map(({ base: _b, ...f }) => { void _b; return f; }),
         tiempo_s: tiempoPlan,
         peso_prioridad: pesoPrioridad,
         balanceo,
+        bases: usadas.length
+          ? [
+              { id: BASE_CENTRO, nombre: "Centro del despacho", lat: cfgR.cd_lat, lon: cfgR.cd_lon },
+              ...usadas,
+            ]
+          : [],
       });
       setGruposAuto(r.grupos);
       setSinAsignarAuto(r.sin_asignar);
@@ -1007,6 +1025,19 @@ export default function Planificador({
                         valor={f.etiquetas ?? []}
                         onChange={(v) => { const n = [...cfgA.flota]; n[i] = { ...f, etiquetas: v }; setCfgA({ ...cfgA, flota: n }); }}
                       />
+                      {bases.length > 0 && (
+                        <select
+                          value={f.base ?? ""}
+                          onChange={(e) => { const n = [...cfgA.flota]; n[i] = { ...f, base: e.target.value || null }; setCfgA({ ...cfgA, flota: n }); }}
+                          title="De dónde salen estos vehículos. Solo lo usa «Planificar flota»."
+                          className="mt-1 w-full rounded-[8px] border border-line-strong bg-surface px-2 py-1 text-[12px] text-ink-2"
+                        >
+                          <option value="">Salen del centro del despacho</option>
+                          {bases.map((b) => (
+                            <option key={b.id} value={b.id}>Salen de: {b.nombre}</option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                   ))}
                   {etiquetasPedidas.length > 0 && (
@@ -1087,6 +1118,29 @@ export default function Planificador({
         </Seccion>
 
         <Seccion titulo="Centro de distribución">
+          {bases.length > 0 ? (
+            <select
+              value={bases.find((b) => b.lat === cfgR.cd_lat && b.lon === cfgR.cd_lon)?.id ?? ""}
+              onChange={(e) => {
+                const b = bases.find((x) => x.id === e.target.value);
+                if (b) setCfgR({ ...cfgR, cd_lat: b.lat, cd_lon: b.lon });
+              }}
+              className="mb-2 w-full rounded-[8px] border border-line-strong bg-surface px-2 py-1.5 text-[12.5px]"
+            >
+              <option value="">Coordenadas escritas a mano</option>
+              {bases.map((b) => (
+                <option key={b.id} value={b.id}>{b.nombre}</option>
+              ))}
+            </select>
+          ) : (
+            <p className="mb-2 text-[11.5px] text-ink-3">
+              ¿Siempre sales del mismo sitio, o de varios?{" "}
+              <Link href="/bases" className="font-semibold text-amber-600 underline underline-offset-2">
+                Guarda tus bases
+              </Link>{" "}
+              y elígelas aquí.
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <Campo etiqueta="Latitud">
               <Numero valor={cfgR.cd_lat} decimal onChange={(v) => setCfgR({ ...cfgR, cd_lat: v })} />
@@ -1214,6 +1268,10 @@ export default function Planificador({
                   {resumenPlan.desde_agrupacion
                     ? "partió de la agrupación habitual"
                     : "construyó su propio reparto"}
+                  {resumenPlan.bases ? (
+                    <> · salen de <b className="num">{resumenPlan.bases_usadas}</b> de{" "}
+                      <b className="num">{resumenPlan.bases}</b> bases</>
+                  ) : null}
                   .
                 </p>
               )}
@@ -1242,6 +1300,7 @@ export default function Planificador({
           grupos={grupos}
           rutas={rutas}
           cd={{ lat: cfgR.cd_lat, lon: cfgR.cd_lon }}
+          bases={bases.filter((b) => cfgA.flota.some((f) => f.base === b.id))}
           sinAsignar={sinAsignar}
           mostrarZonas={verZonas}
           mostrarTrazos={verTrazos}

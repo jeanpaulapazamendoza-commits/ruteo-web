@@ -48,9 +48,12 @@ const hhmm = (t: string | null) => (t ? t.slice(0, 5) : "—");
 export default function VistaDespacho({
   rutas,
   cd,
+  bases = [],
 }: {
   rutas: RutaGuardada[];
   cd: { lat: number; lon: number };
+  /** Las bases de las que salen rutas de este despacho, además del centro. */
+  bases?: { nombre: string; lat: number; lon: number }[];
 }) {
   const [resaltado, setResaltado] = useState<number | null>(null);
   const [verTrazos, setVerTrazos] = useState(true);
@@ -128,6 +131,7 @@ export default function VistaDespacho({
           grupos={gruposMapa}
           rutas={rutasMapa}
           cd={cd}
+          bases={bases}
           sinAsignar={[]}
           mostrarZonas={false}
           mostrarTrazos={verTrazos}

@@ -82,7 +82,8 @@ export async function asegurarTrazados(
   try {
     const pendientes = await comoUsuario<Pendiente>(
       usuario,
-      `select r.id, d.cd_lat, d.cd_lon,
+      `select r.id, coalesce(r.base_lat, d.cd_lat) as cd_lat,
+              coalesce(r.base_lon, d.cd_lon) as cd_lon,
               (d.parametros->>'cerrado') is distinct from 'false' as cerrado,
               (select json_agg(json_build_array(p.lat, p.lon) order by p.orden)
                  from paradas p

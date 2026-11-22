@@ -16,6 +16,8 @@ import AsignarRutas, {
   type Vehiculo,
 } from "@/components/AsignarRutas";
 import NuevaOrden from "@/components/NuevaOrden";
+import HistorialPlanes from "@/components/HistorialPlanes";
+import { planesDeDespacho } from "@/app/acciones/planes";
 import { asegurarTrazados } from "@/lib/trazado";
 
 type Kpis = {
@@ -79,16 +81,19 @@ export default async function PaginaDespacho({
     conductor_id: string | null;
     vehiculo_id: string | null;
     sin_asignar: boolean;
+    base_nombre: string | null;
+    base_lat: number | null;
+    base_lon: number | null;
   };
 
-  const [crudas, equipo, flota, yo] = await Promise.all([
+  const [crudas, equipo, flota, yo, planes] = await Promise.all([
     // Las paradas vienen agregadas en JSON por ruta: una sola consulta en vez
     // de una por ruta, y ya ordenadas desde la base.
     comoUsuario<RutaCruda>(
       usuario,
       `select r.id, r.indice, r.km, r.duracion_min, r.costo, r.salida_prog,
               r.fin_estimado, r.geometria, r.conductor_id, r.vehiculo_id,
-              r.sin_asignar,
+              r.sin_asignar, r.base_nombre, r.base_lat, r.base_lon,
               coalesce(
                 (select json_agg(x order by x.orden)
                    from (select p.id, p.orden, p.codigo, p.nombre, p.distrito,
@@ -116,6 +121,9 @@ export default async function PaginaDespacho({
     unaFila<{ rol: string }>(usuario, "select rol from perfiles where id = $1", [
       usuario,
     ]),
+    // Un conductor no ve el historial (el RLS no le devuelve nada); si la
+    // consulta falla, la ficha se abre igual sin él.
+    planesDeDespacho(id).catch(() => []),
   ]);
 
   // La bandeja de puntos sin asignar no es una ruta de reparto: no se dibuja
@@ -137,6 +145,18 @@ export default async function PaginaDespacho({
     paradas: (r.paradas ?? []).length,
     bultos: (r.paradas ?? []).reduce((a, p) => a + (p.bultos ?? 0), 0),
   }));
+
+  // Las bases de las que salen rutas de este despacho, sin repetir.
+  const basesDespacho = [
+    ...new Map(
+      reales
+        .filter((r) => r.base_lat != null && r.base_lon != null)
+        .map((r) => [
+          `${r.base_lat},${r.base_lon}`,
+          { nombre: r.base_nombre ?? "Base", lat: r.base_lat!, lon: r.base_lon! },
+        ]),
+    ).values(),
+  ];
 
   const rutas: RutaGuardada[] = reales.map((r) => ({
     ...r,
@@ -278,6 +298,7 @@ export default async function PaginaDespacho({
                 lat: despacho.cd_lat ?? rutas[0]?.paradas[0]?.lat ?? -12.046374,
                 lon: despacho.cd_lon ?? rutas[0]?.paradas[0]?.lon ?? -77.042793,
               }}
+              bases={basesDespacho}
             />
           )}
         </div>
@@ -296,6 +317,8 @@ export default async function PaginaDespacho({
               />
             </div>
           </details>
+
+          <HistorialPlanes planes={planes} restaurable={editable(despacho.estado)} />
 
           {Object.keys(params_).length > 0 && (
             <details className="border-b border-line bg-surface px-5 py-2.5">
@@ -331,6 +354,7 @@ export default async function PaginaDespacho({
                 lat: despacho.cd_lat ?? rutas[0]?.paradas[0]?.lat ?? -12.046374,
                 lon: despacho.cd_lon ?? rutas[0]?.paradas[0]?.lon ?? -77.042793,
               }}
+              bases={basesDespacho}
             />
           )}
         </>

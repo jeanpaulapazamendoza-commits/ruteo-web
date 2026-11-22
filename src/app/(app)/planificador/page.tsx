@@ -28,7 +28,7 @@ export default async function PaginaPlanificador({
   // y ofrecerlas como origen abriría el planificador sin un solo punto. El
   // filtro va como `exists` en la base: antes se traían 5000 filas de tiendas
   // solo para cruzar identificadores aquí.
-  const [cargas, pendientes, zonas] = await Promise.all([
+  const [cargas, pendientes, zonas, bases] = await Promise.all([
     comoUsuario<Carga>(
       yo,
       `select i.id, i.nombre_archivo as nombre, coalesce(i.filas, 0) as filas,
@@ -66,6 +66,10 @@ export default async function PaginaPlanificador({
     comoUsuario<Zona>(
       yo,
       "select id, nombre, color, poligono from zonas where activo order by nombre",
+    ),
+    comoUsuario<{ id: string; nombre: string; lat: number; lon: number }>(
+      yo,
+      "select id, nombre, lat, lon from bases where activo order by nombre",
     ),
   ]);
 
@@ -245,6 +249,7 @@ export default async function PaginaPlanificador({
         idDespacho={idDespacho ?? null}
         gruposIniciales={gruposIniciales}
         zonas={zonas}
+        bases={bases}
       />
     </>
   );

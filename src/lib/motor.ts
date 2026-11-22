@@ -68,6 +68,8 @@ export type Ruta = {
   geometria: number[][];
   links_maps: string[];
   error?: string;
+  /** De qué base sale, si la flota está repartida entre varias. */
+  base?: { id: string; nombre: string; lat: number; lon: number } | null;
 };
 
 export type ConfigAgrupar = {
@@ -81,6 +83,8 @@ export type ConfigAgrupar = {
     max_tiendas: number;
     /** Lo que tiene este tipo de vehículo. Solo lo usa «Planificar flota». */
     etiquetas?: string[];
+    /** De qué base sale. Vacío = del centro del despacho. */
+    base?: string | null;
   }[];
   vueltas: number;
   uso_flota: "compacto" | "minimo";
@@ -147,7 +151,12 @@ export type ConfigPlanificar = Omit<ConfigRutear, "tiempo_tsp"> & {
   /** Cuánto se adelanta a las prioritarias: 0 nada, 1 normal, 3 con empeño. */
   peso_prioridad: number;
   balanceo: "ninguno" | "tiempo" | "paradas";
+  /** Las bases de las que sale la flota. Vacío = todos del centro. */
+  bases?: { id: string; nombre: string; lat: number; lon: number }[];
 };
+
+/** El centro del despacho, cuando convive con bases con nombre. */
+export const BASE_CENTRO = "centro";
 
 /**
  * Lo que un punto exige del vehículo: refrigerado, moto, rampa…
@@ -194,6 +203,9 @@ export type ResumenPlan = {
   peso_prioridad: number;
   /** Cuántos puntos pedían alguna etiqueta. */
   con_etiquetas: number;
+  /** De cuántas bases podía salir la flota, y de cuántas salió. */
+  bases?: number;
+  bases_usadas?: number;
 };
 
 /**
@@ -252,6 +264,9 @@ export type CuerpoInsertar = {
     /** Dónde está el vehículo. Vacío = en el centro. */
     lat: number | null;
     lon: number | null;
+    /** Su base, si no es el centro del despacho. */
+    base_lat: number | null;
+    base_lon: number | null;
     /** Desde cuándo está libre ahí. Vacío = la hora de la petición. */
     hora: string | null;
     pendientes: ParadaMotor[];

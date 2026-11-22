@@ -21,6 +21,7 @@ const PERMITIDAS = {
   // Devuelven un solo valor.
   crear_despacho_cargado: "escalar",
   replanificar_despacho: "escalar",
+  restaurar_plan: "escalar",
   asignar_rutas: "escalar",
   eliminar_despacho: "escalar",
   mover_paradas: "escalar",
