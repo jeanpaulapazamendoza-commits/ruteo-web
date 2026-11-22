@@ -18,9 +18,12 @@ type Borrador = {
   capacidad: string;
   max: string;
   conductor: string;
+  grupo: string;
 };
 
-const VACIO: Borrador = { id: null, nombre: "", placa: "", capacidad: "200", max: "0", conductor: "" };
+const VACIO: Borrador = {
+  id: null, nombre: "", placa: "", capacidad: "200", max: "0", conductor: "", grupo: "",
+};
 
 /**
  * Los vehículos de la empresa: la placa que sale a la calle con cada ruta.
@@ -69,13 +72,17 @@ export default function GestionVehiculos({
         capacidad_bultos: Number(b.capacidad),
         max_tiendas: Number(b.max),
         conductor_id: b.conductor || null,
+        grupo: b.grupo || null,
       }),
     );
+
+  // Los grupos que ya existen, para elegir uno en vez de escribirlo distinto.
+  const grupos = [...new Set(lista.map((v) => v.grupo).filter(Boolean) as string[])].sort();
 
   const formulario = b && (
     <div className="border-t border-line bg-surface-2 px-5 py-4">
       <div className="@container">
-        <div className="grid grid-cols-1 gap-x-4 gap-y-3 @xl:grid-cols-2 @4xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-x-4 gap-y-3 @xl:grid-cols-2 @4xl:grid-cols-3">
           <Campo rotulo="Nombre *">
             <input
               value={b.nombre}
@@ -118,6 +125,20 @@ export default function GestionVehiculos({
                 <option key={c.id} value={c.id}>{c.nombre ?? "Conductor"}</option>
               ))}
             </select>
+          </Campo>
+          <Campo rotulo="Grupo (zona, tipo, turno…)">
+            <input
+              value={b.grupo}
+              onChange={(e) => setB({ ...b, grupo: e.target.value })}
+              placeholder="Sin grupo"
+              list="grupos-vehiculos"
+              className={CAMPO}
+            />
+            <datalist id="grupos-vehiculos">
+              {grupos.map((g) => (
+                <option key={g} value={g} />
+              ))}
+            </datalist>
           </Campo>
         </div>
       </div>
@@ -179,6 +200,7 @@ export default function GestionVehiculos({
                   </span>
                   <span className="block text-[11.5px] text-ink-3">
                     {v.conductor ? `Conductor habitual: ${v.conductor}` : "Sin conductor habitual"}
+                    {v.grupo && ` · Grupo ${v.grupo}`}
                   </span>
                 </span>
                 <span className="num text-[12.5px] text-ink-2">
@@ -197,7 +219,7 @@ export default function GestionVehiculos({
                         setB({
                           id: v.id, nombre: v.nombre, placa: v.placa ?? "",
                           capacidad: String(v.capacidad_bultos), max: String(v.max_tiendas),
-                          conductor: v.conductor_id ?? "",
+                          conductor: v.conductor_id ?? "", grupo: v.grupo ?? "",
                         });
                       }}
                       disabled={ocupado}

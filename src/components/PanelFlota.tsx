@@ -6,26 +6,31 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   estadoFlota,
+  geometriaDeRuta,
   paradasDeRuta,
   type ParadaConDesvio,
   type RutaEnCalle,
 } from "@/app/acciones/datos";
 import { AccionesPagina, BOTON_SECUNDARIO } from "@/components/Paginacion";
+import type { VehiculoEnMapa } from "@/components/MapaFlota";
 import { hora, hoy } from "@/lib/horas";
-import { Pastilla, Tarjeta } from "@/components/ui";
+import { colorDe } from "@/lib/coloresRuta";
 
-const MapaSeguimiento = dynamic(() => import("@/components/MapaSeguimiento"), {
-  ssr: false,
-  loading: () => (
-    <div className="grid h-full place-items-center text-[13px] text-ink-3">Cargando mapa…</div>
-  ),
-});
+const cargando = () => (
+  <div className="grid h-full place-items-center text-[13px] text-ink-3">Cargando mapa…</div>
+);
+const MapaSeguimiento = dynamic(() => import("@/components/MapaSeguimiento"), { ssr: false, loading: cargando });
+const MapaFlota = dynamic(() => import("@/components/MapaFlota"), { ssr: false, loading: cargando });
 
-const COLORES = [
-  "#E8833A", "#2E7DD1", "#0E8F9E", "#7A5AF8", "#C2439B", "#7C9A1F",
-  "#D9534F", "#2F855A", "#B7791F", "#5A67D8", "#D53F8C", "#319795",
-];
-const color = (i: number) => COLORES[i % COLORES.length];
+/** Un vehículo de la empresa, para saber cuáles no salieron hoy. */
+export type VehiculoFlota = {
+  id: string;
+  nombre: string;
+  placa: string | null;
+  conductor: string | null;
+  grupo: string | null;
+  activo: boolean;
+};
 
 const hhmm = hora;
 
@@ -39,21 +44,6 @@ function duracion(ms: number) {
   return h > 0 ? `${h} h ${min % 60} min` : `${min} min`;
 }
 
-/** El desvío contra la hora estimada, con su signo y su color. */
-function Desvio({ min }: { min: number | null }) {
-  if (min == null) return <span className="text-ink-3">—</span>;
-  if (Math.abs(min) <= 10) {
-    return <span className="num font-semibold text-ok">a tiempo</span>;
-  }
-  const tarde = min > 0;
-  return (
-    <span className={`num font-semibold ${tarde ? "text-bad" : "text-live"}`}>
-      {tarde ? "+" : "−"}
-      {Math.abs(min)} min
-    </span>
-  );
-}
-
 /**
  * El estado de una ruta leído del reloj, no de una columna.
  *
@@ -63,37 +53,79 @@ function Desvio({ min }: { min: number | null }) {
  */
 const SILENCIO_MIN = 90;
 
-function estadoDe(r: RutaEnCalle, ahora: number) {
-  if (r.fin_real || (r.asignadas > 0 && r.gestionadas === r.asignadas)) {
-    return { texto: "Finalizada", tono: "ok" as const };
-  }
-  if (!r.salida_real) return { texto: "Sin iniciar", tono: "plan" as const };
+type ClaveEstado = "en_ruta" | "programado" | "finalizada";
 
-  const desde = r.ultima_marca ?? r.salida_real;
-  const callado = (ahora - new Date(desde).getTime()) / 60000;
-  if (callado >= SILENCIO_MIN) {
-    return { texto: `Sin marcar ${duracion(ahora - new Date(desde).getTime())}`, tono: "bad" as const };
+function estadoDe(r: RutaEnCalle, ahora: number): { clave: ClaveEstado; texto: string; callada: boolean } {
+  if (r.fin_real || (r.asignadas > 0 && r.gestionadas === r.asignadas)) {
+    return { clave: "finalizada", texto: "Finalizada", callada: false };
   }
-  return { texto: "En ruta", tono: "live" as const };
+  if (!r.salida_real) return { clave: "programado", texto: "Programado", callada: false };
+  const desde = r.ultima_marca ?? r.salida_real;
+  const ms = ahora - new Date(desde).getTime();
+  return ms / 60000 >= SILENCIO_MIN
+    ? { clave: "en_ruta", texto: `Sin marcar ${duracion(ms)}`, callada: true }
+    : { clave: "en_ruta", texto: "En ruta", callada: false };
 }
 
+/** La píldora de estado de una fila, con su punto. */
+const PINTA: Record<string, string> = {
+  en_ruta: "bg-live-bg text-live",
+  programado: "bg-canvas text-ink-2",
+  finalizada: "bg-ok-bg text-ok",
+  callada: "bg-bad-bg text-bad",
+  disponible: "bg-ok-bg text-ok",
+  no_disponible: "bg-canvas text-ink-3",
+};
+
+function Estado({ clave, texto }: { clave: string; texto: string }) {
+  return (
+    <span className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${PINTA[clave]}`}>
+      <i className="h-1.5 w-1.5 rounded-full bg-current" />
+      {texto}
+    </span>
+  );
+}
+
+const iniciales = (n: string) =>
+  n.trim().split(/\s+/).slice(0, 2).map((x) => x[0]).join("").toUpperCase() || "—";
+
+/**
+ * La flota del día, como en la referencia: a la izquierda los conductores, a
+ * la derecha el mapa.
+ *
+ * Sin nadie elegido el mapa es el de toda la flota —un vehículo por ruta,
+ * donde se le vio por última vez—. Al elegir un conductor su fila se abre con
+ * las cifras de su ruta y la línea de sus órdenes, y el mapa pasa a ser el
+ * de esa ruta.
+ */
 export default function PanelFlota({
   inicial,
+  vehiculos = [],
   dia = null,
 }: {
   inicial: RutaEnCalle[];
+  vehiculos?: VehiculoFlota[];
   /** El día que se está mirando. Null es hoy. */
   dia?: string | null;
 }) {
   const router = useRouter();
   const [rutas, setRutas] = useState(inicial);
-  const [elegida, setElegida] = useState<string | null>(inicial[0]?.ruta_id ?? null);
-  const [paradas, setParadas] = useState<ParadaConDesvio[]>([]);
+  // Nadie elegido al entrar: lo primero que se ve es la flota entera.
+  const [elegida, setElegida] = useState<string | null>(null);
+  // Las órdenes cargadas llevan apuntado de qué ruta son: al cambiar de
+  // conductor las del anterior dejan de valer sin tener que borrarlas.
+  const [cargadas, setCargadas] = useState<{
+    ruta: string; lista: ParadaConDesvio[]; trazo: number[][] | null;
+  } | null>(null);
   const [auto, setAuto] = useState(true);
-  const [cargando, setCargando] = useState(false);
+  const [refrescando, setRefrescando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busca, setBusca] = useState("");
   const [soloEstado, setSoloEstado] = useState("");
+  const [grupo, setGrupo] = useState("");
+  const [menuVer, setMenuVer] = useState(false);
+  // Las capas del mapa, con los valores de la referencia.
+  const [capas, setCapas] = useState({ enRuta: true, finalizadas: true, centros: false });
   // La hora se guarda en estado y no se lee en cada pintado: así el servidor
   // y el navegador coinciden en el primer render y React no se queja.
   const [ahora, setAhora] = useState<number | null>(null);
@@ -103,10 +135,10 @@ export default function PanelFlota({
   useEffect(() => setAhora(Date.now()), [rutas]);
 
   // Al cambiar de día, el servidor vuelve a cargar la página con esa fecha.
-  useEffect(() => { setRutas(inicial); setElegida(inicial[0]?.ruta_id ?? null); }, [inicial]);
+  useEffect(() => { setRutas(inicial); setElegida(null); }, [inicial]);
 
   const refrescar = useCallback(async () => {
-    setCargando(true);
+    setRefrescando(true);
     try {
       const datos = await estadoFlota(dia ?? undefined);
       if (!montado.current) return;
@@ -115,7 +147,7 @@ export default function PanelFlota({
     } catch (e) {
       if (montado.current) setError(e instanceof Error ? e.message : String(e));
     } finally {
-      if (montado.current) setCargando(false);
+      if (montado.current) setRefrescando(false);
     }
   }, [dia]);
 
@@ -129,72 +161,87 @@ export default function PanelFlota({
   // Las paradas de la ruta abierta se piden aparte: traerlas todas de golpe
   // sería mover cientos de filas que nadie está mirando.
   useEffect(() => {
-    if (!elegida) { setParadas([]); return; }
+    if (!elegida) return;
     let vigente = true;
-    paradasDeRuta(elegida)
-      .then((d) => { if (vigente) setParadas(d); })
-      .catch(() => { if (vigente) setParadas([]); });
+    // El recorrido por calles viene con las órdenes: si aún no está
+    // dibujado, el mapa enseña solo los puntos.
+    Promise.all([paradasDeRuta(elegida), geometriaDeRuta(elegida).catch(() => null)])
+      .then(([d, trazo]) => { if (vigente) setCargadas({ ruta: elegida, lista: d, trazo }); })
+      .catch(() => { if (vigente) setCargadas({ ruta: elegida, lista: [], trazo: null }); });
     return () => { vigente = false; };
   }, [elegida, rutas]);
 
-  const activa = useMemo(
-    () => rutas.find((r) => r.ruta_id === elegida) ?? null,
-    [rutas, elegida],
+  const paradas = useMemo(
+    () => (cargadas && cargadas.ruta === elegida ? cargadas.lista : []),
+    [cargadas, elegida],
   );
 
-  const totales = useMemo(() => {
-    const t = ahora ?? Date.now();
-    const enCalle = rutas.filter(
-      (r) => r.salida_real && !r.fin_real && r.gestionadas < r.asignadas,
-    );
-    const calladas = enCalle.filter((r) => {
-      const desde = r.ultima_marca ?? r.salida_real!;
-      return (t - new Date(desde).getTime()) / 60000 >= SILENCIO_MIN;
-    });
-    return {
-      rutas: rutas.length,
-      enCalle: enCalle.length,
-      calladas: calladas.length,
-      sinIniciar: rutas.filter((r) => !r.salida_real).length,
-      asignadas: rutas.reduce((a, r) => a + r.asignadas, 0),
-      gestionadas: rutas.reduce((a, r) => a + r.gestionadas, 0),
-    };
-  }, [rutas, ahora]);
+  // Hasta que el navegador pone la hora, cero: el primer pintado no sabe
+  // cuánto lleva callada una ruta y la da por viva.
+  const t0 = ahora ?? 0;
+  const activa = useMemo(() => rutas.find((r) => r.ruta_id === elegida) ?? null, [rutas, elegida]);
 
-  if (!rutas.length) {
-    return (
-      <div className="p-4">
-        <Tarjeta className="p-6">
-          <p className="text-[13.5px] text-ink-2">
-            {dia
-              ? "Ese día no tuvo ninguna ruta asignada."
-              : "Hoy no hay ninguna ruta asignada. En cuanto guardes un despacho y le pongas conductor, aparecerá aquí con su avance en vivo."}
-          </p>
-          <input
-            type="date"
-            value={dia ?? hoy()}
-            onChange={(e) =>
-              router.push(e.target.value ? `/flota?fecha=${e.target.value}` : "/flota")
-            }
-            className="num mt-3 rounded-[8px] border border-line-strong bg-surface px-2.5 py-1.5 text-[12.5px]"
-          />
-        </Tarjeta>
-      </div>
-    );
-  }
+  const grupos = useMemo(
+    () =>
+      [...new Set([...vehiculos.map((v) => v.grupo), ...rutas.map((r) => r.grupo)].filter(Boolean) as string[])].sort(),
+    [vehiculos, rutas],
+  );
 
-  const t0 = ahora ?? Date.now();
-  const listadas = rutas.filter((r) => {
-    const q = busca.trim().toLowerCase();
-    if (q && !`${r.conductor ?? ""} ${r.placa ?? ""} ${r.vehiculo ?? ""}`.toLowerCase().includes(q)) {
-      return false;
-    }
-    if (!soloEstado) return true;
+  // Los vehículos que hoy no tienen ruta: disponibles si están activos.
+  const sinRuta = useMemo(() => {
+    const conRuta = new Set(rutas.map((r) => r.vehiculo_id).filter(Boolean));
+    return vehiculos.filter((v) => !conRuta.has(v.id));
+  }, [vehiculos, rutas]);
+
+  const q = busca.trim().toLowerCase();
+  const deVehiculos = soloEstado === "disponible" || soloEstado === "no_disponible";
+
+  const listadas = deVehiculos
+    ? []
+    : rutas.filter((r) => {
+        if (grupo && r.grupo !== grupo) return false;
+        if (q && !`${r.conductor ?? ""} ${r.placa ?? ""} ${r.vehiculo ?? ""}`.toLowerCase().includes(q)) return false;
+        return !soloEstado || estadoDe(r, t0).clave === soloEstado;
+      });
+
+  const libres = !deVehiculos
+    ? []
+    : sinRuta.filter((v) => {
+        if (v.activo !== (soloEstado === "disponible")) return false;
+        if (grupo && v.grupo !== grupo) return false;
+        return !q || `${v.nombre} ${v.placa ?? ""} ${v.conductor ?? ""}`.toLowerCase().includes(q);
+      });
+
+  // Lo que se pinta en el mapa de la flota: las rutas listadas, según capas.
+  const enMapa: VehiculoEnMapa[] = listadas.flatMap((r) => {
     const est = estadoDe(r, t0);
-    if (soloEstado === "en_ruta") return est.tono === "live" || est.tono === "bad";
-    if (soloEstado === "sin_iniciar") return est.tono === "plan";
-    return est.tono === "ok";
+    if (est.clave === "finalizada" && !capas.finalizadas) return [];
+    if (est.clave !== "finalizada" && !capas.enRuta) return [];
+    const lat = r.ultima_lat ?? r.cd_lat;
+    const lon = r.ultima_lon ?? r.cd_lon;
+    if (lat == null || lon == null) return [];
+    return [{
+      id: r.ruta_id,
+      rotulo: r.conductor ?? r.placa ?? `R-${String(r.indice + 1).padStart(2, "0")}`,
+      lat, lon,
+      estado: est.clave,
+      detalle: `${est.texto} · ${r.gestionadas}/${r.asignadas} órdenes${
+        r.ultima_marca ? ` · última marca ${hhmm(r.ultima_marca)}` : ""
+      }`,
+    }];
   });
+
+  const centros = useMemo(() => {
+    if (!capas.centros) return [];
+    const vistos = new Map<string, { lat: number; lon: number }>();
+    for (const r of rutas) {
+      if (r.cd_lat != null && r.cd_lon != null) vistos.set(`${r.cd_lat},${r.cd_lon}`, { lat: r.cd_lat, lon: r.cd_lon });
+    }
+    return [...vistos.values()];
+  }, [rutas, capas.centros]);
+
+  const total = deVehiculos ? libres.length : listadas.length;
+  const universo = deVehiculos ? sinRuta.length : rutas.length;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -205,30 +252,36 @@ export default function PanelFlota({
             <span className="h-1.5 w-1.5 rounded-full bg-ok" /> se actualiza cada 30 s
           </label>
         )}
-        <button onClick={refrescar} disabled={cargando} className={BOTON_SECUNDARIO}>
-          {cargando ? "…" : "↻ Actualizar"}
+        <button onClick={refrescar} disabled={refrescando} className={BOTON_SECUNDARIO}>
+          {refrescando ? "…" : "↻ Actualizar"}
         </button>
       </AccionesPagina>
 
       {/* Filtros, a todo el ancho como en la referencia */}
-      <div className="grid grid-cols-1 gap-2 pb-3 @xl:grid-cols-2 @4xl:grid-cols-[1fr_1fr_1.4fr]">
+      <div className="grid grid-cols-1 gap-2 pb-3 @xl:grid-cols-2 @4xl:grid-cols-[1fr_1fr_1fr_1.4fr]">
         <input
           type="date"
           value={dia ?? hoy()}
-          onChange={(e) =>
-            router.push(e.target.value ? `/flota?fecha=${e.target.value}` : "/flota")
-          }
+          onChange={(e) => router.push(e.target.value ? `/flota?fecha=${e.target.value}` : "/flota")}
           className="num w-full outline-none"
         />
+        <select value={grupo} onChange={(e) => setGrupo(e.target.value)} className="w-full outline-none">
+          <option value="">Todos los grupos</option>
+          {grupos.map((g) => (
+            <option key={g} value={g}>{g}</option>
+          ))}
+        </select>
         <select
           value={soloEstado}
-          onChange={(e) => setSoloEstado(e.target.value)}
+          onChange={(e) => { setSoloEstado(e.target.value); setElegida(null); }}
           className="w-full outline-none"
         >
-          <option value="">Todos los estados</option>
+          <option value="">Todas las rutas del día</option>
           <option value="en_ruta">En ruta</option>
-          <option value="sin_iniciar">Sin iniciar</option>
-          <option value="finalizada">Finalizada</option>
+          <option value="programado">Programado</option>
+          <option value="finalizada">Rutas finalizadas</option>
+          <option value="disponible">Disponible</option>
+          <option value="no_disponible">No disponible</option>
         </select>
         <input
           value={busca}
@@ -244,288 +297,330 @@ export default function PanelFlota({
         </p>
       )}
 
-    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[8px] border border-line @3xl:grid-cols-[300px_1fr]">
-      {/* Columna de conductores */}
-      <div className="min-w-0 overflow-y-auto border-r border-line bg-surface">
-        <div className="border-b border-line px-3.5 py-2.5 text-[13px] font-bold text-ink">
-          Conductores <span className="num">{listadas.length}</span> de{" "}
-          <span className="num">{rutas.length}</span>
-          <span className="ml-2 font-normal text-ink-3">
-            · {totales.gestionadas}/{totales.asignadas} paradas
-          </span>
-        </div>
+      <div className="grid min-h-[520px] flex-1 grid-cols-1 overflow-hidden rounded-[8px] border border-line @3xl:grid-cols-[300px_1fr]">
+        {/* ── Conductores ─────────────────────────────────────────── */}
+        <div className="flex min-h-0 min-w-0 flex-col border-b border-line bg-surface @3xl:border-b-0 @3xl:border-r">
+          <div className="shrink-0 border-b border-line px-3.5 py-2.5 text-[13px] font-bold text-ink">
+            {deVehiculos ? "Vehículos" : "Conductores"} <span className="num">{total}</span> de{" "}
+            <span className="num">{universo}</span>
+          </div>
 
-        <div className="divide-y divide-line">
-          {listadas.map((r) => {
-            const est = estadoDe(r, t0);
-            const nombre = r.conductor ?? "Sin conductor";
-            return (
-              <button
-                key={r.ruta_id}
-                onClick={() => setElegida(r.ruta_id)}
-                className={`flex w-full items-center gap-3 px-3.5 py-3 text-left transition hover:bg-surface-2 ${
-                  elegida === r.ruta_id ? "bg-amber-050" : ""
-                }`}
-              >
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-canvas text-[12px] font-bold text-ink-2">
-                  {nombre.slice(0, 1).toUpperCase()}
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {listadas.map((r) => {
+              const est = estadoDe(r, t0);
+              const nombre = r.conductor ?? "Sin conductor";
+              const abierta = elegida === r.ruta_id;
+              return (
+                <div key={r.ruta_id} className={`border-b border-line ${abierta ? "bg-amber-050" : ""}`}>
+                  <button
+                    onClick={() => setElegida(abierta ? null : r.ruta_id)}
+                    aria-expanded={abierta}
+                    className={`flex w-full items-center gap-3 px-3.5 py-3 text-left transition ${
+                      abierta ? "border-l-[3px] border-amber pl-[11px]" : "hover:bg-surface-2"
+                    }`}
+                  >
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-live-bg text-[11.5px] font-bold text-live">
+                      {iniciales(nombre)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <b className="block truncate text-[13px] text-ink">{nombre}</b>
+                      <span className="num mt-0.5 inline-block rounded-[4px] bg-canvas px-1.5 py-px text-[11.5px] text-ink-2">
+                        {r.placa ?? r.vehiculo ?? `R-${String(r.indice + 1).padStart(2, "0")}`}
+                      </span>
+                    </span>
+                    <Estado clave={est.callada ? "callada" : est.clave} texto={est.texto} />
+                  </button>
+                  {abierta && <FichaRuta ruta={r} paradas={paradas} ahora={t0} />}
+                </div>
+              );
+            })}
+
+            {libres.map((v) => (
+              <div key={v.id} className="flex items-center gap-3 border-b border-line px-3.5 py-3">
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-canvas text-[11.5px] font-bold text-ink-2">
+                  {iniciales(v.conductor ?? v.nombre)}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <b className="block truncate text-[13px] text-ink">{nombre}</b>
-                  <span className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-ink-3">
-                    <span className="num rounded-[4px] bg-canvas px-1.5 py-px text-ink-2">
-                      {r.placa ?? r.vehiculo ?? `R-${String(r.indice + 1).padStart(2, "0")}`}
-                    </span>
-                    <span className="num">{r.gestionadas}/{r.asignadas}</span>
-                    <Desvio min={r.desvio_min} />
+                  <b className="block truncate text-[13px] text-ink">{v.conductor ?? v.nombre}</b>
+                  <span className="num mt-0.5 inline-block rounded-[4px] bg-canvas px-1.5 py-px text-[11.5px] text-ink-2">
+                    {v.placa ?? v.nombre}
                   </span>
                 </span>
-                <Pastilla tono={est.tono}>{est.tono === "live" ? "● En ruta" : est.texto}</Pastilla>
-              </button>
-            );
-          })}
-          {listadas.length === 0 && (
-            <p className="px-3.5 py-4 text-[13px] text-ink-3">Ningún conductor coincide.</p>
+                <Estado
+                  clave={v.activo ? "disponible" : "no_disponible"}
+                  texto={v.activo ? "Disponible" : "No disponible"}
+                />
+              </div>
+            ))}
+
+            {total === 0 && (
+              <p className="px-3.5 py-4 text-[13px] leading-relaxed text-ink-3">
+                {deVehiculos
+                  ? soloEstado === "disponible"
+                    ? "Ningún vehículo activo sin ruta este día."
+                    : "Ningún vehículo retirado."
+                  : rutas.length === 0
+                    ? dia
+                      ? "Ese día no tuvo ninguna ruta."
+                      : "Hoy no hay ninguna ruta. Cuando guardes un despacho aparecerán aquí."
+                    : "Ningún conductor coincide con los filtros."}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* ── Cifras y mapa ───────────────────────────────────────── */}
+        <div className="flex min-h-[420px] min-w-0 flex-col bg-surface">
+          {activa ? (
+            <ResumenRuta ruta={activa} paradas={paradas} />
+          ) : (
+            <p className="shrink-0 border-b border-line px-4 py-3.5 text-center text-[13px] text-ink-2">
+              Selecciona un conductor para ver las estadísticas de su ruta
+            </p>
           )}
+
+          <div className="relative isolate min-h-0 flex-1">
+            {activa ? (
+              // La `key` ata el mapa a su ruta: Leaflet encuadra al montarse, y
+              // sin esto al cambiar de conductor se quedaría con el encuadre
+              // del anterior. Se espera a tener las paradas por la misma razón.
+              paradas.length > 0 ? (
+                <MapaSeguimiento
+                  key={`${activa.ruta_id}-${capas.centros}`}
+                  paradas={paradas.map((p) => ({
+                    id: p.id, orden: p.orden, nombre: p.nombre, lat: p.lat, lon: p.lon,
+                    bultos: p.bultos, estado_entrega: p.estado_entrega,
+                    hora_entrega: p.hora_entrega, motivo: p.motivo,
+                  }))}
+                  geometria={cargadas?.ruta === activa.ruta_id ? cargadas.trazo : null}
+                  colorRuta={colorDe(activa.indice)}
+                  cd={
+                    capas.centros && activa.cd_lat != null && activa.cd_lon != null
+                      ? { lat: activa.cd_lat, lon: activa.cd_lon }
+                      : null
+                  }
+                  siguienteId={paradas.find((p) => p.estado_entrega === "pendiente")?.id ?? null}
+                />
+              ) : (
+                cargando()
+              )
+            ) : (
+              <MapaFlota
+                key={`${dia ?? "hoy"}-${soloEstado}-${grupo}`}
+                vehiculos={enMapa}
+                centros={centros}
+                onElegir={setElegida}
+              />
+            )}
+
+            {/* «Ver»: qué se pinta en el mapa */}
+            <div className="absolute right-3 top-3 z-[800]">
+              <button
+                onClick={() => setMenuVer((v) => !v)}
+                aria-expanded={menuVer}
+                className="flex h-8 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-[13px] font-bold text-ink shadow transition hover:bg-canvas"
+              >
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                Ver
+              </button>
+              {menuVer && (
+                <div className="absolute right-0 mt-1.5 w-[210px] rounded-[8px] border border-line bg-surface p-1.5 shadow-lg">
+                  {([
+                    ["enRuta", "En ruta"],
+                    ["finalizadas", "Rutas finalizadas"],
+                    ["centros", "Centro de distribución"],
+                  ] as const).map(([k, texto]) => (
+                    <label key={k} className="flex cursor-pointer items-center gap-2.5 rounded-[6px] px-2.5 py-2 text-[13px] text-ink hover:bg-canvas">
+                      <input
+                        type="checkbox"
+                        checked={capas[k]}
+                        onChange={(e) => setCapas((c) => ({ ...c, [k]: e.target.checked }))}
+                        className="h-4 w-4 accent-[var(--color-amber)]"
+                      />
+                      {texto}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <p className="shrink-0 border-t border-line px-4 py-2 text-[11.5px] text-ink-3">
+            No hay rastreo continuo: la posición es la de la última orden que marcó cada conductor.
+            Quien aún no ha marcado ninguna aparece en su centro de distribución.
+          </p>
         </div>
       </div>
-
-      {/* Detalle de la ruta elegida */}
-      <div className="min-w-0 overflow-y-auto bg-surface-2">
-        {activa ? (
-          <DetalleConductor
-            ruta={activa}
-            paradas={paradas}
-            ahora={ahora ?? Date.now()}
-          />
-        ) : (
-          <p className="p-6 text-center text-[13px] text-ink-3">
-            Selecciona un conductor para ver las estadísticas de su ruta
-          </p>
-        )}
-      </div>
-    </div>
     </div>
   );
 }
 
-function DetalleConductor({
-  ruta,
-  paradas,
-  ahora,
+/** Lo que se abre bajo la fila del conductor elegido. */
+function FichaRuta({
+  ruta: r, paradas, ahora,
 }: {
   ruta: RutaEnCalle;
   paradas: ParadaConDesvio[];
   ahora: number;
 }) {
-  const enRuta = ruta.salida_real
-    ? (ruta.fin_real ? new Date(ruta.fin_real).getTime() : ahora) -
-      new Date(ruta.salida_real).getTime()
+  const cerrada = Boolean(r.fin_real) || (r.asignadas > 0 && r.gestionadas === r.asignadas);
+  const enRuta = r.salida_real
+    ? (r.fin_real ? new Date(r.fin_real).getTime() : ahora) - new Date(r.salida_real).getTime()
     : null;
-
   // El silencio solo importa mientras quede algo por entregar: una ruta
   // cerrada lleva callada desde que terminó, y eso no es una incidencia.
-  const cerrada = Boolean(ruta.fin_real) || (ruta.asignadas > 0 && ruta.gestionadas === ruta.asignadas);
-  const callado = cerrada
-    ? null
-    : ruta.ultima_marca
-      ? ahora - new Date(ruta.ultima_marca).getTime()
-      : ruta.salida_real
-        ? ahora - new Date(ruta.salida_real).getTime()
-        : null;
-
-  const siguiente = paradas.find((p) => p.estado_entrega === "pendiente");
+  const callado =
+    cerrada || !r.salida_real ? null : ahora - new Date(r.ultima_marca ?? r.salida_real).getTime();
+  const pct = r.asignadas ? Math.round((r.gestionadas / r.asignadas) * 100) : 0;
+  const siguiente = paradas.find((p) => p.estado_entrega === "pendiente")?.id ?? null;
 
   return (
-    <div className="space-y-3.5 p-4">
-      <Tarjeta className="p-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-[16px] font-bold tracking-tight">
-            {ruta.conductor ?? "Sin conductor"}
-          </h2>
-          {ruta.placa && <Pastilla tono="plan">{ruta.placa}</Pastilla>}
-          <Link
-            href={`/torre?despacho=${ruta.despacho_id}`}
-            className="ml-auto rounded-full border border-line-strong bg-surface px-3 py-1.5 text-[12.5px] font-semibold transition hover:bg-canvas"
-          >
-            ◉ Ver en la torre
-          </Link>
-        </div>
-        <p className="mt-0.5 text-[12px] text-ink-3">
-          {ruta.despacho ?? "Despacho"} · R-{String(ruta.indice + 1).padStart(2, "0")}
-        </p>
+    <div className="px-3 pb-3">
+      <div className="grid grid-cols-2 gap-2">
+        <Cifra valor={`${r.gestionadas}/${r.asignadas}`} texto="Órdenes gestionadas" />
+        <Cifra
+          valor={r.km_plan != null ? `${Number(r.km_plan).toFixed(1)} km` : "—"}
+          texto="Distancia planificada"
+        />
+        <Cifra valor={enRuta == null ? "—" : duracion(enRuta)} texto="Tiempo de ruta" />
+        <Cifra
+          valor={callado == null ? "—" : duracion(callado)}
+          texto="Tiempo sin actividad"
+          alerta={callado != null && callado / 60000 >= SILENCIO_MIN}
+        />
+      </div>
 
-        <div className="mt-3.5 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
-          <Dato
-            etiqueta="Avance"
-            valor={`${ruta.gestionadas}/${ruta.asignadas}`}
-            pie={`${ruta.entregadas} entregadas · ${ruta.fallidas} fallidas`}
-          />
-          <Dato
-            etiqueta="En ruta"
-            valor={enRuta == null ? "—" : duracion(enRuta)}
-            pie={ruta.salida_real ? `salió ${hhmm(ruta.salida_real)}` : "no ha salido"}
-          />
-          <Dato
-            etiqueta={cerrada ? "Terminó" : "Sin marcar"}
-            valor={cerrada ? hhmm(ruta.fin_real ?? ruta.ultima_marca) : callado == null ? "—" : duracion(callado)}
-            pie={ruta.ultima_marca ? `última marca ${hhmm(ruta.ultima_marca)}` : "ninguna marca"}
-            alerta={callado != null && callado / 60000 >= SILENCIO_MIN}
-          />
-          <Dato
-            etiqueta="Contra la ETA"
-            valor={
-              ruta.desvio_min == null
-                ? "—"
-                : Math.abs(ruta.desvio_min) <= 10
-                  ? "a tiempo"
-                  : `${ruta.desvio_min > 0 ? "+" : "−"}${Math.abs(ruta.desvio_min)} min`
-            }
-            pie={ruta.km_plan != null ? `${Number(ruta.km_plan).toFixed(1)} km planificados` : "—"}
-            alerta={ruta.desvio_min != null && ruta.desvio_min > 30}
-          />
-        </div>
+      <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-line">
+        <div className="h-full rounded-full bg-amber" style={{ width: `${pct}%` }} />
+      </div>
+      <p className="mt-1 text-[11.5px] text-ink-2">
+        <span className="num">{r.gestionadas}</span> de <span className="num">{r.asignadas}</span> órdenes completadas
+      </p>
 
-        {(ruta.bateria != null || ruta.red) && (
-          <p className="mt-3 text-[11.5px] text-ink-3">
-            En su última marca el móvil tenía
-            {ruta.bateria != null && (
-              <b className={ruta.bateria <= 20 ? " text-bad" : " text-ink-2"}>
-                {" "}{ruta.bateria}% de batería
-              </b>
-            )}
-            {ruta.bateria != null && ruta.red && " y"}
-            {ruta.red && <b className="text-ink-2"> red {ruta.red}</b>}.
-          </p>
-        )}
-      </Tarjeta>
+      <div className="mt-2 rounded-[4px] border-l-[3px] border-amber bg-amber/10 px-2 py-1 text-[11.5px] font-bold text-navy-800">
+        {cerrada
+          ? `RUTA FINALIZADA${r.fin_real ? `: ${hhmm(r.fin_real)}` : ""}`
+          : r.salida_real
+            ? `RUTA ACTIVA: ${hhmm(r.salida_real)}`
+            : `RUTA PROGRAMADA: ${corta(r.salida_prog)}`}{" "}
+        <span className="font-normal">({pct}%)</span>
+      </div>
 
-      <Tarjeta className="overflow-hidden">
-        <div className="h-[320px]">
-          {/* La `key` ata el mapa a su ruta: Leaflet encuadra al montarse, y
-              sin esto al cambiar de conductor se quedaría con el encuadre del
-              anterior. Se espera a tener las paradas por la misma razón. */}
-          {paradas.length > 0 ? (
-            <MapaSeguimiento
-              key={ruta.ruta_id}
-              paradas={paradas.map((p) => ({
-                id: p.id,
-                orden: p.orden,
-                nombre: p.nombre,
-                lat: p.lat,
-                lon: p.lon,
-                bultos: p.bultos,
-                estado_entrega: p.estado_entrega,
-                hora_entrega: p.hora_entrega,
-                motivo: p.motivo,
-              }))}
-              geometria={null}
-              colorRuta={color(ruta.indice)}
-              cd={
-                ruta.cd_lat != null && ruta.cd_lon != null
-                  ? { lat: ruta.cd_lat, lon: ruta.cd_lon }
-                  : null
-              }
-              siguienteId={siguiente?.id ?? null}
-            />
-          ) : (
-            <div className="grid h-full place-items-center text-[13px] text-ink-3">
-              Cargando paradas…
-            </div>
-          )}
-        </div>
-        <p className="border-t border-line px-4 py-2 text-[11.5px] text-ink-3">
-          Los puntos verdes son las paradas que ya marcó; el resaltado es la
-          siguiente. No hay rastreo continuo: la posición del móvil solo se
-          captura al registrar una parada
-          {ruta.ultima_marca && (
-            <>
-              , la última a las <span className="num">{hhmm(ruta.ultima_marca)}</span>
-            </>
-          )}
-          .
-        </p>
-      </Tarjeta>
-
-      {/* Hora real contra hora estimada, parada por parada */}
-      <Tarjeta className="overflow-hidden">
-        <div className="flex items-center gap-2 border-b border-line px-4 py-2.5">
-          <h3 className="text-[13.5px] font-bold">Hora real contra estimada</h3>
-          <span className="ml-auto text-[11.5px] text-ink-3">
-            R = cuándo marcó · E = cuándo tocaba
-          </span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[460px] border-collapse text-[12.5px]">
-            <thead>
-              <tr>
-                {["#", "Parada", "R", "E", "Desvío", "Estado"].map((h) => (
-                  <th
-                    key={h}
-                    className="border-b border-line bg-surface-2 px-3 py-1.5 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ink-3"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {paradas.map((p) => (
-                <tr key={p.id} className={p.estado_entrega === "pendiente" ? "opacity-70" : ""}>
-                  <td className="num border-b border-line px-3 py-1.5 text-ink-3">{p.orden}</td>
-                  <td className="border-b border-line px-3 py-1.5">
-                    <Link
-                      href={`/paradas/${p.id}`}
-                      className="font-bold text-ink transition hover:underline"
-                    >
-                      {p.nombre}
-                    </Link>
-                    {p.distrito && (
-                      <span className="block text-[11.5px] text-ink-3">{p.distrito}</span>
-                    )}
-                  </td>
-                  <td className="num border-b border-line px-3 py-2">{hhmm(p.hora_entrega)}</td>
-                  <td className="num border-b border-line px-3 py-1.5 text-ink-3">{corta(p.eta)}</td>
-                  <td className="border-b border-line px-3 py-2">
-                    <Desvio min={p.hora_entrega ? p.desvio_min : null} />
-                  </td>
-                  <td className="border-b border-line px-3 py-1.5 text-[11.5px] text-ink-2">
-                    {p.estado_entrega === "pendiente" ? "pendiente" : (p.motivo ?? p.estado_entrega)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Tarjeta>
+      <ol className="mt-2 space-y-2.5">
+        {paradas.map((p) => {
+          const hecha = p.estado_entrega !== "pendiente";
+          const punto =
+            p.estado_entrega === "entregado" ? "border-ok bg-ok"
+            : p.estado_entrega === "fallido" ? "border-bad bg-bad"
+            : hecha ? "border-warn bg-warn"
+            : p.id === siguiente ? "border-amber bg-surface"
+            : "border-line-strong bg-surface";
+          return (
+            <li key={p.id} className="flex gap-2">
+              <i className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full border-2 ${punto}`} />
+              <span className="min-w-0 flex-1">
+                <span className="num block text-[11px] text-ink-3">
+                  {p.hora_entrega ? `R: ${hhmm(p.hora_entrega)} - ` : ""}E: {corta(p.eta)}
+                </span>
+                <Link href={`/paradas/${p.id}`} className="num block truncate text-[12.5px] font-bold text-amber-600 hover:underline">
+                  {p.codigo ?? `#${p.orden}`}
+                </Link>
+                <span className="block truncate text-[12px] text-ink-2">{p.nombre}</span>
+              </span>
+              <span
+                className={`mt-0.5 h-fit shrink-0 rounded-full px-1.5 py-px text-[10.5px] font-semibold ${
+                  p.estado_entrega === "entregado" ? "bg-ok-bg text-ok"
+                  : p.estado_entrega === "fallido" ? "bg-bad-bg text-bad"
+                  : hecha ? "bg-warn-bg text-warn"
+                  : "bg-canvas text-ink-2"
+                }`}
+              >
+                {p.estado_entrega === "entregado" ? "Entregada"
+                  : p.estado_entrega === "fallido" ? "No entregada"
+                  : p.estado_entrega === "parcial" ? "Parcial"
+                  : p.estado_entrega === "reprogramado" ? "Reprogramada"
+                  : "Pendiente"}
+              </span>
+            </li>
+          );
+        })}
+        {paradas.length === 0 && <li className="text-[12px] text-ink-3">Cargando órdenes…</li>}
+      </ol>
     </div>
   );
 }
 
-function Dato({
-  etiqueta,
-  valor,
-  pie,
-  alerta = false,
-}: {
-  etiqueta: string;
-  valor: string;
-  pie?: string;
-  alerta?: boolean;
-}) {
+function Cifra({ valor, texto, alerta = false }: { valor: string; texto: string; alerta?: boolean }) {
   return (
-    <div>
-      <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-3">
-        {etiqueta}
+    <div className="rounded-[6px] border border-line bg-surface px-2.5 py-2">
+      <div className={`num text-[17px] font-bold leading-tight ${alerta ? "text-bad" : "text-ink"}`}>{valor}</div>
+      <div className="mt-0.5 text-[11px] leading-tight text-ink-2">{texto}</div>
+    </div>
+  );
+}
+
+/** La franja de cifras sobre el mapa, con el avance de la ruta elegida. */
+function ResumenRuta({ ruta: r, paradas }: { ruta: RutaEnCalle; paradas: ParadaConDesvio[] }) {
+  const pendientes = r.asignadas - r.gestionadas;
+  const parciales = Math.max(0, r.gestionadas - r.entregadas - r.fallidas);
+  // Lo que sigue dentro del vehículo: los bultos de lo que falta por entregar.
+  const aBordo = paradas
+    .filter((p) => p.estado_entrega === "pendiente")
+    .reduce((s, p) => s + p.bultos, 0);
+  const pct = (n: number) => (r.gestionadas ? Math.round((n / r.gestionadas) * 100) : 0);
+  const avance = r.asignadas ? (r.gestionadas / r.asignadas) * 100 : 0;
+
+  return (
+    <div className="shrink-0 border-b border-line px-4 py-2.5">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+        <Total valor={pendientes} texto="Pedidos pendientes" />
+        <Total valor={paradas.length ? aBordo : "—"} texto="Bultos en el vehículo" />
+        <Total valor={r.asignadas} texto="Pedidos asignados" />
+        <Reparto color="bg-ok" pct={pct(r.entregadas)} texto={`Entregadas (${r.entregadas})`} />
+        <Reparto color="bg-warn" pct={pct(parciales)} texto={`Parciales (${parciales})`} />
+        <Reparto color="bg-bad" pct={pct(r.fallidas)} texto={`No entregadas (${r.fallidas})`} />
+        <span className="ml-auto flex gap-2">
+          <Link href={`/rutas/${r.ruta_id}`} className={`${BOTON_SECUNDARIO} h-7 text-[12.5px]`}>
+            Ver la ruta
+          </Link>
+          <Link href={`/torre?despacho=${r.despacho_id}`} className={`${BOTON_SECUNDARIO} h-7 text-[12.5px]`}>
+            Torre
+          </Link>
+        </span>
       </div>
-      <div
-        className={`num text-[19px] font-bold leading-tight tracking-tight ${
-          alerta ? "text-bad" : "text-ink"
-        }`}
-      >
-        {valor}
+      <div className="mt-2 flex items-center justify-between text-[11.5px] text-ink-2">
+        <span>Progreso de entregas</span>
+        <span>
+          <b className="num text-ink">{r.gestionadas}</b> gestionadas
+        </span>
       </div>
-      {pie && <div className="text-[11px] text-ink-3">{pie}</div>}
+      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-line">
+        <div className="h-full rounded-full bg-ok" style={{ width: `${avance}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function Total({ valor, texto }: { valor: number | string; texto: string }) {
+  return (
+    <div className="border-r border-line pr-5 last:border-r-0">
+      <div className="num text-[17px] font-bold leading-tight text-ink">{valor}</div>
+      <div className="text-[11.5px] text-ink-2">{texto}</div>
+    </div>
+  );
+}
+
+function Reparto({ color, pct, texto }: { color: string; pct: number; texto: string }) {
+  return (
+    <div className="flex items-start gap-1.5">
+      <i className={`mt-1.5 h-2 w-2 rounded-full ${color}`} />
+      <div>
+        <div className="num text-[13px] font-bold leading-tight text-ink">{pct}%</div>
+        <div className="text-[11.5px] text-ink-2">{texto}</div>
+      </div>
     </div>
   );
 }

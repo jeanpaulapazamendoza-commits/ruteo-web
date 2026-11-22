@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { estadoFlota } from "@/app/acciones/datos";
 import { BarraSuperior } from "@/components/ui";
-import PanelFlota from "@/components/PanelFlota";
+import PanelFlota, { type VehiculoFlota } from "@/components/PanelFlota";
+import { comoUsuario } from "@/lib/db";
 
 /**
  * Dónde están los conductores y cómo van.
@@ -26,12 +27,22 @@ export default async function PaginaFlota({
   // direcciones va a parar a un `::date` de Postgres.
   const dia = fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : null;
 
-  const rutas = await estadoFlota(dia ?? undefined);
+  // Los vehículos de la empresa: los que hoy no tienen ruta son los
+  // «disponibles», y los retirados, los «no disponibles».
+  const [rutas, vehiculos] = await Promise.all([
+    estadoFlota(dia ?? undefined),
+    comoUsuario<VehiculoFlota>(
+      sesion.user.id,
+      `select v.id, v.nombre, v.placa, c.nombre as conductor, v.grupo, v.activo
+         from vehiculos v left join perfiles c on c.id = v.conductor_id
+        order by v.nombre`,
+    ),
+  ]);
 
   return (
     <>
       <BarraSuperior migaja="" titulo="Flota" />
-      <PanelFlota inicial={rutas} dia={dia} />
+      <PanelFlota inicial={rutas} vehiculos={vehiculos} dia={dia} />
     </>
   );
 }

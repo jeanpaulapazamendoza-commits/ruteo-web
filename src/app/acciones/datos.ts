@@ -106,6 +106,9 @@ export type RutaEnCalle = {
   conductor: string | null;
   vehiculo: string | null;
   placa: string | null;
+  /** El vehículo de la ruta y su grupo, si tiene. */
+  vehiculo_id: string | null;
+  grupo: string | null;
   salida_prog: string | null;
   salida_real: string | null;
   fin_real: string | null;
@@ -179,7 +182,7 @@ export async function estadoFlota(fecha?: string) {
         order by e.ruta_id, e.ocurrido_en desc, e.id desc)
      select r.id as ruta_id, r.indice, r.despacho_id, d.nombre as despacho,
             d.fecha, c.nombre as conductor,
-            v.nombre as vehiculo, v.placa,
+            v.nombre as vehiculo, v.placa, v.id as vehiculo_id, v.grupo,
             r.salida_prog, r.salida_real, r.fin_real, r.km as km_plan,
             coalesce(m.asignadas, 0)   as asignadas,
             coalesce(m.gestionadas, 0) as gestionadas,

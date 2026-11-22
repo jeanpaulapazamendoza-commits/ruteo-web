@@ -26,6 +26,8 @@ export type VehiculoFila = {
   max_tiendas: number;
   conductor_id: string | null;
   conductor: string | null;
+  /** Grupo al que pertenece, para filtrar la flota. */
+  grupo: string | null;
   activo: boolean;
   /** En cuántas rutas ha salido. Con alguna, no se borra: se retira. */
   rutas: number;
@@ -36,7 +38,7 @@ export async function vehiculosLista() {
   return comoUsuario<VehiculoFila>(
     yo,
     `select v.id, v.nombre, v.placa, v.capacidad_bultos, v.max_tiendas,
-            v.conductor_id, c.nombre as conductor, v.activo,
+            v.conductor_id, c.nombre as conductor, v.grupo, v.activo,
             (select count(*) from rutas r where r.vehiculo_id = v.id)::int as rutas
        from vehiculos v
        left join perfiles c on c.id = v.conductor_id
@@ -60,9 +62,11 @@ export async function guardarVehiculo(v: {
   capacidad_bultos: number;
   max_tiendas: number;
   conductor_id: string | null;
+  grupo?: string | null;
 }) {
   const yo = await idSesion();
   const nombre = v.nombre.trim();
+  const grupo = v.grupo?.trim() || null;
   const placa = v.placa?.trim().toUpperCase() || null;
   if (!nombre) throw new Error("El vehículo necesita un nombre.");
   if (!Number.isFinite(v.capacidad_bultos) || v.capacidad_bultos <= 0) {
@@ -76,9 +80,9 @@ export async function guardarVehiculo(v: {
       yo,
       `update vehiculos
           set nombre = $2, placa = $3, capacidad_bultos = $4, max_tiendas = $5,
-              conductor_id = $6, actualizado_en = now()
+              conductor_id = $6, grupo = $7, actualizado_en = now()
         where id = $1 returning id`,
-      [v.id, nombre, placa, cap, max, v.conductor_id],
+      [v.id, nombre, placa, cap, max, v.conductor_id, grupo],
     );
     if (!filas[0]) throw new Error("No tienes permiso para cambiar vehículos.");
     return v.id;
@@ -86,10 +90,10 @@ export async function guardarVehiculo(v: {
   // `org_id` sale de la propia base y no del navegador.
   const filas = await comoUsuario<{ id: string }>(
     yo,
-    `insert into vehiculos (org_id, nombre, placa, capacidad_bultos, max_tiendas, conductor_id)
-     select private.mi_org(), $1, $2, $3, $4, $5
+    `insert into vehiculos (org_id, nombre, placa, capacidad_bultos, max_tiendas, conductor_id, grupo)
+     select private.mi_org(), $1, $2, $3, $4, $5, $6
      returning id`,
-    [nombre, placa, cap, max, v.conductor_id],
+    [nombre, placa, cap, max, v.conductor_id, grupo],
   );
   if (!filas[0]) throw new Error("No tienes permiso para crear vehículos.");
   return filas[0].id;
