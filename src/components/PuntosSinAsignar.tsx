@@ -19,7 +19,20 @@ export type RutaDestino = { id: string; indice: number; paradas: number; bultos:
 
 type Propuesta = { plan: PropuestaInsercion; datos: PreparacionInsercion };
 
-const km = (n: number) => n.toLocaleString("es-PE", { maximumFractionDigits: 1 });
+/**
+ * Una diferencia con su signo: «+1,4», «−1,4» o «0».
+ *
+ * Puede salir negativa. El servidor de calles mide el camino más rápido, no
+ * el más corto: pasar por una parada más obliga a veces a tomar otra vía que,
+ * siendo más lenta, es más corta. Antes se pintaba un «+» fijo delante y eso
+ * daba «+-1,4 km».
+ */
+function conSigno(n: number, decimales = 1) {
+  const redondeado = Number(n.toFixed(decimales));
+  if (redondeado === 0) return "0";
+  const valor = Math.abs(redondeado).toLocaleString("es-PE", { maximumFractionDigits: decimales });
+  return `${redondeado > 0 ? "+" : "−"}${valor}`;
+}
 
 /**
  * Los puntos del archivo que no entraron en ninguna ruta, y las órdenes que
@@ -199,8 +212,8 @@ export default function PuntosSinAsignar({
               {i.despues_de ? <>después de «{nombre(i.despues_de)}»</> : "como siguiente parada"}
               {" · llega "}
               <b className="num">{i.eta}</b>
-              {" · +"}
-              <span className="num">{km(i.km_extra)}</span> km
+              {" · "}
+              <span className="num">{conSigno(i.km_extra)}</span> km
               {i.sin_comprobar.length > 0 && (
                 <span className="mt-0.5 block text-[12px] text-warn">
                   Pide {i.sin_comprobar.map((e) => `«${e}»`).join(", ")}: comprueba que ese
@@ -219,8 +232,10 @@ export default function PuntosSinAsignar({
                   <b className="num text-ink">{r.fin}</b>
                   {" (antes "}
                   <span className="num">{r.fin_antes}</span>
-                  {`), +${Math.round(r.min_extra)} min, +`}
-                  <span className="num">{km(r.km_extra)}</span> km
+                  {"), "}
+                  <span className="num">{conSigno(r.min_extra, 0)}</span>
+                  {" min, "}
+                  <span className="num">{conSigno(r.km_extra)}</span> km
                   {propuesta.datos.rutas[r.id]?.enCalle ? " · ya en la calle" : ""}
                   {r.reordenada ? " · cambia el orden de lo que le queda" : ""}
                 </div>
@@ -233,6 +248,14 @@ export default function PuntosSinAsignar({
               <b>{nombre(id)}</b>: {propuesta.plan.motivos[id]}
             </div>
           ))}
+
+          {propuesta.plan.rutas.some((r) => r.km_extra <= -0.05) && (
+            <p className="mt-2 text-[11.5px] text-ink-3">
+              Alguna ruta sale con menos kilómetros que antes. No es un error: las distancias
+              son las del camino más rápido, y al pasar por una parada más ese camino puede
+              ser otro, más lento pero más corto.
+            </p>
+          )}
 
           {propuesta.plan.resumen.matriz === "recta" && propuesta.plan.rutas.length > 0 && (
             <p className="mt-2 text-[11.5px] text-ink-3">
