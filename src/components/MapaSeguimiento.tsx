@@ -73,6 +73,7 @@ export default function MapaSeguimiento({
   geometria,
   colorRuta,
   cd,
+  nombreCd = null,
   siguienteId = null,
   onClicParada,
 }: {
@@ -80,6 +81,8 @@ export default function MapaSeguimiento({
   geometria: number[][] | null;
   colorRuta: string;
   cd: { lat: number; lon: number } | null;
+  /** Cómo se llama ese centro, si es una base con nombre. */
+  nombreCd?: string | null;
   /** La próxima parada pendiente: se resalta para encontrarla de un vistazo. */
   siguienteId?: string | null;
   /** En el móvil del conductor, tocar un punto abre esa parada. */
@@ -130,7 +133,7 @@ export default function MapaSeguimiento({
 
       {cd && (
         <Marker position={[cd.lat, cd.lon]} icon={iconoCD}>
-          <Tooltip>Centro de distribución</Tooltip>
+          <Tooltip>{nombreCd ? `Base: ${nombreCd}` : "Centro de distribución"}</Tooltip>
         </Marker>
       )}
     </MapContainer>

@@ -48,7 +48,18 @@ export type RutaSeguida = {
   geometria: number[][] | null;
   salida_real: string | null;
   conductor: string | null;
+  /** La base de la que sale. Vacío = el centro del despacho. */
+  base_nombre?: string | null;
+  base_lat?: number | null;
+  base_lon?: number | null;
 };
+
+/** El centro del despacho, en la lista de bases. */
+const CENTRO = "Centro del despacho";
+
+/** De dónde sale una ruta: su base, o el centro del despacho. */
+const origenDe = (r: RutaSeguida | undefined) =>
+  r?.base_lat != null && r?.base_lon != null ? (r.base_nombre ?? "Base") : CENTRO;
 
 const ESTADO_TONO = {
   entregado: "ok",
@@ -120,6 +131,9 @@ export default function TorreControl({
   const [error, setError] = useState<string | null>(null);
   const [abierta, setAbierta] = useState<number | null>(null);
   const [compacto, setCompacto] = useState(false);
+  // Con la flota repartida entre varias bases, cada jefe de base mira las
+  // suyas. Vacío = todas.
+  const [soloBase, setSoloBase] = useState("");
   const montado = useRef(true);
 
   // La preferencia de densidad es de quien mira, no del despacho: se queda en
@@ -212,6 +226,39 @@ export default function TorreControl({
     });
     return [...m.entries()].sort((a, b) => a[0] - b[0]);
   }, [paradas]);
+
+  /**
+   * El avance de cada base, cuando las rutas salen de más de una.
+   *
+   * Con una sola —lo habitual— la lista queda vacía y la torre se ve como
+   * siempre: ni selector ni resumen por base.
+   */
+  const bases = useMemo(() => {
+    const m = new Map<string, { rutas: number; paradas: number; cerradas: number; fallidas: number }>();
+    porRuta.forEach(([indice, ps]) => {
+      const nombre = origenDe(infoRuta.get(indice));
+      const b = m.get(nombre) ?? { rutas: 0, paradas: 0, cerradas: 0, fallidas: 0 };
+      b.rutas += 1;
+      b.paradas += ps.length;
+      b.cerradas += ps.filter((p) => p.estado_entrega !== "pendiente").length;
+      b.fallidas += ps.filter((p) => p.estado_entrega === "fallido").length;
+      m.set(nombre, b);
+    });
+    if (m.size < 2) return [];
+    // El centro del despacho, si alguna ruta sale de él, va el último.
+    return [...m.entries()]
+      .map(([nombre, b]) => ({ nombre, ...b }))
+      .sort((a, b) =>
+        a.nombre === CENTRO ? 1 : b.nombre === CENTRO ? -1 : a.nombre.localeCompare(b.nombre));
+  }, [porRuta, infoRuta]);
+
+  const rutasVisibles = useMemo(
+    () =>
+      soloBase && bases.some((b) => b.nombre === soloBase)
+        ? porRuta.filter(([indice]) => origenDe(infoRuta.get(indice)) === soloBase)
+        : porRuta,
+    [porRuta, infoRuta, soloBase, bases],
+  );
 
   /** La escala horaria es común a todas las rutas: solo así se comparan. */
   const escala = useMemo(() => escalaDe(eventos), [eventos]);
@@ -319,13 +366,60 @@ export default function TorreControl({
               {resumen.bultosEntregados} bultos entregados
             </span>
           </div>
+
+          {/* El mismo avance, base por base. Tocar una filtra las rutas. */}
+          {bases.length > 0 && (
+            <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-line pt-2.5">
+              {bases.map((b) => {
+                const activa = soloBase === b.nombre;
+                return (
+                  <button
+                    key={b.nombre}
+                    onClick={() => setSoloBase(activa ? "" : b.nombre)}
+                    aria-pressed={activa}
+                    title={activa ? "Ver todas las bases" : `Ver solo las rutas de ${b.nombre}`}
+                    className={`rounded-full border px-2.5 py-1 text-[11.5px] transition ${
+                      activa
+                        ? "border-amber bg-amber text-white"
+                        : "border-line-strong bg-surface text-ink-2 hover:bg-canvas"
+                    }`}
+                  >
+                    <b>{b.nombre}</b>
+                    <span className="num">
+                      {" · "}
+                      {b.rutas} ruta{b.rutas === 1 ? "" : "s"}
+                      {" · "}
+                      {b.cerradas}/{b.paradas}
+                      {b.fallidas > 0 ? ` · ${b.fallidas} fallida${b.fallidas === 1 ? "" : "s"}` : ""}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </Tarjeta>
 
         {/* Rutas activas */}
         <Tarjeta>
           <div className="flex items-center gap-2 border-b border-line px-3.5 py-2">
             <h3 className="text-[13.5px] font-bold">Rutas</h3>
-            <span className="num text-[12px] text-ink-3">{porRuta.length}</span>
+            <span className="num text-[12px] text-ink-3">
+              {rutasVisibles.length}
+              {rutasVisibles.length !== porRuta.length && ` de ${porRuta.length}`}
+            </span>
+            {bases.length > 0 && (
+              <select
+                value={soloBase}
+                onChange={(e) => setSoloBase(e.target.value)}
+                aria-label="Filtrar las rutas por base"
+                className="rounded-[8px] border border-line-strong bg-surface px-2 py-1 text-[12px]"
+              >
+                <option value="">Todas las bases</option>
+                {bases.map((b) => (
+                  <option key={b.nombre} value={b.nombre}>{b.nombre}</option>
+                ))}
+              </select>
+            )}
             <label className="ml-auto flex cursor-pointer items-center gap-1.5 text-[11.5px] text-ink-3">
               <input
                 type="checkbox"
@@ -341,7 +435,7 @@ export default function TorreControl({
             )}
           </div>
           <div className="divide-y divide-line">
-            {porRuta.map(([indice, ps]) => {
+            {rutasVisibles.map(([indice, ps]) => {
               const cerradas = ps.filter((p) => p.estado_entrega !== "pendiente").length;
               const pct = Math.round((cerradas / (ps.length || 1)) * 100);
               const fallidas = ps.filter((p) => p.estado_entrega === "fallido").length;
@@ -394,6 +488,11 @@ export default function TorreControl({
                     <span className="min-w-0 flex-1 truncate text-[12px] text-ink-3">
                       {siguiente ? `Siguiente: ${siguiente.nombre}` : "Ruta completada"}
                     </span>
+                    {bases.length > 0 && (
+                      <span className="hidden truncate text-[11.5px] font-semibold text-ink-2 sm:block">
+                        {origenDe(info)}
+                      </span>
+                    )}
                     {info?.conductor && (
                       <span className="hidden truncate text-[11.5px] text-ink-3 sm:block">
                         {info.conductor}
@@ -424,7 +523,16 @@ export default function TorreControl({
                       paradas={ps}
                       geometria={info?.geometria ?? null}
                       color={color(indice)}
-                      cd={cd}
+                      cd={
+                        info?.base_lat != null && info?.base_lon != null
+                          ? { lat: info.base_lat, lon: info.base_lon }
+                          : cd
+                      }
+                      base={
+                        info?.base_lat != null && info?.base_lon != null
+                          ? (info.base_nombre ?? "Base")
+                          : null
+                      }
                       conductor={info?.conductor ?? null}
                       salida={info?.salida_real ?? null}
                     />
@@ -600,12 +708,15 @@ function LineaActividad({ evento }: { evento: Evento }) {
  * terminó, y la lista en orden de visita con la hora y el motivo.
  */
 function DetalleRuta({
-  paradas, geometria, color, cd, conductor, salida,
+  paradas, geometria, color, cd, base, conductor, salida,
 }: {
   paradas: ParadaSeguimiento[];
   geometria: number[][] | null;
   color: string;
+  /** De dónde sale esta ruta: su base, o el centro del despacho. */
   cd: { lat: number; lon: number } | null;
+  /** El nombre de la base, si sale de una. */
+  base: string | null;
   conductor: string | null;
   salida: string | null;
 }) {
@@ -623,7 +734,7 @@ function DetalleRuta({
           </span>
         )}
         <span>
-          Salió del CD:{" "}
+          {base ? `Salió de ${base}:` : "Salió del CD:"}{" "}
           <b className="num text-ink">{salida ? horaDe(salida) : "aún no"}</b>
         </span>
         <span className="ml-auto flex flex-wrap gap-3">
@@ -651,6 +762,7 @@ function DetalleRuta({
             geometria={geometria}
             colorRuta={color}
             cd={cd}
+            nombreCd={base}
           />
         </div>
 

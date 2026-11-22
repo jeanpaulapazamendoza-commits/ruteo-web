@@ -179,7 +179,8 @@ export default async function PaginaTorre({
     // una vez aquí y no en cada sondeo, que sería mover mucho por nada.
     comoUsuario<RutaSeguida>(
       yo,
-      `select r.indice, r.geometria, r.salida_real, c.nombre as conductor
+      `select r.indice, r.geometria, r.salida_real, c.nombre as conductor,
+              r.base_nombre, r.base_lat, r.base_lon
          from rutas r
          left join perfiles c on c.id = r.conductor_id
         where r.despacho_id = $1 and not r.sin_asignar
