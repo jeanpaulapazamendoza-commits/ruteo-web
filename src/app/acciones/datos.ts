@@ -208,7 +208,9 @@ export async function estadoFlota(fecha?: string) {
 export type ParadaConDesvio = {
   id: string;
   orden: number;
+  codigo: string | null;
   nombre: string | null;
+  subestado: string | null;
   distrito: string | null;
   lat: number;
   lon: number;
@@ -226,7 +228,8 @@ export async function paradasDeRuta(rutaId: string) {
   const yo = await idSesion();
   return comoUsuario<ParadaConDesvio>(
     yo,
-    `select p.id, p.orden, p.nombre, p.distrito, p.lat, p.lon, p.bultos,
+    `select p.id, p.orden, p.codigo, p.nombre, p.subestado, p.distrito,
+            p.lat, p.lon, p.bultos,
             p.estado_entrega, p.eta, p.hora_entrega, p.motivo,
             round(extract(epoch from
               (p.hora_entrega - ((d.fecha + p.eta) at time zone $2))) / 60)::int
@@ -240,12 +243,25 @@ export async function paradasDeRuta(rutaId: string) {
   );
 }
 
+/** El recorrido dibujado de una ruta, para pintarlo en un mapa suelto. */
+export async function geometriaDeRuta(rutaId: string) {
+  const yo = await idSesion();
+  const fila = await unaFila<{ geometria: number[][] | null }>(
+    yo,
+    "select geometria from rutas where id = $1",
+    [rutaId],
+  );
+  return fila?.geometria ?? null;
+}
+
 /** Un paso de la historia de una ruta o de una de sus paradas. */
 export type Evento = {
   id: number;
   ruta_indice: number;
   parada_id: string | null;
   parada: string | null;
+  /** El código de la orden. Solo lo trae la consulta del día entero. */
+  codigo?: string | null;
   orden: number | null;
   tipo:
     | "ruta_iniciada"
@@ -829,7 +845,7 @@ export async function eventosDelDia(fecha?: string) {
   return comoUsuario<Evento & { ruta_id: string }>(
     yo,
     `select e.id, e.ruta_id, r.indice as ruta_indice, e.parada_id,
-            p.nombre as parada, p.orden, e.tipo, e.ocurrido_en,
+            p.nombre as parada, p.codigo, p.orden, e.tipo, e.ocurrido_en,
             a.nombre as autor, e.datos
        from eventos e
        join rutas r on r.id = e.ruta_id
@@ -839,6 +855,40 @@ export async function eventosDelDia(fecha?: string) {
       where not r.sin_asignar and d.fecha = coalesce($1::date, private.hoy())
       order by e.ocurrido_en, e.id`,
     [fecha ?? null],
+  );
+}
+
+export type PendienteDia = {
+  id: string;
+  ruta_id: string;
+  codigo: string | null;
+  nombre: string | null;
+  orden: number;
+  /** La hora a la que estaba prevista, ya como instante. */
+  previsto: string;
+};
+
+/**
+ * Las órdenes del día que siguen sin gestionar, con su hora prevista.
+ *
+ * Son los círculos grises de Actividad: una ruta que no ha salido no tiene
+ * ningún evento, y sin esto su franja quedaba vacía cuando lo que interesa
+ * ver es justo lo que tiene por delante.
+ */
+export async function pendientesDelDia(fecha?: string) {
+  const yo = await idSesion();
+  return comoUsuario<PendienteDia>(
+    yo,
+    `select p.id, p.ruta_id, p.codigo, p.nombre, p.orden,
+            ((d.fecha + p.eta) at time zone $2) as previsto
+       from paradas p
+       join rutas r on r.id = p.ruta_id
+       join despachos d on d.id = r.despacho_id
+      where not r.sin_asignar and d.fecha = coalesce($1::date, private.hoy())
+        and p.estado_entrega = 'pendiente' and p.eta is not null
+      order by p.ruta_id, p.orden
+      limit 5000`,
+    [fecha ?? null, ZONA],
   );
 }
 

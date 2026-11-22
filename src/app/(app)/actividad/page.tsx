@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { estadoFlota, eventosDelDia } from "@/app/acciones/datos";
+import { estadoFlota, eventosDelDia, pendientesDelDia } from "@/app/acciones/datos";
 import PanelActividad from "@/components/PanelActividad";
 
 /**
@@ -23,12 +23,13 @@ export default async function PaginaActividad({
   // Lo que llega de la barra de direcciones acaba en un `::date` de Postgres.
   const dia = fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : null;
 
-  const [rutas, eventos] = await Promise.all([
+  const [rutas, eventos, pendientes] = await Promise.all([
     estadoFlota(dia ?? undefined),
     eventosDelDia(dia ?? undefined),
+    pendientesDelDia(dia ?? undefined),
   ]);
 
   // Sin `BarraSuperior`: en la referencia esta pantalla lleva su propio
   // encabezado —«N Vehículos en ruta»— y lo pinta el panel.
-  return <PanelActividad rutas={rutas} eventos={eventos} dia={dia} />;
+  return <PanelActividad rutas={rutas} eventos={eventos} pendientes={pendientes} dia={dia} />;
 }

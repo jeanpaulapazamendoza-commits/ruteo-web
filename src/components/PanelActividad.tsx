@@ -6,10 +6,13 @@ import { useRouter } from "next/navigation";
 import {
   estadoFlota,
   eventosDelDia,
+  pendientesDelDia,
   type Evento,
+  type PendienteDia,
   type RutaEnCalle,
 } from "@/app/acciones/datos";
 import { escalaDe, type Escala } from "@/components/FranjaHoraria";
+import DetalleRutaActividad from "@/components/DetalleRutaActividad";
 import { aCSV, descargar } from "@/lib/exportar";
 import { hora, hoy } from "@/lib/horas";
 
@@ -57,15 +60,18 @@ type Orden = "placa" | "avance" | "desvio" | "silencio";
 export default function PanelActividad({
   rutas: inicial,
   eventos: eventosIniciales,
+  pendientes: pendientesIniciales = [],
   dia = null,
 }: {
   rutas: RutaEnCalle[];
   eventos: Evento[];
+  pendientes?: PendienteDia[];
   dia?: string | null;
 }) {
   const router = useRouter();
   const [rutas, setRutas] = useState(inicial);
   const [eventos, setEventos] = useState(eventosIniciales);
+  const [pendientes, setPendientes] = useState(pendientesIniciales);
   const [busca, setBusca] = useState("");
   const [orden, setOrden] = useState<Orden>("avance");
   const [compacto, setCompacto] = useState(false);
@@ -76,8 +82,11 @@ export default function PanelActividad({
   const montado = useRef(true);
 
   useEffect(() => () => { montado.current = false; }, []);
-  useEffect(() => { setRutas(inicial); setEventos(eventosIniciales); },
-    [inicial, eventosIniciales]);
+  useEffect(() => {
+    setRutas(inicial);
+    setEventos(eventosIniciales);
+    setPendientes(pendientesIniciales);
+  }, [inicial, eventosIniciales, pendientesIniciales]);
 
   // La elección de indicadores y la densidad son de quien mira, no del día.
   useEffect(() => {
@@ -95,13 +104,15 @@ export default function PanelActividad({
   const refrescar = useCallback(async () => {
     setCargando(true);
     try {
-      const [r, e] = await Promise.all([
+      const [r, e, p] = await Promise.all([
         estadoFlota(dia ?? undefined),
         eventosDelDia(dia ?? undefined),
+        pendientesDelDia(dia ?? undefined),
       ]);
       if (!montado.current) return;
       setRutas(r);
       setEventos(e);
+      setPendientes(p);
       setActualizado(new Date());
       setError(null);
     } catch (err) {
@@ -138,7 +149,25 @@ export default function PanelActividad({
     } as Record<ClaveIndicador, { n: number; de: number }>;
   }, [rutas]);
 
-  const escala = useMemo(() => escalaDe(eventos), [eventos]);
+  // La escala cubre lo que pasó y lo que falta: sin lo segundo, una ruta
+  // que no ha salido no tendría eje donde pintar sus órdenes.
+  const escala = useMemo(
+    () =>
+      escalaDe([
+        ...eventos,
+        ...pendientes.map((p) => ({ ocurrido_en: p.previsto }) as Evento),
+      ]),
+    [eventos, pendientes],
+  );
+
+  const pendientesPorRuta = useMemo(() => {
+    const m = new Map<string, PendienteDia[]>();
+    pendientes.forEach((p) => {
+      if (!m.has(p.ruta_id)) m.set(p.ruta_id, []);
+      m.get(p.ruta_id)!.push(p);
+    });
+    return m;
+  }, [pendientes]);
 
   const porRuta = useMemo(() => {
     const m = new Map<string, Evento[]>();
@@ -319,6 +348,7 @@ export default function PanelActividad({
                 key={r.ruta_id}
                 ruta={r}
                 eventos={porRuta.get(r.ruta_id) ?? []}
+                pendientes={pendientesPorRuta.get(r.ruta_id) ?? []}
                 escala={escala}
                 compacto={compacto}
                 ahora={ahora}
@@ -360,6 +390,7 @@ const SILENCIO_MIN = 90;
 function TarjetaVehiculo({
   ruta: r,
   eventos,
+  pendientes,
   escala,
   compacto,
   ahora,
@@ -367,14 +398,18 @@ function TarjetaVehiculo({
 }: {
   ruta: RutaEnCalle;
   eventos: Evento[];
+  pendientes: PendienteDia[];
   escala: Escala | null;
   compacto: boolean;
   ahora: number;
   esHoy: boolean;
 }) {
-  const [abierta, setAbierta] = useState<boolean | null>(null);
-  // El modo comprimido pliega todas; el botón de cada una manda sobre él.
-  const desplegada = abierta ?? !compacto;
+  // La flecha abre el detalle de la ruta —órdenes, ficha y mapa—, como en
+  // la referencia. El modo comprimido esconde la línea del día de todas; una
+  // tarjeta con el detalle abierto la enseña igual.
+  const [detalle, setDetalle] = useState(false);
+  const [elegida, setElegida] = useState<string | null>(null);
+  const desplegada = detalle || !compacto;
 
   // Zoom de la línea del día. 0 es la escala común a todas las tarjetas;
   // cada paso hacia dentro la reduce a la mitad alrededor de lo que hizo
@@ -386,7 +421,9 @@ function TarjetaVehiculo({
   const ventana = useMemo<Escala | null>(() => {
     if (!escala || (zoom === 0 && despl === 0)) return escala;
     const ancho = (escala.hasta - escala.desde) / 2 ** zoom;
-    const horas = eventos.map((e) => new Date(e.ocurrido_en).getTime());
+    // Lo que hizo; si todavía no hizo nada, lo que tiene previsto.
+    const horas = (eventos.length ? eventos.map((e) => e.ocurrido_en) : pendientes.map((p) => p.previsto))
+      .map((t) => new Date(t).getTime());
     let centro = (escala.desde + escala.hasta) / 2;
     if (zoom > 0 && horas.length) {
       const ini = Math.min(...horas);
@@ -397,7 +434,7 @@ function TarjetaVehiculo({
     }
     centro += despl;
     return { ...escala, desde: centro - ancho / 2, hasta: centro + ancho / 2 };
-  }, [escala, zoom, despl, eventos]);
+  }, [escala, zoom, despl, eventos, pendientes]);
 
   const pct = r.asignadas ? Math.round((r.gestionadas / r.asignadas) * 100) : 0;
   const cerrada = Boolean(r.fin_real) || (r.asignadas > 0 && r.gestionadas === r.asignadas);
@@ -419,8 +456,8 @@ function TarjetaVehiculo({
 
   return (
     <div
-      className="border bg-white"
-      style={{ borderColor: C.borde, boxShadow: "0 2px 1px rgba(0,0,0,0.1)" }}
+      className="@container border bg-white"
+      style={{ borderColor: detalle ? C.turquesa : C.borde, boxShadow: "0 2px 1px rgba(0,0,0,0.1)" }}
     >
       {/* Franja superior */}
       <div className="flex min-h-[67px] flex-wrap items-stretch" style={{ background: "#f9f9f9" }}>
@@ -468,13 +505,13 @@ function TarjetaVehiculo({
             </div>
           </div>
           <button
-            onClick={() => setAbierta(!desplegada)}
-            aria-expanded={desplegada}
-            title={desplegada ? "Plegar" : "Desplegar"}
+            onClick={() => setDetalle((v) => !v)}
+            aria-expanded={detalle}
+            title={detalle ? "Cerrar el detalle" : "Ver las órdenes de esta ruta"}
             className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[11px] text-white transition hover:brightness-95"
             style={{ background: C.turquesa }}
           >
-            <span className={`transition-transform ${desplegada ? "" : "-rotate-90"}`}>▾</span>
+            <span className={`transition-transform ${detalle ? "rotate-180" : ""}`}>▾</span>
           </button>
         </div>
       </div>
@@ -527,6 +564,8 @@ function TarjetaVehiculo({
                 title={zoom !== 0 ? "Arrastra para moverte por el día" : undefined}
                 onPointerDown={(e) => {
                   if (zoom === 0) return;
+                  // Un clic en un círculo abre su recuadro, no arrastra.
+                  if ((e.target as HTMLElement).closest("[data-punto]")) return;
                   arrastre.current = { x: e.clientX, despl, ancho: e.currentTarget.clientWidth || 1 };
                   e.currentTarget.setPointerCapture(e.pointerId);
                 }}
@@ -539,7 +578,13 @@ function TarjetaVehiculo({
                 onPointerUp={() => { arrastre.current = null; }}
                 onPointerCancel={() => { arrastre.current = null; }}
               >
-                <LineaDia eventos={eventos} escala={ventana} ahora={esHoy ? ahora : null} />
+                <LineaDia
+                  eventos={eventos}
+                  pendientes={pendientes}
+                  escala={ventana}
+                  ahora={esHoy ? ahora : null}
+                  onElegir={(id) => { setElegida(id); setDetalle(true); }}
+                />
               </div>
             ) : (
               <div className="pb-4 text-[11px]" style={{ color: C.tenue }}>
@@ -548,6 +593,10 @@ function TarjetaVehiculo({
             )}
           </div>
         </div>
+      )}
+
+      {detalle && (
+        <DetalleRutaActividad ruta={r} elegida={elegida} onElegir={setElegida} />
       )}
     </div>
   );
@@ -633,21 +682,54 @@ const TONO_EVENTO: Record<string, string> = {
   pendiente: C.gris,
 };
 
+const TEXTO_EVENTO: Record<string, string> = {
+  entregado: "Entregado",
+  parcial: "Entrega parcial",
+  reprogramado: "Reprogramado",
+  fallido: "No entregado",
+  pendiente: "Devuelto a pendiente",
+};
+
+/** Un círculo de la línea del día, sea una gestión o una orden por hacer. */
+type Punto = {
+  clave: string;
+  t: number;
+  arriba: boolean;
+  color: string;
+  codigo: string | null;
+  nombre: string | null;
+  parada_id: string | null;
+  /** «Hora de gestión» o «Hora estimada», según haya pasado o no. */
+  rotulo: string;
+  estado: string;
+  motivo: string | null;
+};
+
 /**
  * El día de la ruta: un punto por parada marcada, sobre un eje de horas.
  *
  * Todas las tarjetas comparten la misma escala, para poder comparar una ruta
  * con la de al lado de un vistazo. La raya naranja es la hora actual.
+ *
+ * Cada círculo se abre: al pasar el ratón enseña de qué orden es, y con un
+ * clic el recuadro se queda fijo para poder ir a la orden.
  */
 function LineaDia({
   eventos,
+  pendientes,
   escala,
   ahora,
+  onElegir,
 }: {
   eventos: Evento[];
+  pendientes: PendienteDia[];
   escala: Escala;
   ahora: number | null;
+  /** Abre esa orden en el detalle de la ruta. */
+  onElegir: (paradaId: string) => void;
 }) {
+  const [encima, setEncima] = useState<string | null>(null);
+  const [fijo, setFijo] = useState<string | null>(null);
   const ancho = escala.hasta - escala.desde || 1;
   const pos = (t: number) => ((t - escala.desde) / ancho) * 100;
   const dentro = (t: number) => t >= escala.desde && t <= escala.hasta;
@@ -675,8 +757,41 @@ function LineaDia({
   );
   const tSalida = salida ? new Date(salida.ocurrido_en).getTime() : null;
 
+  const texto = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  const puntos: Punto[] = [
+    // Primero lo pendiente, para que una gestión nunca quede tapada.
+    ...pendientes
+      .map((p) => ({ p, t: new Date(p.previsto).getTime() }))
+      .filter(({ t }) => dentro(t))
+      .map(({ p, t }) => ({
+        clave: `p-${p.id}`,
+        t,
+        arriba: true,
+        color: C.gris,
+        codigo: p.codigo,
+        nombre: p.nombre,
+        parada_id: p.id,
+        rotulo: "Hora estimada",
+        estado: "Pendiente",
+        motivo: null,
+      })),
+    ...marcasParada.map((e) => ({
+      clave: `e-${e.id}`,
+      t: new Date(e.ocurrido_en).getTime(),
+      arriba: e.tipo === "entregado",
+      color: TONO_EVENTO[e.tipo] ?? C.gris,
+      codigo: e.codigo ?? null,
+      nombre: e.parada,
+      parada_id: e.parada_id,
+      rotulo: "Hora de gestión",
+      estado: TEXTO_EVENTO[e.tipo] ?? e.tipo,
+      motivo: texto(e.datos?.subestado) ?? texto(e.datos?.motivo),
+    })),
+  ];
+  const abierto = puntos.find((p) => p.clave === (fijo ?? encima)) ?? null;
+
   return (
-    <div className="relative mx-[14px] h-[100px]">
+    <div className="relative mx-[14px] h-[100px]" onMouseLeave={() => setEncima(null)}>
       {/* Eje punteado */}
       <div className="absolute inset-x-0 top-[78px] border-t border-dashed" style={{ borderColor: "#cfd3d7" }} />
 
@@ -708,18 +823,70 @@ function LineaDia({
 
       {/* Dos alturas, como en la referencia: arriba lo entregado, abajo lo
           que no salió bien, para que un fallo no se pierda entre los verdes. */}
-      {marcasParada.map((e) => (
-        <span
-          key={e.id}
-          title={`${hora(e.ocurrido_en)} · ${e.parada ?? "Parada"}`}
-          className="absolute h-[16px] w-[16px] -translate-x-1/2 rounded-full"
+      {puntos.map((p) => (
+        <button
+          key={p.clave}
+          type="button"
+          data-punto
+          aria-label={`${p.codigo ?? p.nombre ?? "Orden"}, ${p.estado}, ${hora(new Date(p.t))}`}
+          onMouseEnter={() => setEncima(p.clave)}
+          onFocus={() => setEncima(p.clave)}
+          onClick={() => setFijo((f) => (f === p.clave ? null : p.clave))}
+          className="absolute h-[16px] w-[16px] -translate-x-1/2 cursor-pointer rounded-full p-0 transition hover:scale-125"
           style={{
-            top: e.tipo === "entregado" ? 10 : 50,
-            left: `${pos(new Date(e.ocurrido_en).getTime())}%`,
-            background: TONO_EVENTO[e.tipo] ?? C.gris,
+            top: p.arriba ? 10 : 50,
+            left: `${pos(p.t)}%`,
+            background: p.color,
+            outline: fijo === p.clave ? "2px solid #2f4050" : undefined,
+            outlineOffset: 1,
           }}
         />
       ))}
+
+      {abierto && (
+        <div
+          data-punto
+          role="tooltip"
+          className="absolute z-20 whitespace-nowrap rounded-[3px] px-[8px] py-[5px] text-left text-[11px] font-bold leading-[17px] text-white shadow-md"
+          style={{
+            background: "#2f4050",
+            bottom: abierto.arriba ? 94 : 54,
+            // Cerca de los bordes el recuadro se abre hacia dentro.
+            ...(pos(abierto.t) > 70
+              ? { right: `${100 - pos(abierto.t)}%`, transform: "translateX(12px)" }
+              : pos(abierto.t) < 30
+                ? { left: `${pos(abierto.t)}%`, transform: "translateX(-12px)" }
+                : { left: `${pos(abierto.t)}%`, transform: "translateX(-50%)" }),
+          }}
+        >
+          <div>#{abierto.codigo ?? abierto.nombre ?? "Orden"}</div>
+          {abierto.codigo && abierto.nombre && (
+            <div className="max-w-[260px] truncate font-normal">{abierto.nombre}</div>
+          )}
+          <div className="font-normal">
+            {abierto.rotulo}: <span className="num">{hora(new Date(abierto.t))}</span>
+          </div>
+          <div className="font-normal">Estado: {abierto.estado}</div>
+          {abierto.motivo && (
+            <div className="max-w-[260px] truncate font-normal">Motivo: {abierto.motivo}</div>
+          )}
+          {fijo === abierto.clave && abierto.parada_id && (
+            <div className="mt-[3px] flex gap-[12px] border-t border-white/25 pt-[3px]">
+              <button
+                type="button"
+                onClick={() => onElegir(abierto.parada_id!)}
+                className="font-bold"
+                style={{ color: "#7fd9ff" }}
+              >
+                Ver en la ruta
+              </button>
+              <Link href={`/paradas/${abierto.parada_id}`} className="font-bold" style={{ color: "#7fd9ff" }}>
+                Abrir la orden →
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
