@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ordenes as traerOrdenes, type FiltroOrdenes, type Orden } from "@/app/acciones/datos";
+import {
+  eliminarParada, ordenes as traerOrdenes, type FiltroOrdenes, type Orden,
+} from "@/app/acciones/datos";
+import MenuFila, { type AccionFila } from "@/components/MenuFila";
+import ModalEditarOrden from "@/components/ModalEditarOrden";
+import ModalEstado from "@/components/ModalEstado";
 import {
   AccionesPagina, BOTON_PRIMARIO, BOTON_SECUNDARIO, Contador, Paginacion, usePaginas,
 } from "@/components/Paginacion";
@@ -31,11 +36,16 @@ export default function PanelOrdenes({
   inicial,
   conductores,
   filtro: filtroInicial,
+  rol = "planificador",
 }: {
   inicial: Orden[];
   conductores: string[];
   filtro: FiltroOrdenes;
+  rol?: "admin" | "planificador" | "conductor";
 }) {
+  // Lo que se abre desde el menú de una fila.
+  const [cambiando, setCambiando] = useState<Orden | null>(null);
+  const [editando, setEditando] = useState<string | null>(null);
   const [lista, setLista] = useState(inicial);
   const [filtro, setFiltro] = useState<FiltroOrdenes>(filtroInicial);
   const [cargando, setCargando] = useState(false);
@@ -213,6 +223,58 @@ export default function PanelOrdenes({
 
   const { visibles, elegidas, alternar, fijas } = useColumnas("ordenes", columnas);
 
+  async function borrar(o: Orden) {
+    const ok = window.confirm(
+      `¿Eliminar la orden ${o.codigo ?? ""} «${o.nombre ?? ""}»?\n\n` +
+        "Se borra del despacho y no se puede recuperar.",
+    );
+    if (!ok) return;
+    try {
+      await eliminarParada(o.id);
+      // Un filtro nuevo, igual al anterior, vuelve a lanzar la búsqueda.
+      setFiltro((f) => ({ ...f }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  /**
+   * Lo que se puede hacer con una orden desde su fila.
+   *
+   * Lo que no procede se queda a la vista, apagado y con el porqué: una orden
+   * ya entregada no se edita ni se borra, y una sin ruta no tiene estado que
+   * cambiar.
+   */
+  function acciones(o: Orden): AccionFila[] {
+    const pendiente = o.estado_entrega === "pendiente";
+    const cerrada = o.bloqueada ? "Está bloqueada: la abre un administrador" : null;
+    const lista: AccionFila[] = [
+      { texto: "Ver la orden", href: `/paradas/${o.id}` },
+      {
+        texto: "Modificar estado",
+        onClick: () => setCambiando(o),
+        noPorque: cerrada ?? (o.en_bandeja ? "Aún no está en ninguna ruta" : null),
+      },
+      {
+        texto: "Editar información",
+        onClick: () => setEditando(o.id),
+        noPorque: cerrada ?? (pendiente ? null : "Ya se gestionó"),
+      },
+      { texto: "Documentos y fotos", href: `/paradas/${o.id}` },
+    ];
+    if (!o.en_bandeja) lista.push({ texto: "Ver en la torre", href: `/torre?despacho=${o.despacho_id}` });
+    lista.push({
+      texto: "Eliminar",
+      peligro: true,
+      onClick: () => void borrar(o),
+      noPorque:
+        rol === "conductor"
+          ? "No tienes permiso"
+          : (cerrada ?? (pendiente ? null : "Ya se gestionó: es prueba de entrega")),
+    });
+    return lista;
+  }
+
   function exportar() {
     // Se exporta lo que se está viendo, filtros y columnas incluidos: un
     // archivo que no coincide con la pantalla es una fuente de discusiones.
@@ -319,6 +381,7 @@ export default function PanelOrdenes({
                       {c.texto}
                     </th>
                   ))}
+                  <th className="w-[56px]" aria-label="Acciones" />
                 </tr>
               </thead>
               <tbody>
@@ -334,6 +397,12 @@ export default function PanelOrdenes({
                         {c.pinta(o)}
                       </td>
                     ))}
+                    <td className="border-b border-line text-center align-middle" style={{ padding: "0 6px" }}>
+                      <MenuFila
+                        rotulo={`Acciones de la orden ${o.codigo ?? o.nombre ?? ""}`}
+                        acciones={acciones(o)}
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -341,6 +410,21 @@ export default function PanelOrdenes({
           </div>
           <Paginacion pagina={pagina} total={total} onCambio={setPagina} />
         </div>
+      )}
+
+      {cambiando && (
+        <ModalEstado
+          parada={cambiando}
+          onCerrar={() => setCambiando(null)}
+          onHecho={() => { setCambiando(null); void buscar(filtro); }}
+        />
+      )}
+      {editando && (
+        <ModalEditarOrden
+          paradaId={editando}
+          onCerrar={() => setEditando(null)}
+          onHecho={() => { setEditando(null); void buscar(filtro); }}
+        />
       )}
 
       {lista.length >= 500 && (

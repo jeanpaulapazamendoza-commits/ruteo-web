@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { miRol } from "@/app/acciones/datos";
 import { resumenRutasDelMes, rutasLista } from "@/app/acciones/rutas";
 import { BarraSuperior } from "@/components/ui";
 import PanelRutas from "@/components/PanelRutas";
@@ -33,12 +34,16 @@ export default async function PaginaRutas({
   const hasta = q.hasta && DIA.test(q.hasta) ? q.hasta : haceDias(0);
   const desde = q.desde && DIA.test(q.desde) ? q.desde : haceDias(7);
 
-  const [rutas, resumen] = await Promise.all([rutasLista(desde, hasta), resumenRutasDelMes()]);
+  const [rutas, resumen, rol] = await Promise.all([
+    rutasLista(desde, hasta),
+    resumenRutasDelMes(),
+    miRol(),
+  ]);
 
   return (
     <>
       <BarraSuperior migaja="" titulo="Rutas" />
-      <PanelRutas rutas={rutas} resumen={resumen} desde={desde} hasta={hasta} />
+      <PanelRutas rutas={rutas} resumen={resumen} desde={desde} hasta={hasta} rol={rol} />
     </>
   );
 }

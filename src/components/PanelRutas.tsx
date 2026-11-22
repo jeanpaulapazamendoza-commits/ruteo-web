@@ -3,7 +3,10 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { ResumenRutas, RutaFila } from "@/app/acciones/rutas";
+import {
+  cerrarRuta, eliminarRuta, type ResumenRutas, type RutaFila,
+} from "@/app/acciones/rutas";
+import MenuFila, { type AccionFila } from "@/components/MenuFila";
 import {
   AccionesPagina, BOTON_PRIMARIO, BOTON_SECUNDARIO, Contador, Paginacion, usePaginas,
 } from "@/components/Paginacion";
@@ -27,15 +30,85 @@ export default function PanelRutas({
   resumen,
   desde,
   hasta,
+  rol = "planificador",
 }: {
   rutas: RutaFila[];
   resumen: ResumenRutas | null;
   desde: string;
   hasta: string;
+  rol?: "admin" | "planificador" | "conductor";
 }) {
   const router = useRouter();
   const [vehiculo, setVehiculo] = useState("");
   const [conductor, setConductor] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const nombreDe = (r: RutaFila) => r.placa ?? `R-${String(r.indice + 1).padStart(2, "0")}`;
+
+  async function hacer(f: () => Promise<unknown>) {
+    setError(null);
+    try {
+      await f();
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  /**
+   * Lo que se puede hacer con una ruta desde su fila.
+   *
+   * Cerrar es dar la ruta por terminada: sus órdenes quedan bloqueadas,
+   * tengan el estado que tengan. Eliminar solo vale antes de salir, y no
+   * borra las órdenes: vuelven a la bandeja del despacho.
+   */
+  function acciones(r: RutaFila): AccionFila[] {
+    const cerrada = r.estado === "completada";
+    const conHistoria = Boolean(r.salida_real) || r.gestionadas > 0;
+    return [
+      { texto: "Mostrar en la torre", href: `/torre?despacho=${r.despacho_id}` },
+      { texto: "Ver la planificación", href: `/despachos/${r.despacho_id}` },
+      { texto: "Asignar conductor y vehículo", href: `/despachos/${r.despacho_id}#asignacion` },
+      cerrada
+        ? {
+            texto: "Abrir ruta",
+            noPorque: rol === "admin" ? null : "Solo un administrador puede abrirla",
+            onClick: () => {
+              if (window.confirm(`¿Volver a abrir la ruta ${nombreDe(r)}?\n\nSus órdenes se desbloquean y se pueden volver a marcar.`)) {
+                void hacer(() => cerrarRuta(r.id, false));
+              }
+            },
+          }
+        : {
+            texto: "Cerrar ruta",
+            noPorque: rol === "conductor" ? "No tienes permiso" : null,
+            onClick: () => {
+              const pendientes = r.paradas - r.gestionadas;
+              const aviso = pendientes > 0
+                ? `Tiene ${pendientes} orden(es) sin gestionar, que se quedarán así. `
+                : "";
+              if (window.confirm(`¿Cerrar la ruta ${nombreDe(r)}?\n\n${aviso}Sus órdenes quedan bloqueadas: nadie las puede marcar hasta que un administrador abra la ruta.`)) {
+                void hacer(() => cerrarRuta(r.id, true));
+              }
+            },
+          },
+      {
+        texto: "Eliminar",
+        peligro: true,
+        noPorque:
+          rol === "conductor"
+            ? "No tienes permiso"
+            : conHistoria
+              ? "Ya salió o tiene órdenes gestionadas"
+              : null,
+        onClick: () => {
+          if (window.confirm(`¿Eliminar la ruta ${nombreDe(r)}?\n\nSus ${r.paradas} orden(es) no se borran: vuelven a la bandeja del despacho, sin asignar.`)) {
+            void hacer(() => eliminarRuta(r.id));
+          }
+        },
+      },
+    ];
+  }
 
   const vehiculos = useMemo(
     () => [...new Set(rutas.map((r) => r.placa).filter(Boolean) as string[])].sort(),
@@ -265,6 +338,12 @@ export default function PanelRutas({
         />
       </Contador>
 
+      {error && (
+        <p className="mb-3 rounded-[8px] border border-bad/30 bg-bad-bg px-3 py-2 text-[13px] text-bad">
+          {error}
+        </p>
+      )}
+
       {filtradas.length === 0 ? (
         <EstadoVacio
           icono="◈"
@@ -285,6 +364,7 @@ export default function PanelRutas({
                       {c.texto}
                     </th>
                   ))}
+                  <th className="w-[56px]" aria-label="Acciones" />
                 </tr>
               </thead>
               <tbody>
@@ -300,6 +380,9 @@ export default function PanelRutas({
                         {c.pinta(r)}
                       </td>
                     ))}
+                    <td className="border-b border-line text-center align-middle" style={{ padding: "0 6px" }}>
+                      <MenuFila rotulo={`Acciones de la ruta ${nombreDe(r)}`} acciones={acciones(r)} />
+                    </td>
                   </tr>
                 ))}
               </tbody>

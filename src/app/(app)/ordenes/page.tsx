@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { conductoresConRuta, ordenes } from "@/app/acciones/datos";
+import { conductoresConRuta, ordenes, miRol } from "@/app/acciones/datos";
 import { BarraSuperior } from "@/components/ui";
 import PanelOrdenes from "@/components/PanelOrdenes";
 
@@ -30,15 +30,16 @@ export default async function PaginaOrdenes({
     estado: q.estado,
   };
 
-  const [lista, conductores] = await Promise.all([
+  const [lista, conductores, rol] = await Promise.all([
     ordenes(filtro),
     conductoresConRuta(filtro.desde, filtro.hasta),
+    miRol(),
   ]);
 
   return (
     <>
       <BarraSuperior migaja="" titulo="Órdenes" />
-      <PanelOrdenes inicial={lista} conductores={conductores} filtro={filtro} />
+      <PanelOrdenes inicial={lista} conductores={conductores} filtro={filtro} rol={rol} />
     </>
   );
 }

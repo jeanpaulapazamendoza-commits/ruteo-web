@@ -116,7 +116,8 @@ export default async function PaginaDespacho({
     ),
     comoUsuario<Vehiculo>(
       usuario,
-      "select id, nombre, placa from vehiculos where activo order by nombre",
+      `select id, nombre, placa, capacidad_bultos, conductor_id
+         from vehiculos where activo order by nombre`,
     ),
     unaFila<{ rol: string }>(usuario, "select rol from perfiles where id = $1", [
       usuario,
@@ -172,6 +173,7 @@ export default async function PaginaDespacho({
     km: r.km,
     conductor_id: r.conductor_id,
     vehiculo_id: r.vehiculo_id,
+    base: r.base_lat != null && r.base_lon != null ? (r.base_nombre ?? "Base") : null,
   }));
 
   const k = despacho.kpis ?? {};
@@ -226,42 +228,28 @@ export default async function PaginaDespacho({
         }
       />
 
-      {/* Resumen del documento */}
-      <div className="flex flex-wrap gap-x-6 gap-y-1.5 border-b border-line bg-surface px-5 py-2.5 text-[12px] text-ink-2">
-        <span>
-          <b className="num text-ink">{sinRutear ? 0 : (k.rutas ?? rutas.length)}</b> rutas
-        </span>
-        <span>
-          <b className="num text-ink">{(k.paradas ?? totalPuntos).toLocaleString("es-PE")}</b> paradas
-        </span>
-        {k.bultos ? (
-          <span>
-            <b className="num text-ink">{k.bultos.toLocaleString("es-PE")}</b> bultos
-          </span>
-        ) : null}
-        {!sinRutear && (
-          <span>
-            <b className="num text-ink">{(k.km ?? 0).toFixed(1)}</b> km
-          </span>
-        )}
-        {k.costo ? (
-          <span>
-            <b className="num text-ink">S/ {k.costo.toFixed(2)}</b>
-          </span>
-        ) : null}
-      </div>
-
-      {/* Una orden que llega con el reparto ya armado: entra en la bandeja y
-          desde ahí se le busca hueco. Antes de rutear no hace falta: el
-          planificador ya deja añadir puntos. */}
-      {!sinRutear && admiteOrdenes(despacho.estado) && yo?.rol !== "conductor" && (
-        <div className="px-4 pt-4">
-          <NuevaOrden despachoId={despacho.id} />
+      {/* Todo el cuerpo va en un solo bloque: el lienzo convierte cada hijo
+          directo en una franja del panel y le quita el relleno vertical, y
+          con una franja por sección quedaban todas pegadas. Dentro de este
+          bloque los espacios son los de siempre. */}
+      <div className="flex flex-col gap-5">
+        {/* Resumen del documento */}
+        <div className="flex flex-wrap items-end gap-x-10 gap-y-3">
+          <Cifra valor={sinRutear ? 0 : (k.rutas ?? rutas.length)} texto="rutas" />
+          <Cifra valor={(k.paradas ?? totalPuntos).toLocaleString("es-PE")} texto="paradas" />
+          {k.bultos ? <Cifra valor={k.bultos.toLocaleString("es-PE")} texto="bultos" /> : null}
+          {!sinRutear && <Cifra valor={(k.km ?? 0).toFixed(1)} texto="km" />}
+          {k.costo ? <Cifra valor={`S/ ${k.costo.toFixed(2)}`} texto="costo" /> : null}
         </div>
-      )}
 
-      {libres.length > 0 && (
-        <div className="px-4 pt-4">
+        {/* Una orden que llega con el reparto ya armado: entra en la bandeja
+            y desde ahí se le busca hueco. Antes de rutear no hace falta: el
+            planificador ya deja añadir puntos. */}
+        {!sinRutear && admiteOrdenes(despacho.estado) && yo?.rol !== "conductor" && (
+          <NuevaOrden despachoId={despacho.id} />
+        )}
+
+        {libres.length > 0 && (
           <PuntosSinAsignar
             despachoId={despacho.id}
             paradas={libres}
@@ -269,85 +257,70 @@ export default async function PaginaDespacho({
             editable={editable(despacho.estado)}
             insertable={!sinRutear && admiteOrdenes(despacho.estado) && destinos.length > 0}
           />
-        </div>
-      )}
+        )}
 
-      {sinRutear ? (
-        <div className="p-4">
-          <Tarjeta className="mb-3 p-4">
+        {sinRutear ? (
+          <Tarjeta className="p-5">
             <h3 className="text-[14px] font-bold tracking-tight">
               Archivo cargado, todavía sin rutear
             </h3>
-            <p className="mt-1 text-[13px] text-ink-2">
+            <p className="mt-1.5 text-[13px] leading-relaxed text-ink-2">
               Los <b className="num">{(k.paradas ?? totalPuntos).toLocaleString("es-PE")}</b> puntos ya
               están guardados. Ábrelo en el planificador para agrupar, calcular
               las rutas y dejarlo <b>Planificado</b>.
             </p>
             <Link
               href={`/planificador?despacho=${despacho.id}`}
-              className="mt-3 inline-block rounded-full border border-amber-600 bg-amber px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-amber-600 hover:text-white"
+              className="mt-4 inline-block rounded-full border border-amber-600 bg-amber px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-amber-600 hover:text-white"
             >
               ◈ Rutear este despacho
             </Link>
           </Tarjeta>
-
-          {rutas.length > 0 && (
-            <VistaDespacho
-              rutas={rutas}
-              cd={{
-                lat: despacho.cd_lat ?? rutas[0]?.paradas[0]?.lat ?? -12.046374,
-                lon: despacho.cd_lon ?? rutas[0]?.paradas[0]?.lon ?? -77.042793,
-              }}
-              bases={basesDespacho}
-            />
-          )}
-        </div>
-      ) : (
-        <>
-          <details className="border-b border-line bg-surface px-5 py-2.5" open>
-            <summary className="cursor-pointer text-[12.5px] font-semibold text-ink-2">
-              Asignación de conductores
-            </summary>
-            <div className="mt-3">
-              <AsignarRutas
-                despachoId={despacho.id}
-                rutas={asignables}
-                conductores={equipo}
-                vehiculos={flota}
-              />
-            </div>
-          </details>
-
-          <HistorialPlanes planes={planes} restaurable={editable(despacho.estado)} />
-
-          {Object.keys(params_).length > 0 && (
-            <details className="border-b border-line bg-surface px-5 py-2.5">
-              <summary className="cursor-pointer text-[12.5px] font-semibold text-ink-2">
-                Configuración con la que se calculó
+        ) : (
+          <>
+            <details id="asignacion" className="scroll-mt-4 rounded-[10px] border border-line px-5 py-4" open>
+              <summary className="cursor-pointer text-[13.5px] font-bold text-ink">
+                Asignación de conductores y vehículos
               </summary>
-              <div className="mt-2.5 flex flex-wrap gap-1.5">
-                {Object.entries(params_)
-                  .filter(([, v]) => v !== null && v !== "" && typeof v !== "object")
-                  .map(([clave, valor]) => (
-                    <span
-                      key={clave}
-                      className="rounded-full border border-line bg-canvas px-2.5 py-1 text-[11.5px] text-ink-2"
-                    >
-                      {ETIQUETA[clave] ?? clave}:{" "}
-                      <b className="num text-ink">
-                        {typeof valor === "boolean" ? (valor ? "sí" : "no") : String(valor)}
-                      </b>
-                    </span>
-                  ))}
+              <div className="mt-4">
+                <AsignarRutas
+                  despachoId={despacho.id}
+                  rutas={asignables}
+                  conductores={equipo}
+                  vehiculos={flota}
+                />
               </div>
             </details>
-          )}
 
-          {rutas.length === 0 ? (
-            <div className="p-6 text-[13.5px] text-ink-2">
-              Este despacho no tiene rutas guardadas.
-            </div>
-          ) : (
+            <HistorialPlanes planes={planes} restaurable={editable(despacho.estado)} />
+
+            {Object.keys(params_).length > 0 && (
+              <details className="rounded-[10px] border border-line px-5 py-4">
+                <summary className="cursor-pointer text-[13.5px] font-bold text-ink">
+                  Configuración con la que se calculó
+                </summary>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {Object.entries(params_)
+                    .filter(([, v]) => v !== null && v !== "" && typeof v !== "object")
+                    .map(([clave, valor]) => (
+                      <span
+                        key={clave}
+                        className="rounded-full border border-line bg-canvas px-3 py-1 text-[12px] text-ink-2"
+                      >
+                        {ETIQUETA[clave] ?? clave}:{" "}
+                        <b className="num text-ink">
+                          {typeof valor === "boolean" ? (valor ? "sí" : "no") : String(valor)}
+                        </b>
+                      </span>
+                    ))}
+                </div>
+              </details>
+            )}
+          </>
+        )}
+
+        {rutas.length > 0 ? (
+          <div className="overflow-hidden rounded-[10px] border border-line">
             <VistaDespacho
               rutas={rutas}
               cd={{
@@ -356,9 +329,25 @@ export default async function PaginaDespacho({
               }}
               bases={basesDespacho}
             />
-          )}
-        </>
-      )}
+          </div>
+        ) : (
+          !sinRutear && (
+            <p className="rounded-[10px] border border-line px-5 py-6 text-[13.5px] text-ink-2">
+              Este despacho no tiene rutas guardadas.
+            </p>
+          )
+        )}
+      </div>
     </>
+  );
+}
+
+/** Una cifra del resumen: el número manda, la unidad acompaña. */
+function Cifra({ valor, texto }: { valor: string | number; texto: string }) {
+  return (
+    <span className="flex items-baseline gap-1.5">
+      <b className="num text-[20px] leading-none text-ink">{valor}</b>
+      <span className="text-[12.5px] text-ink-2">{texto}</span>
+    </span>
   );
 }

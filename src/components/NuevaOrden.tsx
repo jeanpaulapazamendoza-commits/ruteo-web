@@ -116,7 +116,7 @@ export default function NuevaOrden({ despachoId }: { despachoId: string }) {
     return (
       <button
         onClick={() => setAbierta(true)}
-        className="rounded-full border border-line-strong bg-surface px-3.5 py-1.5 text-[12.5px] font-semibold transition hover:bg-canvas"
+        className="self-start rounded-full border border-line-strong bg-surface px-4 py-2 text-[12.5px] font-semibold transition hover:bg-canvas"
       >
         ＋ Añadir una orden a este despacho
       </button>

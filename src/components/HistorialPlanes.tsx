@@ -65,13 +65,14 @@ export default function HistorialPlanes({
   }
 
   return (
-    <details className="border-b border-line bg-surface px-5 py-2.5">
-      <summary className="cursor-pointer text-[12.5px] font-semibold text-ink-2">
-        Historial de planes ({planes.length})
+    <details className="rounded-[10px] border border-line px-5 py-4">
+      <summary className="cursor-pointer text-[13.5px] font-bold text-ink">
+        Historial de planes <span className="num font-normal text-ink-3">({planes.length})</span>
       </summary>
 
-      <div className="mt-2.5 overflow-x-auto">
-        <table className="w-full min-w-[760px] text-left text-[12.5px]">
+      <div className="mt-4 overflow-hidden rounded-[8px] border border-line">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[760px] text-left">
           <thead className="text-[11.5px] text-ink-3">
             <tr>
               <th className="py-1.5 pr-3 font-semibold">Plan</th>
@@ -148,9 +149,10 @@ export default function HistorialPlanes({
             })}
           </tbody>
         </table>
+        </div>
       </div>
 
-      <p className="mt-2 text-[11px] text-ink-3">
+      <p className="mt-3 text-[11.5px] leading-relaxed text-ink-3">
         Las diferencias son contra el plan actual: verde es menos, rojo es más. Se guardan los
         diez últimos.{" "}
         {restaurable

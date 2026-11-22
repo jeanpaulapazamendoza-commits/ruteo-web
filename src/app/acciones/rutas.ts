@@ -72,6 +72,22 @@ export async function rutasLista(desde: string, hasta: string) {
   );
 }
 
+/**
+ * Cierra una ruta —sus órdenes quedan bloqueadas— o la vuelve a abrir.
+ * Abrir, solo un administrador: lo decide la función de la base.
+ */
+export async function cerrarRuta(rutaId: string, cerrar: boolean) {
+  const yo = await idSesion();
+  await comoUsuario(yo, "select cerrar_ruta($1, $2)", [rutaId, cerrar]);
+}
+
+/** Quita una ruta que aún no salió. Sus órdenes vuelven a la bandeja. */
+export async function eliminarRuta(rutaId: string) {
+  const yo = await idSesion();
+  const filas = await comoUsuario<{ n: number }>(yo, "select eliminar_ruta($1) as n", [rutaId]);
+  return filas[0]?.n ?? 0;
+}
+
 export type ResumenRutas = {
   km: number | null;
   co2: number | null;

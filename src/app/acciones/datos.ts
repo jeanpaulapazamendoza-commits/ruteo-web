@@ -325,6 +325,8 @@ export type Orden = {
   fecha: string;
   en_bandeja: boolean;
   intentos: number;
+  /** Cerrada: no admite cambios hasta que un administrador la abra. */
+  bloqueada: boolean;
 };
 
 export type FiltroOrdenes = {
@@ -354,7 +356,7 @@ export async function ordenes(f: FiltroOrdenes = {}, limite = 500) {
             case when r.sin_asignar then null else r.indice end as ruta_indice,
             c.nombre as conductor, v.placa,
             d.id as despacho_id, d.nombre as despacho, d.fecha,
-            r.sin_asignar as en_bandeja,
+            r.sin_asignar as en_bandeja, p.bloqueada,
             (select count(*) from eventos e
               where e.parada_id = p.id
                 and e.tipo not in ('ruta_iniciada','ruta_terminada')) as intentos
@@ -595,6 +597,31 @@ export async function miRol() {
 export async function bloquearParada(paradaId: string, bloquear: boolean) {
   const yo = await idSesion();
   await comoUsuario(yo, "select bloquear_parada($1, $2)", [paradaId, bloquear]);
+}
+
+/**
+ * Cambia los datos de una orden que todavía no se ha gestionado.
+ *
+ * Qué se puede y qué no lo decide la función de la base: una orden ya
+ * marcada o bloqueada no se edita.
+ */
+export async function editarParada(cambios: {
+  parada_id: string;
+  nombre: string;
+  distrito: string | null;
+  bultos: number;
+  prioridad: number;
+  ventana_ini: string | null;
+  ventana_fin: string | null;
+}) {
+  const yo = await idSesion();
+  await comoUsuario(yo, "select editar_parada($1::jsonb)", [JSON.stringify(cambios)]);
+}
+
+/** Borra una orden pendiente. No hay vuelta atrás. */
+export async function eliminarParada(paradaId: string) {
+  const yo = await idSesion();
+  await comoUsuario(yo, "select eliminar_parada($1)", [paradaId]);
 }
 
 export type Cambio = {
