@@ -335,6 +335,12 @@ export type FiltroOrdenes = {
   texto?: string;
   estado?: string;
   conductor?: string;
+  /** Placa del vehículo de la ruta. */
+  vehiculo?: string;
+  /** Solo las del despacho más reciente del rango. */
+  ultimo?: boolean;
+  /** Solo las que aún no están en ninguna ruta. */
+  bandeja?: boolean;
 };
 
 /**
@@ -375,6 +381,13 @@ export async function ordenes(f: FiltroOrdenes = {}, limite = 500) {
              d.nombre ilike '%' || $3 || '%')
         and ($4::text is null or p.estado_entrega = $4)
         and ($5::text is null or c.nombre = $5)
+        and ($8::text is null or v.placa = $8)
+        and (not $9::boolean or d.id = (
+               select u.id from despachos u
+                where u.fecha >= coalesce($1::date, private.hoy() - 7)
+                  and u.fecha <= coalesce($2::date, private.hoy())
+                order by u.fecha desc, u.creado_en desc limit 1))
+        and (not $10::boolean or r.sin_asignar)
       order by d.fecha desc, r.indice, p.orden
       limit $7`,
     [
@@ -385,6 +398,9 @@ export async function ordenes(f: FiltroOrdenes = {}, limite = 500) {
       f.conductor || null,
       ZONA,
       limite,
+      f.vehiculo || null,
+      Boolean(f.ultimo),
+      Boolean(f.bandeja),
     ],
   );
 }

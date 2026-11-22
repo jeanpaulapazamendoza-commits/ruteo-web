@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { conductoresConRuta, ordenes, miRol } from "@/app/acciones/datos";
+import { comoUsuario } from "@/lib/db";
 import { BarraSuperior } from "@/components/ui";
 import PanelOrdenes from "@/components/PanelOrdenes";
 
@@ -30,16 +31,26 @@ export default async function PaginaOrdenes({
     estado: q.estado,
   };
 
-  const [lista, conductores, rol] = await Promise.all([
+  const [lista, conductores, rol, placas] = await Promise.all([
     ordenes(filtro),
     conductoresConRuta(filtro.desde, filtro.hasta),
     miRol(),
+    comoUsuario<{ placa: string }>(
+      sesion.user.id,
+      "select placa from vehiculos where activo and placa is not null order by placa",
+    ),
   ]);
 
   return (
     <>
       <BarraSuperior migaja="" titulo="Órdenes" />
-      <PanelOrdenes inicial={lista} conductores={conductores} filtro={filtro} rol={rol} />
+      <PanelOrdenes
+        inicial={lista}
+        conductores={conductores}
+        vehiculos={placas.map((v) => v.placa)}
+        filtro={filtro}
+        rol={rol}
+      />
     </>
   );
 }

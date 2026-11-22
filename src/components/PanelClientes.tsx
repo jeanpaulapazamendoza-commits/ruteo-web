@@ -24,7 +24,9 @@ function porcentaje(parte: number, total: number) {
 }
 
 export default function PanelClientes({ clientes }: { clientes: ClienteFila[] }) {
-  const [busca, setBusca] = useState("");
+  // Un campo por dato, como en la referencia: quien busca por correo no
+  // quiere que le salgan los clientes de una calle que se llama parecido.
+  const [f, setF] = useState({ nombre: "", codigo: "", correo: "", desde: "", hasta: "" });
   const [soloConFallos, setSoloConFallos] = useState(false);
   const [soloRecurrentes, setSoloRecurrentes] = useState(false);
 
@@ -142,20 +144,37 @@ export default function PanelClientes({ clientes }: { clientes: ClienteFila[] })
   const { visibles, elegidas, alternar, fijas } = useColumnas("clientes", columnas);
 
   const filtrados = useMemo(() => {
-    const q = busca.trim().toLowerCase();
+    const nombre = f.nombre.trim().toLowerCase();
+    const codigo = f.codigo.trim().toLowerCase();
+    const correo = f.correo.trim().toLowerCase();
     return clientes.filter((c) => {
       if (soloRecurrentes && !c.recurrente) return false;
       if (soloConFallos && c.fallidas === 0) return false;
-      if (!q) return true;
-      return (
-        c.nombre.toLowerCase().includes(q) ||
-        c.codigo.toLowerCase().includes(q) ||
-        (c.distrito ?? "").toLowerCase().includes(q) ||
-        (c.telefono ?? "").includes(q) ||
-        (c.direccion ?? "").toLowerCase().includes(q)
-      );
+      // El nombre busca también en teléfono, distrito y dirección: es el
+      // campo al que va quien solo tiene un dato suelto del cliente.
+      if (
+        nombre &&
+        !(
+          c.nombre.toLowerCase().includes(nombre) ||
+          (c.distrito ?? "").toLowerCase().includes(nombre) ||
+          (c.telefono ?? "").includes(nombre) ||
+          (c.direccion ?? "").toLowerCase().includes(nombre)
+        )
+      ) return false;
+      if (codigo && !c.codigo.toLowerCase().includes(codigo)) return false;
+      if (correo && !(c.email ?? "").toLowerCase().includes(correo)) return false;
+      // La fecha es la de su última entrega: quien no tiene ninguna no entra
+      // en un rango.
+      const dia = c.ultima ? String(c.ultima).slice(0, 10) : null;
+      if (f.desde && (!dia || dia < f.desde)) return false;
+      if (f.hasta && (!dia || dia > f.hasta)) return false;
+      return true;
     });
-  }, [clientes, busca, soloConFallos, soloRecurrentes]);
+  }, [clientes, f, soloConFallos, soloRecurrentes]);
+
+  const filtrando = Boolean(
+    f.nombre || f.codigo || f.correo || f.desde || f.hasta || soloConFallos || soloRecurrentes,
+  );
 
   function exportar() {
     descargar(
@@ -183,13 +202,45 @@ export default function PanelClientes({ clientes }: { clientes: ClienteFila[] })
       </AccionesPagina>
 
       {/* Filtros */}
-      <div className="flex flex-wrap items-center gap-2 pb-3">
+      <div className="grid grid-cols-1 gap-2 pb-2 @xl:grid-cols-2 @4xl:grid-cols-[1.4fr_1fr_1.2fr_1.2fr]">
         <input
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          placeholder="Nombre, ID de cliente, teléfono, distrito o dirección"
-          className="min-w-[260px] flex-1 outline-none"
+          value={f.nombre}
+          onChange={(e) => setF((x) => ({ ...x, nombre: e.target.value }))}
+          placeholder="Nombre, teléfono o dirección"
+          className="w-full outline-none"
         />
+        <input
+          value={f.codigo}
+          onChange={(e) => setF((x) => ({ ...x, codigo: e.target.value }))}
+          placeholder="ID de cliente"
+          className="num w-full outline-none"
+        />
+        <input
+          value={f.correo}
+          onChange={(e) => setF((x) => ({ ...x, correo: e.target.value }))}
+          placeholder="Correo"
+          className="w-full outline-none"
+        />
+        <div className="flex items-center gap-1.5">
+          <input
+            type="date"
+            title="Última entrega desde"
+            value={f.desde}
+            max={f.hasta || undefined}
+            onChange={(e) => setF((x) => ({ ...x, desde: e.target.value }))}
+            className="num w-full min-w-0 outline-none"
+          />
+          <input
+            type="date"
+            title="Última entrega hasta"
+            value={f.hasta}
+            min={f.desde || undefined}
+            onChange={(e) => setF((x) => ({ ...x, hasta: e.target.value }))}
+            className="num w-full min-w-0 outline-none"
+          />
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 pb-3">
         <Interruptor
           activo={soloConFallos}
           onClic={() => setSoloConFallos((v) => !v)}
@@ -200,6 +251,18 @@ export default function PanelClientes({ clientes }: { clientes: ClienteFila[] })
           onClic={() => setSoloRecurrentes((v) => !v)}
           texto="Solo fijos"
         />
+        {filtrando && (
+          <button
+            onClick={() => {
+              setF({ nombre: "", codigo: "", correo: "", desde: "", hasta: "" });
+              setSoloConFallos(false);
+              setSoloRecurrentes(false);
+            }}
+            className="h-8 rounded-full px-3 text-[13px] font-bold text-ink-2 transition hover:bg-canvas"
+          >
+            Quitar filtros
+          </button>
+        )}
       </div>
 
       <Contador n={filtrados.length} texto="clientes">

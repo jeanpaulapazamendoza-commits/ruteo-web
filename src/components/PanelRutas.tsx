@@ -11,6 +11,9 @@ import {
   AccionesPagina, BOTON_PRIMARIO, BOTON_SECUNDARIO, Contador, Paginacion, usePaginas,
 } from "@/components/Paginacion";
 import SelectorColumnas, { useColumnas, type Columna } from "@/components/SelectorColumnas";
+import {
+  BarraSeleccion, BOTON_LOTE, BOTON_LOTE_PELIGRO, Casilla, useSeleccion,
+} from "@/components/Seleccion";
 import { EstadoVacio } from "@/components/ui";
 import { aCSV, descargar } from "@/lib/exportar";
 import { fechaHora, hora } from "@/lib/horas";
@@ -42,6 +45,7 @@ export default function PanelRutas({
   const [vehiculo, setVehiculo] = useState("");
   const [conductor, setConductor] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
 
   const nombreDe = (r: RutaFila) => r.placa ?? `R-${String(r.indice + 1).padStart(2, "0")}`;
 
@@ -67,6 +71,7 @@ export default function PanelRutas({
     const conHistoria = Boolean(r.salida_real) || r.gestionadas > 0;
     return [
       { texto: "Mostrar", href: `/rutas/${r.id}` },
+      { texto: "Imprimir etiquetas", onClick: () => imprimir([r]) },
       { texto: "Seguir en la torre", href: `/torre?despacho=${r.despacho_id}` },
       { texto: "Ver la planificación", href: `/despachos/${r.despacho_id}` },
       cerrada
@@ -127,6 +132,47 @@ export default function PanelRutas({
       ),
     [rutas, vehiculo, conductor],
   );
+
+  const sel = useSeleccion(filtradas);
+  const conHistoria = (r: RutaFila) => Boolean(r.salida_real) || r.gestionadas > 0;
+  const abiertas = sel.elegidas.filter((r) => r.estado !== "completada");
+  const cerradas = sel.elegidas.filter((r) => r.estado === "completada");
+  const borrables = sel.elegidas.filter((r) => !conHistoria(r) && r.estado !== "completada");
+
+  /** Las etiquetas de todas las órdenes de unas rutas, en una pestaña aparte. */
+  function imprimir(lista: RutaFila[]) {
+    window.open(`/etiquetas?rutas=${lista.map((r) => r.id).join(",")}`, "_blank", "noopener");
+  }
+
+  /**
+   * Lo mismo que el menú de una fila, sobre todas las marcadas.
+   *
+   * Va de una en una y se detiene en la primera que falla: seguir después de
+   * un error deja la selección a medias sin que se sepa cuáles sí y cuáles no.
+   */
+  async function enLote(lista: RutaFila[], f: (r: RutaFila) => Promise<unknown>) {
+    setError(null);
+    setOcupado(true);
+    let hechas = 0;
+    try {
+      for (const r of lista) {
+        try {
+          await f(r);
+          hechas += 1;
+        } catch (e) {
+          setError(
+            `${nombreDe(r)}: ${e instanceof Error ? e.message : String(e)}` +
+              (hechas ? ` (las ${hechas} anteriores sí se hicieron)` : ""),
+          );
+          break;
+        }
+      }
+    } finally {
+      setOcupado(false);
+      sel.limpiar();
+      router.refresh();
+    }
+  }
 
   const columnas: Columna<RutaFila>[] = useMemo(
     () => [
@@ -344,6 +390,59 @@ export default function PanelRutas({
         </p>
       )}
 
+      <BarraSeleccion
+        n={sel.elegidas.length}
+        texto={sel.elegidas.length === 1 ? "ruta seleccionada" : "rutas seleccionadas"}
+        onLimpiar={sel.limpiar}
+      >
+        <button onClick={() => imprimir(sel.elegidas)} className={BOTON_LOTE}>
+          Imprimir etiquetas
+        </button>
+        {rol !== "conductor" && (
+          <button
+            disabled={ocupado || !abiertas.length}
+            title={abiertas.length ? undefined : "Las marcadas ya están cerradas"}
+            onClick={() => {
+              if (window.confirm(`¿Cerrar ${abiertas.length} ruta(s)?\n\nSus órdenes quedan bloqueadas, tengan el estado que tengan, hasta que un administrador las abra.`)) {
+                void enLote(abiertas, (r) => cerrarRuta(r.id, true));
+              }
+            }}
+            className={BOTON_LOTE}
+          >
+            Cerrar rutas{abiertas.length ? ` (${abiertas.length})` : ""}
+          </button>
+        )}
+        {rol === "admin" && (
+          <button
+            disabled={ocupado || !cerradas.length}
+            title={cerradas.length ? undefined : "Ninguna de las marcadas está cerrada"}
+            onClick={() => {
+              if (window.confirm(`¿Volver a abrir ${cerradas.length} ruta(s)?\n\nSus órdenes se desbloquean y se pueden volver a marcar.`)) {
+                void enLote(cerradas, (r) => cerrarRuta(r.id, false));
+              }
+            }}
+            className={BOTON_LOTE}
+          >
+            Abrir rutas{cerradas.length ? ` (${cerradas.length})` : ""}
+          </button>
+        )}
+        {rol !== "conductor" && (
+          <button
+            disabled={ocupado || !borrables.length}
+            title={borrables.length ? undefined : "Las marcadas ya salieron, tienen órdenes gestionadas o están cerradas"}
+            onClick={() => {
+              const resto = sel.elegidas.length - borrables.length;
+              if (window.confirm(`¿Eliminar ${borrables.length} ruta(s)?\n\nSus órdenes no se borran: vuelven a la bandeja del despacho, sin asignar.` + (resto ? `\n\n${resto} de las marcadas no se pueden eliminar y se quedan como están.` : ""))) {
+                void enLote(borrables, (r) => eliminarRuta(r.id));
+              }
+            }}
+            className={BOTON_LOTE_PELIGRO}
+          >
+            Eliminar{borrables.length ? ` (${borrables.length})` : ""}
+          </button>
+        )}
+      </BarraSeleccion>
+
       {filtradas.length === 0 ? (
         <EstadoVacio
           icono="◈"
@@ -356,6 +455,14 @@ export default function PanelRutas({
             <table className="w-full border-collapse">
               <thead>
                 <tr>
+                  <th className="w-[44px]" style={{ padding: "0 0 0 14px" }}>
+                    <Casilla
+                      rotulo="Seleccionar las rutas de esta página"
+                      marcada={filas.length > 0 && filas.every((r) => sel.tiene(r.id))}
+                      parcial={filas.some((r) => sel.tiene(r.id))}
+                      onCambio={(si) => sel.marcar(filas.map((r) => r.id), si)}
+                    />
+                  </th>
                   {visibles.map((c) => (
                     <th
                       key={c.clave}
@@ -369,7 +476,14 @@ export default function PanelRutas({
               </thead>
               <tbody>
                 {filas.map((r) => (
-                  <tr key={r.id} className="transition hover:bg-surface-2">
+                  <tr key={r.id} className={`transition hover:bg-surface-2 ${sel.tiene(r.id) ? "bg-amber-050" : ""}`}>
+                    <td className="border-b border-line align-middle" style={{ padding: "0 0 0 14px" }}>
+                      <Casilla
+                        rotulo={`Seleccionar la ruta ${nombreDe(r)}`}
+                        marcada={sel.tiene(r.id)}
+                        onCambio={() => sel.alternar(r.id)}
+                      />
+                    </td>
                     {visibles.map((c) => (
                       <td
                         key={c.clave}
