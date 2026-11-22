@@ -376,6 +376,29 @@ function TarjetaVehiculo({
   // El modo comprimido pliega todas; el botón de cada una manda sobre él.
   const desplegada = abierta ?? !compacto;
 
+  // Zoom de la línea del día. 0 es la escala común a todas las tarjetas;
+  // cada paso hacia dentro la reduce a la mitad alrededor de lo que hizo
+  // esta ruta, y hacia fuera la duplica.
+  const [zoom, setZoom] = useState(0);
+  // Con zoom, la línea se arrastra para ver lo que quedó fuera.
+  const [despl, setDespl] = useState(0);
+  const arrastre = useRef<{ x: number; despl: number; ancho: number } | null>(null);
+  const ventana = useMemo<Escala | null>(() => {
+    if (!escala || (zoom === 0 && despl === 0)) return escala;
+    const ancho = (escala.hasta - escala.desde) / 2 ** zoom;
+    const horas = eventos.map((e) => new Date(e.ocurrido_en).getTime());
+    let centro = (escala.desde + escala.hasta) / 2;
+    if (zoom > 0 && horas.length) {
+      const ini = Math.min(...horas);
+      const fin = Math.max(...horas);
+      // Si todo lo que hizo cabe, se centra; si no, se empieza por el
+      // principio, que es mejor que abrir sobre un tramo vacío.
+      centro = fin - ini <= ancho * 0.9 ? (ini + fin) / 2 : ini + ancho * 0.45;
+    }
+    centro += despl;
+    return { ...escala, desde: centro - ancho / 2, hasta: centro + ancho / 2 };
+  }, [escala, zoom, despl, eventos]);
+
   const pct = r.asignadas ? Math.round((r.gestionadas / r.asignadas) * 100) : 0;
   const cerrada = Boolean(r.fin_real) || (r.asignadas > 0 && r.gestionadas === r.asignadas);
   const callado = r.ultima_marca ? (ahora - new Date(r.ultima_marca).getTime()) / 60000 : null;
@@ -474,14 +497,50 @@ function TarjetaVehiculo({
           </div>
 
           <div className="min-w-[320px] flex-1 px-[10px]">
-            <div className="flex h-[31px] items-center justify-end gap-0 text-[11px] font-bold" style={{ color: "#a2a2a2" }}>
+            <div className="flex h-[31px] items-center gap-0 text-[11px] font-bold" style={{ color: "#a2a2a2" }}>
+              {escala && (
+                <div className="mr-auto flex items-center gap-[10px]" style={{ color: "#39414d" }}>
+                  <BotonZoom titulo="Alejar" onClick={() => setZoom((z) => Math.max(-2, z - 1))} desactivado={zoom <= -2}>
+                    <path d="M3 5.6h5v1H3z" fill="currentColor" stroke="none" />
+                  </BotonZoom>
+                  <BotonZoom titulo="Acercar" onClick={() => setZoom((z) => Math.min(5, z + 1))} desactivado={zoom >= 5}>
+                    <path d="M3 5.6h5v1H3zM5 3.6h1v5H5z" fill="currentColor" stroke="none" />
+                  </BotonZoom>
+                  <BotonZoom
+                    titulo="Restablecer"
+                    onClick={() => { setZoom(0); setDespl(0); }}
+                    desactivado={zoom === 0 && despl === 0}
+                    sinLupa
+                  >
+                    <path d="M2.2 6.4a4.6 4.6 0 1 1 1.5 3.4M2 2.6v3.9h3.9" />
+                  </BotonZoom>
+                </div>
+              )}
               <Senal texto="Desvío" valor={r.desvio_min != null ? `${r.desvio_min > 0 ? "+" : ""}${r.desvio_min} min` : null} alerta={r.desvio_min != null && r.desvio_min > 15} />
               <Senal texto="Señal" valor={r.red ? r.red.toUpperCase() : null} alerta={Boolean(enSilencio)} />
               <Senal texto="Batería" valor={r.bateria != null ? `${r.bateria}%` : null} alerta={r.bateria != null && r.bateria <= 20} />
               <Senal texto="Última" valor={r.ultima_marca ? hora(r.ultima_marca) : null} />
             </div>
-            {escala ? (
-              <LineaDia eventos={eventos} escala={escala} ahora={esHoy ? ahora : null} />
+            {ventana ? (
+              <div
+                className={zoom !== 0 ? "cursor-grab touch-none select-none active:cursor-grabbing" : undefined}
+                title={zoom !== 0 ? "Arrastra para moverte por el día" : undefined}
+                onPointerDown={(e) => {
+                  if (zoom === 0) return;
+                  arrastre.current = { x: e.clientX, despl, ancho: e.currentTarget.clientWidth || 1 };
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                }}
+                onPointerMove={(e) => {
+                  const a = arrastre.current;
+                  if (!a) return;
+                  const tramo = ventana.hasta - ventana.desde;
+                  setDespl(a.despl - ((e.clientX - a.x) / a.ancho) * tramo);
+                }}
+                onPointerUp={() => { arrastre.current = null; }}
+                onPointerCancel={() => { arrastre.current = null; }}
+              >
+                <LineaDia eventos={eventos} escala={ventana} ahora={esHoy ? ahora : null} />
+              </div>
             ) : (
               <div className="pb-4 text-[11px]" style={{ color: C.tenue }}>
                 Sin actividad todavía
@@ -518,6 +577,37 @@ function Reparto({ n, texto, pct, color }: { n: number; texto: string; pct: numb
         <div className="h-full" style={{ width: `${pct}%`, background: color }} />
       </div>
     </div>
+  );
+}
+
+function BotonZoom({
+  titulo, onClick, desactivado, sinLupa = false, children,
+}: {
+  titulo: string;
+  onClick: () => void;
+  desactivado: boolean;
+  sinLupa?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={titulo}
+      aria-label={titulo}
+      onClick={onClick}
+      disabled={desactivado}
+      className="grid h-[21px] w-[14px] place-items-center transition hover:text-black disabled:opacity-35"
+    >
+      <svg width="14" height="15" viewBox="0 0 14 15" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        {!sinLupa && (
+          <>
+            <circle cx="5.5" cy="6.1" r="5" />
+            <path d="M9.3 9.9 13.2 13.8" />
+          </>
+        )}
+        {children}
+      </svg>
+    </button>
   );
 }
 
@@ -560,55 +650,71 @@ function LineaDia({
 }) {
   const ancho = escala.hasta - escala.desde || 1;
   const pos = (t: number) => ((t - escala.desde) / ancho) * 100;
+  const dentro = (t: number) => t >= escala.desde && t <= escala.hasta;
 
-  const horaMs = 60 * 60 * 1000;
-  const horas = Math.max(1, Math.round(ancho / horaMs));
-  const paso = [1, 2, 3, 4, 6, 12, 24].find((p) => horas / p <= 8) ?? 24;
+  // Marcas del eje: el paso más fino que no pase de ocho, para que con el
+  // zoom aparezcan las medias horas y los cuartos.
+  const minuto = 60 * 1000;
+  const paso =
+    [5, 10, 15, 30, 60, 120, 180, 240, 360, 720, 1440].find((p) => ancho / (p * minuto) <= 8) ?? 1440;
   const marcas: number[] = [];
-  for (let t = escala.desde; t <= escala.hasta; t += horaMs * paso) marcas.push(t);
+  for (
+    let t = Math.ceil(escala.desde / (paso * minuto)) * paso * minuto;
+    t <= escala.hasta;
+    t += paso * minuto
+  ) {
+    marcas.push(t);
+  }
 
   const salida = eventos.find((e) => e.tipo === "ruta_iniciada");
   const marcasParada = eventos.filter(
-    (e) => e.tipo !== "ruta_iniciada" && e.tipo !== "ruta_terminada",
+    (e) =>
+      e.tipo !== "ruta_iniciada" &&
+      e.tipo !== "ruta_terminada" &&
+      dentro(new Date(e.ocurrido_en).getTime()),
   );
+  const tSalida = salida ? new Date(salida.ocurrido_en).getTime() : null;
 
   return (
-    <div className="relative mx-[14px] h-[84px]">
+    <div className="relative mx-[14px] h-[100px]">
       {/* Eje punteado */}
-      <div className="absolute inset-x-0 top-[62px] border-t border-dashed" style={{ borderColor: "#cfd3d7" }} />
+      <div className="absolute inset-x-0 top-[78px] border-t border-dashed" style={{ borderColor: "#cfd3d7" }} />
 
       {marcas.map((t) => (
         <span
           key={t}
-          className="num absolute top-[66px] -translate-x-1/2 text-[9px]"
+          className="num absolute top-[82px] -translate-x-1/2 text-[10px]"
           style={{ left: `${pos(t)}%`, color: C.tenue }}
         >
           {hora(new Date(t))}
         </span>
       ))}
 
-      {ahora !== null && ahora >= escala.desde && ahora <= escala.hasta && (
+      {ahora !== null && dentro(ahora) && (
         <span
-          className="absolute top-0 h-[62px] w-[2px]"
+          className="absolute top-0 h-[78px] w-[2px]"
           style={{ left: `${pos(ahora)}%`, background: C.naranja }}
           title="Ahora"
         />
       )}
 
-      {salida && (
+      {tSalida !== null && dentro(tSalida) && (
         <span
-          title={`Salió del centro a las ${hora(salida.ocurrido_en)}`}
-          className="absolute top-[18px] h-[18px] w-[3px] -translate-x-1/2"
-          style={{ left: `${pos(new Date(salida.ocurrido_en).getTime())}%`, background: C.turquesa }}
+          title={`Salió del centro a las ${hora(salida!.ocurrido_en)}`}
+          className="absolute top-[8px] h-[20px] w-[3px] -translate-x-1/2"
+          style={{ left: `${pos(tSalida)}%`, background: C.turquesa }}
         />
       )}
 
+      {/* Dos alturas, como en la referencia: arriba lo entregado, abajo lo
+          que no salió bien, para que un fallo no se pierda entre los verdes. */}
       {marcasParada.map((e) => (
         <span
           key={e.id}
           title={`${hora(e.ocurrido_en)} · ${e.parada ?? "Parada"}`}
-          className="absolute top-[20px] h-[14px] w-[14px] -translate-x-1/2 rounded-full border-2 border-white"
+          className="absolute h-[16px] w-[16px] -translate-x-1/2 rounded-full"
           style={{
+            top: e.tipo === "entregado" ? 10 : 50,
             left: `${pos(new Date(e.ocurrido_en).getTime())}%`,
             background: TONO_EVENTO[e.tipo] ?? C.gris,
           }}

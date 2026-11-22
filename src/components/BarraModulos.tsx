@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { salir as cerrarSesion } from "@/app/acciones-sesion";
-import Logo from "@/components/Logo";
 
 /**
  * El armazón: barra superior y carril de módulos.
@@ -218,10 +217,14 @@ export default function BarraModulos({
       {/* Barra superior: 52 px, marca a la izquierda, cuenta a la derecha. */}
       <header className="relative z-40 flex h-[52px] shrink-0 items-center bg-navy-900 pl-5 pr-3">
         <Link href="/actividad" title="PuriqGo" className="flex items-center gap-2.5">
-          <Logo variante="reverso" alto={24} />
-          <span className="h-4 w-px bg-white/30" />
-          <span className="text-[14px] font-light tracking-wide text-white/80">
-            última<b className="font-semibold text-amber">milla</b>
+          {/* La marca va escrita, sin isotipo: nombre en blanco, una raya
+              fina y el producto al lado, como en la referencia. */}
+          <span className="text-[21px] font-bold leading-none tracking-[-0.02em] text-white">
+            Puriq Go
+          </span>
+          <span className="h-[18px] w-px bg-white/40" />
+          <span className="text-[19px] font-light leading-none text-amber">
+            últimamilla
           </span>
         </Link>
 
