@@ -111,6 +111,9 @@ export default function DetalleRuta({
         </Link>
         {puedeCambiar && (
           <>
+            <Link href={`/despachos/${r.despacho_id}/editar`} className={BOTON_SECUNDARIO}>
+              Mover órdenes
+            </Link>
             <button onClick={() => setDialogo("editar")} className={BOTON_SECUNDARIO}>
               Editar ruta
             </button>

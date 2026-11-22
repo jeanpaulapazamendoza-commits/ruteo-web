@@ -346,6 +346,8 @@ export type CuerpoReordenar = {
   final: "centro" | "parada" | "libre";
   final_id: string | null;
   fijas: number;
+  /** Paradas que conservan su puesto al optimizar. */
+  ancladas?: string[];
   motor: "osrm" | "haversine";
   servicio_min: number;
   servicio_min_bulto: number;

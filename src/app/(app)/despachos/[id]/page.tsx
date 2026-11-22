@@ -210,6 +210,14 @@ export default async function PaginaDespacho({
                 {sinRutear ? "◈ Rutear" : "◈ Añadir puntos o recalcular"}
               </Link>
             )}
+            {!sinRutear && admiteOrdenes(despacho.estado) && yo?.rol !== "conductor" && (
+              <Link
+                href={`/despachos/${despacho.id}/editar`}
+                className="rounded-full border border-line-strong bg-surface px-3 py-1.5 text-[12.5px] font-semibold transition hover:bg-canvas"
+              >
+                ✎ Editar rutas
+              </Link>
+            )}
             {yo?.rol === "admin" && (
               <BorrarDespacho
                 despachoId={despacho.id}

@@ -11,14 +11,9 @@ import { useEffect, useMemo, useRef } from "react";
 import type { Grupo, Ruta, TiendaMapa } from "@/lib/motor";
 import type { Zona } from "@/lib/zonas";
 
-export const COLORES_RUTA = [
-  "#E8833A", "#2E7DD1", "#0E8F9E", "#7A5AF8", "#C2439B", "#7C9A1F",
-  "#D9534F", "#2F855A", "#B7791F", "#5A67D8", "#D53F8C", "#319795",
-];
+import { COLORES_RUTA, colorDe } from "@/lib/coloresRuta";
 
-export function colorDe(i: number) {
-  return COLORES_RUTA[i % COLORES_RUTA.length];
-}
+export { COLORES_RUTA, colorDe };
 
 /** Envolvente convexa para dibujar la zona de cada grupo. */
 function envolvente(puntos: [number, number][]): [number, number][] {
