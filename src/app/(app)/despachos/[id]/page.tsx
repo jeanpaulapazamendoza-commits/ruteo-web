@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { comoUsuario, unaFila } from "@/lib/db";
 import { BarraSuperior, Pastilla, Tarjeta } from "@/components/ui";
-import { estado as infoEstado, editable } from "@/lib/despachos";
+import { estado as infoEstado, editable, admiteOrdenes } from "@/lib/despachos";
 import VistaDespacho, { type RutaGuardada } from "@/components/VistaDespacho";
 import BorrarDespacho from "@/components/BorrarDespacho";
 import PuntosSinAsignar, {
@@ -15,6 +15,7 @@ import AsignarRutas, {
   type Conductor,
   type Vehiculo,
 } from "@/components/AsignarRutas";
+import NuevaOrden from "@/components/NuevaOrden";
 import { asegurarTrazados } from "@/lib/trazado";
 
 type Kpis = {
@@ -230,6 +231,15 @@ export default async function PaginaDespacho({
         ) : null}
       </div>
 
+      {/* Una orden que llega con el reparto ya armado: entra en la bandeja y
+          desde ahí se le busca hueco. Antes de rutear no hace falta: el
+          planificador ya deja añadir puntos. */}
+      {!sinRutear && admiteOrdenes(despacho.estado) && yo?.rol !== "conductor" && (
+        <div className="px-4 pt-4">
+          <NuevaOrden despachoId={despacho.id} />
+        </div>
+      )}
+
       {libres.length > 0 && (
         <div className="px-4 pt-4">
           <PuntosSinAsignar
@@ -237,6 +247,7 @@ export default async function PaginaDespacho({
             paradas={libres}
             rutas={destinos}
             editable={editable(despacho.estado)}
+            insertable={!sinRutear && admiteOrdenes(despacho.estado) && destinos.length > 0}
           />
         </div>
       )}

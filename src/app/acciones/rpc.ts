@@ -24,6 +24,8 @@ const PERMITIDAS = {
   asignar_rutas: "escalar",
   eliminar_despacho: "escalar",
   mover_paradas: "escalar",
+  insertar_paradas: "escalar",
+  agregar_orden: "escalar",
   iniciar_ruta: "escalar",
   marcar_parada: "escalar",
   eliminar_tiendas: "escalar",

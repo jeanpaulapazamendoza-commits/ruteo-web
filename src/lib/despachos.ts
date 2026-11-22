@@ -258,6 +258,62 @@ export async function eliminarDespacho(despachoId: string) {
   await rpc("eliminar_despacho", { p_despacho: despachoId });
 }
 
+/** Mientras no se cierre, admite órdenes nuevas aunque ya esté en la calle. */
+export const admiteOrdenes = (valor: string) => valor !== "cerrado" && valor !== "anulado";
+
+/**
+ * Guarda una propuesta de inserción del motor: cada orden nueva en su hueco.
+ *
+ * Por cada ruta viaja el orden completo de lo que le queda pendiente. Las
+ * horas estimadas solo van para las nuevas: las de lo que ya estaba son lo
+ * que se le prometió al cliente y no se reescriben.
+ */
+export async function aplicarInsercion(
+  despachoId: string,
+  rutas: {
+    id: string;
+    orden: string[];
+    etas: Record<string, string>;
+    nuevas: string[];
+    km_extra: number;
+    min_extra: number;
+  }[],
+) {
+  return rpc<{ movidas: number }>("insertar_paradas", {
+    p: {
+      despacho_id: despachoId,
+      rutas: rutas.map((r) => ({
+        ruta_id: r.id,
+        orden: r.orden,
+        etas: Object.fromEntries(r.nuevas.map((id) => [id, r.etas[id]])),
+        km_extra: r.km_extra,
+        min_extra: r.min_extra,
+      })),
+    },
+  });
+}
+
+/** Añade una orden suelta a la bandeja de un despacho que ya existe. */
+export async function agregarOrden(
+  despachoId: string,
+  orden: {
+    codigo: string;
+    nombre: string;
+    direccion?: string | null;
+    distrito?: string | null;
+    telefono?: string | null;
+    lat: number;
+    lon: number;
+    bultos: number;
+    prioridad: number;
+    ventana_ini: string | null;
+    ventana_fin: string | null;
+    extra: Record<string, string>;
+  },
+) {
+  return rpc<string>("agregar_orden", { p: { despacho_id: despachoId, ...orden } });
+}
+
 /** Mueve paradas de la bandeja a una ruta existente, o a una ruta nueva. */
 export async function moverParadas(
   despachoId: string,

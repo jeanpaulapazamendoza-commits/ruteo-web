@@ -17,7 +17,7 @@ const MOTOR =
 export const maxDuration = 120;
 
 const RUTAS_PERMITIDAS = new Set([
-  "agrupar", "rutear", "planificar", "tiendas-en-sector", "salud",
+  "agrupar", "rutear", "planificar", "insertar", "tiendas-en-sector", "salud",
 ]);
 
 export async function POST(

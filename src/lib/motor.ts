@@ -230,6 +230,93 @@ export function planificar(tiendas: TiendaMapa[], cfg: ConfigPlanificar) {
   });
 }
 
+/** Una parada tal como la quiere el motor: solo lo que rutea. */
+export type ParadaMotor = {
+  id: string;
+  codigo: string;
+  nombre: string;
+  distrito: string | null;
+  lat: number;
+  lon: number;
+  bultos: number;
+  prioridad: number;
+  ventana_ini: string | null;
+  ventana_fin: string | null;
+  etiquetas: string[];
+};
+
+/** Lo que se le manda a `/insertar`. Lo arma el servidor: ver acciones/insertar. */
+export type CuerpoInsertar = {
+  rutas: {
+    id: string;
+    /** Dónde está el vehículo. Vacío = en el centro. */
+    lat: number | null;
+    lon: number | null;
+    /** Desde cuándo está libre ahí. Vacío = la hora de la petición. */
+    hora: string | null;
+    pendientes: ParadaMotor[];
+    fijas: number;
+    capacidad_libre: number | null;
+    paradas_libres: number | null;
+    etiquetas: string[] | null;
+  }[];
+  nuevas: ParadaMotor[];
+  cd_lat: number;
+  cd_lon: number;
+  motor: "osrm" | "haversine";
+  cerrado: boolean;
+  hora_actual: string;
+  servicio_min: number;
+  servicio_min_bulto: number;
+  fin_jornada: string | null;
+  reordenar: boolean;
+  peso_prioridad: number;
+};
+
+export type PropuestaInsercion = {
+  /** Solo las rutas que reciben algo, con su orden completo de pendientes. */
+  rutas: {
+    id: string;
+    orden: string[];
+    etas: Record<string, string>;
+    fin: string;
+    fin_antes: string;
+    min_extra: number;
+    km_extra: number;
+    nuevas: string[];
+    reordenada: boolean;
+  }[];
+  inserciones: Record<string, {
+    ruta: string;
+    posicion: number;
+    despues_de: string | null;
+    eta: string;
+    km_extra: number;
+    /** Etiquetas que pide y que no se pudieron comprobar en el vehículo. */
+    sin_comprobar: string[];
+  }>;
+  sin_asignar: string[];
+  motivos: Record<string, string>;
+  resumen: {
+    pedidos: number;
+    colocados: number;
+    sin_asignar: number;
+    rutas_tocadas: number;
+    matriz: "calles" | "recta";
+  };
+};
+
+/**
+ * Busca el mejor hueco para órdenes nuevas en rutas que ya están en marcha.
+ *
+ * No reparte el día otra vez: cada vehículo parte de donde está, lo ya
+ * gestionado no cuenta y el orden de lo pendiente se respeta. Solo propone;
+ * guardar es otro paso (`insertar_paradas` en la base).
+ */
+export function insertar(cuerpo: CuerpoInsertar) {
+  return pedir<PropuestaInsercion>("/insertar", cuerpo);
+}
+
 export function tiendasEnSector(tiendas: TiendaMapa[], poligono: number[][]) {
   return pedir<{ ids: string[] }>("/tiendas-en-sector", { tiendas, poligono });
 }
