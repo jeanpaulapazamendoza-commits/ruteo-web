@@ -81,12 +81,12 @@ export default function TiraIndicadores({
     : items;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-line bg-surface px-4 py-2">
+    <div className="flex flex-wrap items-end gap-x-9 gap-y-3">
       {activos.map((i) => {
         const pct = i.de ? Math.round((i.n / i.de) * 1000) / 10 : null;
         return (
           <div key={i.clave} title={i.ayuda}>
-            <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-ink-3">
+            <div className="mb-1.5 text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-3">
               {i.texto}
             </div>
             <div className="flex items-baseline gap-1.5">

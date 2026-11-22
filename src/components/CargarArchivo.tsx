@@ -2,7 +2,9 @@
 
 import { useRef, useState } from "react";
 import {
+  informeDe,
   leerArchivo,
+  type InformeLectura,
   aPuntos,
   plantillaCSV,
   COLUMNAS_PLANTILLA,
@@ -36,6 +38,8 @@ export default function CargarArchivo({
     nombreArchivo: string,
     modo: "reemplazar" | "anadir",
     alias: string,
+    /** Cómo fue la lectura: se guarda con el archivo. */
+    informe: InformeLectura,
   ) => void;
   onCerrar?: () => void;
 }) {
@@ -72,7 +76,10 @@ export default function CargarArchivo({
     if (!lectura?.filas.length) return;
     const quedan = lectura.filas.filter((f) => !excluidos.has(f.codigo));
     if (!quedan.length) return;
-    onListo(aPuntos(quedan), nombre || "archivo.csv", modo, alias.trim());
+    onListo(
+      aPuntos(quedan), nombre || "archivo.csv", modo, alias.trim(),
+      informeDe(lectura, excluidos),
+    );
     setLectura(null);
     setExcluidos(new Set());
     setNombre("");

@@ -299,7 +299,10 @@ export default function TorreControl({
     resumen.entregado + resumen.parcial + resumen.fallido + resumen.reprogramado;
 
   return (
-    <>
+    // Un solo bloque: el panel convierte cada hijo directo en una franja sin
+    // relleno vertical, y con dos franjas —indicadores y cuerpo— quedaban
+    // pegadas entre sí y al borde. Aquí dentro los espacios son los normales.
+    <div className="flex flex-col gap-5">
       {/* La misma tira que encabeza Actividad y Flota, aquí referida a un
           solo despacho: el planificador aprende a leerla una vez. */}
       <TiraIndicadores
@@ -339,8 +342,8 @@ export default function TorreControl({
         }
       />
 
-    <div className="grid min-h-0 flex-1 grid-cols-1 @3xl:grid-cols-[1fr_320px] @5xl:grid-cols-[1fr_340px]">
-      <div className="min-w-0 space-y-3 overflow-y-auto p-3">
+    <div className="grid min-h-0 flex-1 grid-cols-1 items-start gap-5 @3xl:grid-cols-[1fr_320px] @5xl:grid-cols-[1fr_340px]">
+      <div className="min-w-0 space-y-5">
         {error && (
           <p className="rounded-[10px] border border-bad/30 bg-bad-bg px-3 py-2 text-[12.5px] text-bad">
             {error}
@@ -348,7 +351,7 @@ export default function TorreControl({
         )}
 
         {/* El reparto de la jornada, de un vistazo */}
-        <Tarjeta className="p-3">
+        <Tarjeta className="p-5">
           <div className="flex h-3 overflow-hidden rounded-full border border-line bg-canvas">
             <span style={{ width: `${resumen.pct(resumen.entregado)}%`, background: "var(--color-ok)" }} />
             <span style={{ width: `${resumen.pct(resumen.parcial + resumen.reprogramado)}%`, background: "var(--color-warn)" }} />
@@ -356,7 +359,7 @@ export default function TorreControl({
             <span style={{ width: `${resumen.pct(resumen.pendiente)}%`, background: "var(--color-live)" }} />
           </div>
 
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] font-semibold text-ink-2">
+          <div className="mt-3.5 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[12px] font-semibold text-ink-2">
             <Leyenda color="var(--color-ok)" texto={`Entregado ${resumen.entregado}`} />
             <Leyenda color="var(--color-warn)" texto={`Parcial ${resumen.parcial}`} />
             <Leyenda color="var(--color-warn)" texto={`Reprogramado ${resumen.reprogramado}`} />
@@ -369,7 +372,7 @@ export default function TorreControl({
 
           {/* El mismo avance, base por base. Tocar una filtra las rutas. */}
           {bases.length > 0 && (
-            <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-line pt-2.5">
+            <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
               {bases.map((b) => {
                 const activa = soloBase === b.nombre;
                 return (
@@ -620,8 +623,8 @@ export default function TorreControl({
       </div>
 
       {/* Actividad reciente */}
-      <aside className="min-w-0 overflow-y-auto border-l border-line bg-surface p-4">
-        <h3 className="mb-2 text-[10.5px] font-bold uppercase tracking-[0.11em] text-ink-3">
+      <aside className="min-w-0 rounded-[10px] border border-line p-5">
+        <h3 className="mb-3 text-[10.5px] font-bold uppercase tracking-[0.11em] text-ink-3">
           Actividad reciente
         </h3>
         {ultimas.length === 0 ? (
@@ -638,7 +641,7 @@ export default function TorreControl({
         )}
       </aside>
     </div>
-    </>
+    </div>
   );
 }
 

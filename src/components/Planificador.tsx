@@ -14,7 +14,7 @@ import {
   crearDespachoCargado, guardarDespacho, estado,
   type ResumenGuardado,
 } from "@/lib/despachos";
-import { fusionarPuntos } from "@/lib/plantilla";
+import { fusionarPuntos, type InformeLectura } from "@/lib/plantilla";
 import { diaCorto } from "@/lib/horas";
 import { repartirPorZonas, type Zona } from "@/lib/zonas";
 import CargarArchivo from "@/components/CargarArchivo";
@@ -279,6 +279,7 @@ export default function Planificador({
     nombreArchivo: string,
     accion: "reemplazar" | "anadir",
     alias?: string,
+    informe?: InformeLectura,
   ) {
     if (!idDespacho && accion === "reemplazar") {
       setCargando("guardar");
@@ -288,6 +289,7 @@ export default function Planificador({
           archivo: nombreArchivo,
           nombre: alias || null,
           puntos: nuevos,
+          informe,
         });
         router.push(`/planificador?despacho=${id}`);
       } catch (e) {

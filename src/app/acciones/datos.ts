@@ -765,7 +765,12 @@ export type Importacion = {
   despacho_id: string | null;
   despacho: string | null;
   estado: string | null;
+  /** Filas rechazadas y avisos al leerlo. Vacío en lo subido antes de guardarlos. */
+  errores: number | null;
+  avisos: number | null;
 };
+
+export type FiltroImportaciones = { fecha?: string; usuario?: string };
 
 /**
  * Qué se ha subido y en qué acabó.
@@ -774,23 +779,113 @@ export type Importacion = {
  * pantalla que la mirase: no se podía responder quién subió el archivo de
  * ayer ni por qué un archivo cargado no llegó a rutearse nunca.
  */
-export async function importaciones(limite = 60) {
+export async function importaciones(f: FiltroImportaciones = {}, limite = 100) {
   const yo = await idSesion();
   return comoUsuario<Importacion>(
     yo,
     `select i.id, i.nombre_archivo, i.filas, i.creado_en, a.nombre as autor,
             (select count(*) from despachos d where d.importacion_id = i.id) as despachos,
-            u.id as despacho_id, u.nombre as despacho, u.estado
+            u.id as despacho_id, u.nombre as despacho, u.estado,
+            (i.detalle->>'errores_total')::int as errores,
+            (i.detalle->>'avisos_total')::int as avisos
        from importaciones i
        left join perfiles a on a.id = i.creado_por
        left join lateral (
          select d.id, d.nombre, d.estado from despachos d
           where d.importacion_id = i.id
           order by d.creado_en desc limit 1) u on true
+      where ($2::date is null or (i.creado_en at time zone $4)::date = $2::date)
+        and ($3::text is null or a.nombre = $3)
       order by i.creado_en desc
       limit $1`,
-    [limite],
+    [limite, f.fecha ?? null, f.usuario ?? null, ZONA],
   );
+}
+
+/** Quiénes han subido archivos, para el filtro. */
+export async function autoresDeImportaciones() {
+  const yo = await idSesion();
+  const filas = await comoUsuario<{ nombre: string }>(
+    yo,
+    `select distinct a.nombre
+       from importaciones i join perfiles a on a.id = i.creado_por
+      where a.nombre is not null
+      order by a.nombre`,
+  );
+  return filas.map((x) => x.nombre);
+}
+
+export type OrdenImportada = {
+  id: string;
+  codigo: string | null;
+  nombre: string | null;
+  distrito: string | null;
+  direccion: string | null;
+  lat: number;
+  lon: number;
+  bultos: number;
+  prioridad: number;
+  ventana_ini: string | null;
+  ventana_fin: string | null;
+  estado_entrega: string;
+  ruta_indice: number | null;
+  placa: string | null;
+  items: number;
+};
+
+export type DetalleImportacion = {
+  id: string;
+  nombre_archivo: string;
+  filas: number | null;
+  creado_en: string;
+  autor: string | null;
+  /** Lo que dijo el lector. Vacío en lo subido antes de que se guardara. */
+  detalle: Partial<import("@/lib/plantilla").InformeLectura>;
+  despachos: { id: string; nombre: string | null; estado: string; fecha: string }[];
+  ordenes: OrdenImportada[];
+};
+
+/**
+ * Un archivo subido, con lo que traía y en qué quedó.
+ *
+ * Las órdenes son las del despacho que salió de él, con su ruta y su vehículo
+ * de ahora. El archivo original no se guarda: lo que se descarga desde el
+ * detalle es esta lista, en el mismo formato de la plantilla.
+ */
+export async function importacionDetalle(id: string): Promise<DetalleImportacion | null> {
+  const yo = await idSesion();
+  const cab = await unaFila<Omit<DetalleImportacion, "ordenes">>(
+    yo,
+    `select i.id, i.nombre_archivo, i.filas, i.creado_en, a.nombre as autor, i.detalle,
+            coalesce((select json_agg(json_build_object(
+                        'id', d.id, 'nombre', d.nombre, 'estado', d.estado, 'fecha', d.fecha)
+                        order by d.creado_en)
+                        from despachos d where d.importacion_id = i.id), '[]'::json) as despachos
+       from importaciones i
+       left join perfiles a on a.id = i.creado_por
+      where i.id = $1`,
+    [id],
+  );
+  if (!cab) return null;
+
+  const ordenes = await comoUsuario<OrdenImportada>(
+    yo,
+    `select p.id, p.codigo, p.nombre, p.distrito, cl.direccion, p.lat, p.lon,
+            p.bultos, p.prioridad, p.ventana_ini, p.ventana_fin, p.estado_entrega,
+            case when r.sin_asignar then null else r.indice end as ruta_indice,
+            v.placa,
+            (select count(*) from items it where it.parada_id = p.id)::int as items
+       from despachos d
+       join rutas r on r.despacho_id = d.id
+       join paradas p on p.ruta_id = r.id
+       left join vehiculos v on v.id = r.vehiculo_id
+       left join clientes cl on cl.org_id = p.org_id and cl.codigo = p.codigo
+      where d.importacion_id = $1
+      order by r.sin_asignar, r.indice, p.orden
+      limit 5000`,
+    [id],
+  );
+  return { ...cab, detalle: cab.detalle ?? {}, ordenes };
 }
 
 export type Alerta = {

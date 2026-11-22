@@ -77,6 +77,42 @@ export type ResultadoLectura = {
 };
 
 /**
+ * Lo que se guarda con el archivo sobre cómo fue su lectura.
+ *
+ * Es lo que enseña el detalle de la importación: cuántas filas traía, cuáles
+ * se rechazaron y por qué, y cuáles entraron con una coordenada dudosa. Se
+ * guardan como mucho trescientas de cada: un archivo con miles de filas
+ * malas tiene un problema de formato, no trescientos problemas distintos.
+ */
+export type InformeLectura = {
+  leidas: number;
+  validas: number;
+  errores_total: number;
+  avisos_total: number;
+  errores: { fila: number; motivo: string }[];
+  avisos: { fila: number; codigo: string; tipo: string; motivo: string; excluida: boolean }[];
+  /** Qué columna del archivo se tomó para cada campo. */
+  columnas: Record<string, string>;
+};
+
+const MAX_INFORME = 300;
+
+export function informeDe(lectura: ResultadoLectura, excluidos: Set<string>): InformeLectura {
+  return {
+    leidas: lectura.totalLeidas,
+    validas: lectura.filas.filter((f) => !excluidos.has(f.codigo)).length,
+    errores_total: lectura.errores.length,
+    avisos_total: lectura.avisos.length,
+    errores: lectura.errores.slice(0, MAX_INFORME),
+    avisos: lectura.avisos.slice(0, MAX_INFORME).map((a) => ({
+      fila: a.fila, codigo: a.codigo, tipo: a.tipo, motivo: a.motivo,
+      excluida: excluidos.has(a.codigo),
+    })),
+    columnas: lectura.columnasDetectadas,
+  };
+}
+
+/**
  * Nombres aceptados para cada campo del punto. `items` y `extra` no están
  * aquí: no son una columna del archivo, se arman con lo que sobra.
  */

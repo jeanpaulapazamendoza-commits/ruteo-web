@@ -1,5 +1,6 @@
 import { rpc } from "@/app/acciones/rpc";
 import { BASE_CENTRO, type ConfigRutear, type Ruta, type TiendaMapa } from "@/lib/motor";
+import type { InformeLectura } from "@/lib/plantilla";
 
 /**
  * Simplifica una polilínea (Ramer–Douglas–Peucker).
@@ -96,15 +97,19 @@ export async function crearDespachoCargado({
   archivo,
   nombre,
   puntos,
+  informe,
 }: {
   archivo: string;
   /** Alias que le pone el usuario; si no pone ninguno, se usa el del archivo. */
   nombre?: string | null;
   puntos: TiendaMapa[];
+  /** Cómo fue la lectura del archivo: filas rechazadas y avisos. */
+  informe?: InformeLectura;
 }): Promise<string> {
   return rpc<string>("crear_despacho_cargado", {
     p: {
       archivo,
+      informe: informe ?? null,
       nombre: nombre?.trim() || `Despacho de ${archivo}`,
       puntos: puntos.map((p) => ({
         codigo: p.codigo,
