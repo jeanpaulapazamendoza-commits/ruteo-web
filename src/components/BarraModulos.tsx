@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { salir as cerrarSesion } from "@/app/acciones-sesion";
@@ -140,7 +140,22 @@ const I = {
       <path d="M7.5 9h1M7.5 13h1M7.5 17h1M15.5 14h1M15.5 18h1" />
     </Trazo>
   ),
+  config: (
+    <Trazo>
+      <circle cx="12" cy="12" r="3.2" />
+      <path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M5.5 18.5l1.8-1.8M16.7 7.3l1.8-1.8" />
+    </Trazo>
+  ),
+  salir: (
+    <Trazo>
+      <path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h9" />
+    </Trazo>
+  ),
 };
+
+const ROL = { admin: "Administrador", planificador: "Planificador", conductor: "Conductor" };
+
+const OPCION = "flex items-center gap-3 px-4 py-2.5 transition hover:bg-canvas [&>svg]:shrink-0 [&>svg]:text-ink-2";
 
 /** Los módulos de la referencia, en su orden y con sus nombres. */
 const PRINCIPALES: Modulo[] = [
@@ -159,8 +174,9 @@ const PRINCIPALES: Modulo[] = [
  * Lo que este sistema tiene además, debajo de la raya.
  *
  * Solo lo que es operación del día. La configuración —usuarios, subestados,
- * zonas, bitácora— no va en el carril: se entra por el engranaje de la barra
- * superior, como en la referencia, y tiene su propio menú.
+ * zonas, bitácora— tiene su propio menú; en el carril va una sola entrada,
+ * «Configuración», al final, que lleva a él. En la referencia se entra por un
+ * engranaje suelto en la barra superior, y no se encontraba.
  */
 const PROPIOS: Modulo[] = [
   { href: "/planificador", texto: "Planificador", icono: I.zonas },
@@ -169,7 +185,10 @@ const PROPIOS: Modulo[] = [
 ];
 
 /** Las rutas que son configuración: encienden el engranaje. */
-const AJUSTES = ["/equipo", "/subestados", "/zonas", "/bitacora", "/tiendas", "/organizaciones"];
+const AJUSTES = [
+  "/equipo", "/subestados", "/zonas", "/bases", "/vehiculos", "/bitacora", "/tiendas",
+  "/organizaciones", "/perfil",
+];
 
 export default function BarraModulos({
   nombre,
@@ -198,6 +217,24 @@ export default function BarraModulos({
   const enAjustes = AJUSTES.some((a) => ruta === a || ruta.startsWith(a + "/"));
 
   const activo = (href: string) => ruta === href || ruta.startsWith(href + "/");
+
+  const [menuCuenta, setMenuCuenta] = useState(false);
+  const cajaCuenta = useRef<HTMLDivElement>(null);
+
+  // El menú de la cuenta se cierra al pulsar fuera o con Escape.
+  useEffect(() => {
+    if (!menuCuenta) return;
+    const fuera = (e: MouseEvent) => {
+      if (!cajaCuenta.current?.contains(e.target as Node)) setMenuCuenta(false);
+    };
+    const tecla = (e: KeyboardEvent) => e.key === "Escape" && setMenuCuenta(false);
+    window.addEventListener("mousedown", fuera);
+    window.addEventListener("keydown", tecla);
+    return () => {
+      window.removeEventListener("mousedown", fuera);
+      window.removeEventListener("keydown", tecla);
+    };
+  }, [menuCuenta]);
 
   const iniciales = nombre
     .split(" ")
@@ -228,36 +265,23 @@ export default function BarraModulos({
           </span>
         </Link>
 
-        <div className="ml-auto flex items-center">
-          <Link
-            href={ajustes}
-            title="Configuración"
-            aria-label="Configuración"
-            className={`grid h-[52px] w-9 place-items-center transition hover:bg-white/[0.07] hover:text-white ${
-              enAjustes ? "text-amber" : "text-white/80"
+        {/* La cuenta: un solo botón, con nombre y flecha, que abre un menú
+            con todo lo que es «mío». Antes eran tres iconos sin rótulo —el
+            engranaje, el avatar y la puerta— y nada decía que el nombre se
+            pudiera pulsar. */}
+        <div ref={cajaCuenta} className="relative ml-auto">
+          <button
+            onClick={() => setMenuCuenta((v) => !v)}
+            aria-haspopup="menu"
+            aria-expanded={menuCuenta}
+            className={`flex h-[52px] items-center gap-2.5 px-2.5 transition hover:bg-white/[0.07] ${
+              menuCuenta ? "bg-white/[0.07]" : ""
             }`}
           >
-            <svg
-              viewBox="0 0 24 24"
-              width="18"
-              height="18"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.9"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <circle cx="12" cy="12" r="3.2" />
-              <path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M5.5 18.5l1.8-1.8M16.7 7.3l1.8-1.8" />
-            </svg>
-          </Link>
-          <Link
-            href="/cuenta"
-            title={`${nombre} · ${empresa} — Mi cuenta`}
-            className="flex h-[52px] items-center gap-2.5 px-2.5 transition hover:bg-white/[0.07]"
-          >
-            <div className="hidden min-w-0 text-right md:block">
+            <div className="grid h-[28px] w-[28px] shrink-0 place-items-center rounded-full bg-amber text-[11px] font-bold text-white">
+              {iniciales || "?"}
+            </div>
+            <div className="hidden min-w-0 text-left md:block">
               <div className="truncate text-[12.5px] font-semibold leading-tight text-white">
                 {nombre}
               </div>
@@ -265,31 +289,49 @@ export default function BarraModulos({
                 {empresa}
               </div>
             </div>
-            <div className="grid h-[28px] w-[28px] shrink-0 place-items-center rounded-full bg-amber text-[11px] font-bold text-white">
-              {iniciales || "?"}
-            </div>
-          </Link>
-
-          <button
-            onClick={salir}
-            title="Cerrar sesión"
-            aria-label="Cerrar sesión"
-            className="grid h-[52px] w-9 place-items-center text-white/80 transition hover:bg-white/[0.07] hover:text-white"
-          >
             <svg
-              viewBox="0 0 24 24"
-              width="17"
-              height="17"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
+              viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+              strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+              className={`text-white/70 transition-transform ${menuCuenta ? "rotate-180" : ""}`}
             >
-              <path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h9" />
+              <path d="M5 9l7 7 7-7" />
             </svg>
           </button>
+
+          {menuCuenta && (
+            <div
+              role="menu"
+              className="absolute right-1 top-[56px] w-[250px] overflow-hidden rounded-[10px] border border-line bg-surface py-1.5 text-[14px] text-ink shadow-[0_8px_24px_rgba(19,32,69,0.18)]"
+            >
+              <div className="border-b border-line px-4 pb-2.5 pt-2">
+                <div className="truncate font-bold">{nombre}</div>
+                <div className="truncate text-[12.5px] text-ink-2">
+                  {empresa} · {ROL[rol]}
+                </div>
+              </div>
+              <Link href="/perfil" role="menuitem" onClick={() => setMenuCuenta(false)} className={OPCION}>
+                {I.equipo}
+                <span>
+                  Mi perfil
+                  <span className="block text-[12px] text-ink-3">Nombre y contraseña</span>
+                </span>
+              </Link>
+              <Link href={ajustes} role="menuitem" onClick={() => setMenuCuenta(false)} className={OPCION}>
+                {I.config}
+                <span>
+                  Configuración
+                  <span className="block text-[12px] text-ink-3">
+                    {rol === "admin" ? "Usuarios, vehículos, bases, zonas" : "Vehículos, bases, zonas"}
+                  </span>
+                </span>
+              </Link>
+              <div className="my-1 border-t border-line" />
+              <button role="menuitem" onClick={salir} className={`${OPCION} w-full text-left text-bad hover:bg-bad-bg`}>
+                {I.salir}
+                Cerrar sesión
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -314,6 +356,15 @@ export default function BarraModulos({
             {propios.map((m) => (
               <Item key={m.href} modulo={m} activo={activo(m.href)} aviso={0} />
             ))}
+
+            {/* La configuración, con los demás botones y al fondo, donde se
+                la busca en cualquier aplicación. */}
+            <div className="mx-3 mb-2 mt-auto h-px shrink-0 bg-line" />
+            <Item
+              modulo={{ href: ajustes, texto: "Configuración", icono: I.config }}
+              activo={enAjustes}
+              aviso={0}
+            />
           </nav>
         </aside>
 

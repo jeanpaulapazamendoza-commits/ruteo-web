@@ -18,7 +18,7 @@ const GRUPOS: { titulo: string; entradas: Entrada[] }[] = [
   {
     titulo: "Cuentas",
     entradas: [
-      { href: "/cuenta", texto: "Mi cuenta" },
+      { href: "/perfil", texto: "Mi perfil" },
       { href: "/organizaciones", texto: "Empresas", solo: "desarrollador" },
     ],
   },
