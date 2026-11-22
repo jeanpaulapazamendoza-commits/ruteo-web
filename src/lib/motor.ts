@@ -332,6 +332,55 @@ export function insertar(cuerpo: CuerpoInsertar) {
   return pedir<PropuestaInsercion>("/insertar", cuerpo);
 }
 
+/** Lo que se le manda a `/reordenar`. Lo arma el servidor: ver acciones/rutas. */
+export type CuerpoReordenar = {
+  /** Las pendientes, en su orden actual (o en el que se quiere evaluar). */
+  paradas: ParadaMotor[];
+  /** De dónde parte el vehículo y a qué hora. */
+  lat: number;
+  lon: number;
+  hora: string;
+  centro_lat: number | null;
+  centro_lon: number | null;
+  /** Dónde termina: de vuelta en el centro, en una parada, o donde caiga. */
+  final: "centro" | "parada" | "libre";
+  final_id: string | null;
+  fijas: number;
+  motor: "osrm" | "haversine";
+  servicio_min: number;
+  servicio_min_bulto: number;
+  /** false = no cambia el orden, solo lo evalúa. */
+  optimizar: boolean;
+  tiempo_s: number;
+};
+
+export type OrdenEvaluado = {
+  orden: string[];
+  etas: Record<string, string>;
+  fin: string;
+  min: number;
+  km: number;
+  /** Las que llegarían fuera de su ventana horaria. */
+  tarde: string[];
+};
+
+export type PropuestaOrden = {
+  antes: OrdenEvaluado;
+  despues: OrdenEvaluado;
+  /** Falso si el orden que había ya era el mejor. */
+  cambio: boolean;
+  matriz: "calles" | "recta";
+};
+
+/**
+ * Ordena lo que le queda a una ruta, o evalúa el orden que se le da.
+ *
+ * Solo propone: guardar es otro paso (`reordenar_ruta` en la base).
+ */
+export function reordenar(cuerpo: CuerpoReordenar) {
+  return pedir<PropuestaOrden>("/reordenar", cuerpo);
+}
+
 export function tiendasEnSector(tiendas: TiendaMapa[], poligono: number[][]) {
   return pedir<{ ids: string[] }>("/tiendas-en-sector", { tiendas, poligono });
 }

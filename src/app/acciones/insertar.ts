@@ -2,7 +2,7 @@
 
 import { auth } from "@/auth";
 import { comoUsuario, unaFila } from "@/lib/db";
-import { ZONA } from "@/lib/horas";
+import { ahoraEnZona, hhmm } from "@/lib/horaZona";
 import { etiquetasDe, type CuerpoInsertar, type TiendaMapa } from "@/lib/motor";
 
 /**
@@ -66,17 +66,6 @@ export type PreparacionInsercion = {
   nombres: Record<string, string>;
 };
 
-const hhmm = (t: string | null | undefined) => (t ? t.slice(0, 5) : null);
-
-/** La hora de ahora en la zona de la operación, «HH:MM». */
-function ahoraEnZona() {
-  const partes = new Intl.DateTimeFormat("en-GB", {
-    hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: ZONA,
-  }).formatToParts(new Date());
-  const de = (tipo: string) => partes.find((p) => p.type === tipo)?.value ?? "00";
-  return `${de("hour")}:${de("minute")}`;
-}
-
 function aTienda(p: ParadaCruda): TiendaMapa & { etiquetas: string[] } {
   const t: TiendaMapa = {
     id: p.id,
@@ -104,6 +93,8 @@ export async function prepararInsercion(
   despachoId: string,
   paradaIds: string[],
   reordenar: boolean,
+  /** Para «Asociar pedido» desde una ruta: solo se le busca hueco en ella. */
+  soloRuta?: string,
 ): Promise<PreparacionInsercion> {
   const yo = await idSesion();
   if (!paradaIds.length) throw new Error("Elige al menos una orden.");
@@ -113,12 +104,9 @@ export async function prepararInsercion(
     cd_lat: number | null;
     cd_lon: number | null;
     parametros: Record<string, unknown> | null;
-    es_hoy: boolean;
-    futuro: boolean;
   }>(
     yo,
-    `select d.estado, d.cd_lat, d.cd_lon, d.parametros,
-            d.fecha = private.hoy() as es_hoy, d.fecha > private.hoy() as futuro
+    `select d.estado, d.cd_lat, d.cd_lon, d.parametros
        from despachos d where d.id = $1`,
     [despachoId],
   );
@@ -166,6 +154,10 @@ export async function prepararInsercion(
     ),
   ]);
   if (!nuevas.length) throw new Error("Esas órdenes ya no están en la bandeja.");
+  const candidatas = soloRuta ? rutas.filter((r) => r.id === soloRuta) : rutas;
+  if (soloRuta && !candidatas.length) {
+    throw new Error("Esta ruta está cerrada o cancelada: no admite más órdenes.");
+  }
 
   const ahora = ahoraEnZona();
   const par = despacho.parametros ?? {};
@@ -186,7 +178,7 @@ export async function prepararInsercion(
   const nombres: Record<string, string> = {};
   nuevas.forEach((p) => { nombres[p.id] = p.nombre ?? p.codigo ?? "Orden"; });
 
-  const cuerpoRutas = rutas.map((r) => {
+  const cuerpoRutas = candidatas.map((r) => {
     const pendientes = r.paradas.filter((p) => p.estado_entrega === "pendiente");
     const gestionadas = r.paradas.filter((p) => p.estado_entrega !== "pendiente");
     const enCalle = Boolean(r.salida_real) || gestionadas.length > 0;
@@ -200,11 +192,10 @@ export async function prepararInsercion(
     // Desde cuándo está libre: ya, si está en la calle; si no, a su hora de
     // salida —o ya, si esa hora pasó y sigue en el centro—.
     const salida = hhmm(r.salida_prog) ?? salidaPlan ?? "08:00";
-    const hora = enCalle
-      ? null
-      : despacho.futuro
-        ? salida
-        : despacho.es_hoy && salida > ahora ? salida : null;
+    // En la calle manda el reloj; antes de salir, la hora de inicio de la
+    // ruta, aunque ya haya pasado: así la hora de la orden nueva cuadra con
+    // las de sus vecinas, que son las del plan.
+    const hora = enCalle ? null : salida;
 
     rotulos[r.id] = {
       rotulo: [

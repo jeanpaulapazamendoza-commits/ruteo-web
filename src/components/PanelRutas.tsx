@@ -66,9 +66,9 @@ export default function PanelRutas({
     const cerrada = r.estado === "completada";
     const conHistoria = Boolean(r.salida_real) || r.gestionadas > 0;
     return [
-      { texto: "Mostrar en la torre", href: `/torre?despacho=${r.despacho_id}` },
+      { texto: "Mostrar", href: `/rutas/${r.id}` },
+      { texto: "Seguir en la torre", href: `/torre?despacho=${r.despacho_id}` },
       { texto: "Ver la planificación", href: `/despachos/${r.despacho_id}` },
-      { texto: "Asignar conductor y vehículo", href: `/despachos/${r.despacho_id}#asignacion` },
       cerrada
         ? {
             texto: "Abrir ruta",
@@ -134,7 +134,7 @@ export default function PanelRutas({
         clave: "vehiculo",
         texto: "Vehículo",
         pinta: (r) => (
-          <Link href={`/torre?despacho=${r.despacho_id}`} className="num underline">
+          <Link href={`/rutas/${r.id}`} className="num underline">
             {r.placa ?? `R-${String(r.indice + 1).padStart(2, "0")}`}
           </Link>
         ),

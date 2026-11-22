@@ -297,17 +297,26 @@ export async function aplicarInsercion(
     km_extra: number;
     min_extra: number;
   }[],
+  /** Qué rutas están ya en la calle: en esas solo se pone hora a las nuevas. */
+  estado: Record<string, { enCalle: boolean }> = {},
 ) {
   return rpc<{ movidas: number }>("insertar_paradas", {
     p: {
       despacho_id: despachoId,
-      rutas: rutas.map((r) => ({
-        ruta_id: r.id,
-        orden: r.orden,
-        etas: Object.fromEntries(r.nuevas.map((id) => [id, r.etas[id]])),
-        km_extra: r.km_extra,
-        min_extra: r.min_extra,
-      })),
+      rutas: rutas.map((r) => {
+        // Sin dato se supone en la calle, que es lo que menos toca.
+        const enCalle = estado[r.id]?.enCalle ?? true;
+        return {
+          ruta_id: r.id,
+          orden: r.orden,
+          etas: enCalle
+            ? Object.fromEntries(r.nuevas.map((id) => [id, r.etas[id]]))
+            : r.etas,
+          rehacer_etas: !enCalle,
+          km_extra: r.km_extra,
+          min_extra: r.min_extra,
+        };
+      }),
     },
   });
 }

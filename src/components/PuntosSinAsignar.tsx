@@ -122,7 +122,7 @@ export default function PuntosSinAsignar({
     setOcupado("guardar");
     setError(null);
     try {
-      await aplicarInsercion(despachoId, propuesta.plan.rutas);
+      await aplicarInsercion(despachoId, propuesta.plan.rutas, propuesta.datos.rutas);
       setPropuesta(null);
       router.refresh();
     } catch (e) {
