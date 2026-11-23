@@ -5,11 +5,15 @@ import type { InformeLectura } from "@/lib/plantilla";
 /**
  * Simplifica una polilínea (Ramer–Douglas–Peucker).
  *
- * OSRM devuelve ~1200 puntos por ruta, que ocupan ~47 KB en la base. A la
- * escala de una ciudad el trazado se ve idéntico con una fracción de ellos,
- * así que guardamos la versión simplificada: mismo dibujo, ~10x menos espacio.
+ * OSRM devuelve ~1200 puntos por ruta, que ocupan ~47 KB en la base. Se
+ * guarda una versión simplificada, pero con una tolerancia de unos 2 m: lo
+ * justo para quitar los puntos que sobran en una recta.
+ *
+ * Antes eran 13 m. A escala de ciudad se veía igual, pero al acercar el mapa
+ * el recorrido cortaba las curvas y las esquinas y dejaba tramos rectos de
+ * más de un kilómetro que no seguían la calle.
  */
-export function simplificar(puntos: number[][], tolerancia = 0.00012): number[][] {
+export function simplificar(puntos: number[][], tolerancia = 0.00002): number[][] {
   if (puntos.length <= 2) return puntos;
 
   const distancia = (p: number[], a: number[], b: number[]) => {

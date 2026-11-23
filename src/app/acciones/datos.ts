@@ -1,6 +1,7 @@
 "use server";
 
 import { auth } from "@/auth";
+import { asegurarTrazados } from "@/lib/trazado";
 import { comoUsuario, unaFila } from "@/lib/db";
 
 /**
@@ -261,6 +262,9 @@ export async function paradasDeRuta(rutaId: string) {
 /** El recorrido dibujado de una ruta, para pintarlo en un mapa suelto. */
 export async function geometriaDeRuta(rutaId: string) {
   const yo = await idSesion();
+  // Actividad y Flota piden el recorrido por aquí: si la ruta aún no lo tiene
+  // dibujado por calles, se dibuja ahora en vez de enseñar el mapa sin él.
+  await asegurarTrazados(yo, { ruta: rutaId });
   const fila = await unaFila<{ geometria: number[][] | null }>(
     yo,
     "select geometria from rutas where id = $1",
